@@ -18,6 +18,10 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
+// Configuración de visibilidad para logs de depuración en consola
+const enableConsoleDebugLogs =
+  (process.env.CONSOLE_DEBUG_LOGS || '').toLowerCase() === 'true';
+
 // Archivos de log
 const logFiles = {
   tenant: path.join(logsDir, 'tenant-creation.log'),
@@ -64,7 +68,9 @@ export const tenantLogger = {
   
   debug: (message, data = null) => {
     const logMessage = `[TENANT-DEBUG] ${message}${data ? ` | Data: ${JSON.stringify(data, null, 2)}` : ''}`;
-    console.log(logMessage);
+    if (enableConsoleDebugLogs) {
+      console.log(logMessage);
+    }
     writeToFile(logFiles.tenant, logMessage);
   }
 };
@@ -94,7 +100,9 @@ export const authLogger = {
   
   debug: (message, data = null) => {
     const logMessage = `[AUTH-DEBUG] ${message}${data ? ` | Data: ${JSON.stringify(data, null, 2)}` : ''}`;
-    console.log(logMessage);
+    if (enableConsoleDebugLogs) {
+      console.log(logMessage);
+    }
     writeToFile(logFiles.auth, logMessage);
   }
 };
@@ -134,7 +142,9 @@ export const generalLogger = {
   
   debug: (message, data = null) => {
     const logMessage = `[GENERAL-DEBUG] ${message}${data ? ` | Data: ${JSON.stringify(data, null, 2)}` : ''}`;
-    console.log(logMessage);
+    if (enableConsoleDebugLogs) {
+      console.log(logMessage);
+    }
     writeToFile(logFiles.general, logMessage);
   }
 };

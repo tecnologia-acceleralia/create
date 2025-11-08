@@ -33,13 +33,15 @@ function detectInitialSlug(): string | null {
   if (host.includes('.')) {
     const [subdomain] = host.split('.');
     if (subdomain && subdomain !== 'www') {
-      return subdomain;
+      return subdomain.toLowerCase();
     }
   }
-  const [, maybeSlug] = window.location.pathname.split('/tenant/');
-  if (maybeSlug) {
-    return maybeSlug.split('/')[0];
+
+  const [firstSegment] = window.location.pathname.split('/').filter(Boolean);
+  if (firstSegment && firstSegment.toLowerCase() !== 'superadmin') {
+    return firstSegment.toLowerCase();
   }
+
   return null;
 }
 
@@ -55,7 +57,7 @@ export function TenantProvider({ children }: Props) {
 
     try {
       setLoading(true);
-      const response = await apiClient.get('/public/tenant/branding', {
+      const response = await apiClient.get('/public/branding', {
         params: { slug: tenantSlug }
       });
 
@@ -73,9 +75,12 @@ export function TenantProvider({ children }: Props) {
   }, [tenantSlug]);
 
   useEffect(() => {
+    configureTenant(tenantSlug);
+
     if (tenantSlug) {
-      configureTenant(tenantSlug);
       void refreshBranding();
+    } else {
+      setBranding(defaultBranding);
     }
   }, [tenantSlug, refreshBranding]);
 

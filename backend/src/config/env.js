@@ -7,7 +7,7 @@ dotenv.config({ path: resolve(process.cwd(), envFile) });
 
 export const appConfig = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  port: process.env.PORT ? Number(process.env.PORT) : 4000,
+  port: process.env.PORT ? Number(process.env.PORT) : 5100,
   jwtSecret: process.env.JWT_SECRET ?? 'change-me',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '2h',
   databaseUrl: process.env.DATABASE_URL,

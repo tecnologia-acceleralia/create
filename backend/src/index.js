@@ -3,7 +3,7 @@ import { createServer } from './server.js';
 import { logger } from './utils/logger.js';
 import { connectDatabase } from './database/database.js';
 
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 5100;
 
 async function bootstrap() {
   try {

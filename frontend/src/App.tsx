@@ -28,8 +28,10 @@ function TenantLayout() {
       return;
     }
 
-    if (params.tenantSlug !== tenantSlug) {
-      setTenantSlug(params.tenantSlug);
+    const normalizedSlug = params.tenantSlug.toLowerCase();
+
+    if (normalizedSlug !== tenantSlug) {
+      setTenantSlug(normalizedSlug);
     }
   }, [params.tenantSlug, tenantSlug, setTenantSlug]);
 
@@ -43,11 +45,11 @@ function TenantLayout() {
 function AppRoutes() {
   const { user } = useAuth();
   const { tenantSlug } = useTenant();
-  const loginPath = tenantSlug ? `/tenant/${tenantSlug}/login` : '/';
+  const loginPath = tenantSlug ? `/${tenantSlug}/login` : '/';
 
   return useRoutes([
     {
-      path: '/tenant/:tenantSlug/*',
+      path: '/:tenantSlug/*',
       element: <TenantLayout />,
       children: [
         { index: true, element: <LandingPage /> },
@@ -79,8 +81,8 @@ function AppRoutes() {
       ]
     },
     { path: '/superadmin', element: <SuperAdminDashboardPage /> },
-    { path: '/', element: <Navigate to={tenantSlug ? `/tenant/${tenantSlug}` : '/superadmin'} replace /> },
-    { path: '*', element: <Navigate to={tenantSlug ? `/tenant/${tenantSlug}` : '/superadmin'} replace /> }
+    { path: '/', element: <Navigate to={tenantSlug ? `/${tenantSlug}` : '/superadmin'} replace /> },
+    { path: '*', element: <Navigate to={tenantSlug ? `/${tenantSlug}` : '/superadmin'} replace /> }
   ]);
 }
 
@@ -88,7 +90,7 @@ function DashboardRouter() {
   const { user } = useAuth();
   const { tenantSlug } = useTenant();
 
-  const loginPath = tenantSlug ? `/tenant/${tenantSlug}/login` : '/';
+  const loginPath = tenantSlug ? `/${tenantSlug}/login` : '/';
 
   if (!user) {
     return <Navigate to={loginPath} replace />;

@@ -19,7 +19,7 @@ export function useTenantPath() {
         return normalized || '/';
       }
 
-      return `/tenant/${tenantSlug}${normalized}`;
+      return `/${tenantSlug}${normalized}`;
     };
   }, [tenantSlug]);
 }

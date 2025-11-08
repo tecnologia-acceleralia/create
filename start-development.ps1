@@ -227,12 +227,17 @@ function Get-SeedersStatus {
             return $null
         }
 
-        $jsonText = ($rawOutput | Where-Object { $_ -ne "" }) -join ""
-        if (-not $jsonText) {
+        $lines = $rawOutput | Where-Object { $_ -ne "" }
+        if (-not $lines -or $lines.Count -eq 0) {
             return $null
         }
 
-        return $jsonText | ConvertFrom-Json
+        $jsonLine = $lines | ForEach-Object { $_.Trim() } | Where-Object { $_.StartsWith('[') -or $_.StartsWith('{') } | Select-Object -First 1
+        if (-not $jsonLine) {
+            return $null
+        }
+
+        return $jsonLine | ConvertFrom-Json
     } catch {
         Write-Info "No se pudo obtener el estado de los seeders: $($_.Exception.Message)"
         return $null
@@ -281,8 +286,8 @@ function Write-EnvironmentSummary {
     Write-Host "=================================================="
     Write-Host " create Platform lista"
     Write-Host "=================================================="
-    Write-Host "Frontend:      http://localhost:3100/tenant/demo"
-    Write-Host "Login tenant:  http://localhost:3100/tenant/demo/login"
+    Write-Host "Frontend:      http://localhost:3100/demo"
+    Write-Host "Login tenant:  http://localhost:3100/demo/login"
     Write-Host "Backend API:   http://localhost:5100/api"
     Write-Host ""
     Write-Host "Credenciales de demo (tenant 'demo'):"

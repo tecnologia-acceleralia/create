@@ -19,10 +19,11 @@ function extractTenantHint(req) {
     return { slug: headerTenantSlug.toString().toLowerCase() };
   }
 
-  if (path.startsWith('/tenant/')) {
-    const [, , slug] = path.split('/');
-    if (slug) {
-      return { slug }; 
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length > 0) {
+    const firstSegment = segments[0].toLowerCase();
+    if (!['api', 'superadmin', 'public'].includes(firstSegment)) {
+      return { slug: firstSegment };
     }
   }
 
