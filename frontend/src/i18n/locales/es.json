@@ -1,0 +1,124 @@
+{
+  "common": {
+    "loading": "Cargando…",
+    "error": "Ha ocurrido un error",
+    "retry": "Reintentar"
+  },
+  "auth": {
+    "loginTitle": "Inicia sesión",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "submit": "Entrar"
+  },
+  "dashboard": {
+    "welcome": "Bienvenido a CREATE",
+    "tenantAdmin": "Panel de Administrador de Cliente",
+    "organizer": "Panel de Organizador",
+    "participant": "Panel de Participante",
+    "participantActions": "Gestiona tu equipo y tus proyectos",
+    "mentor": "Panel de Mentor"
+  },
+  "tenant": {
+    "brandingFallback": "Personaliza tu experiencia"
+  },
+  "events": {
+    "title": "Gestión de eventos",
+    "create": "Crear evento",
+    "created": "Evento creado correctamente",
+    "name": "Nombre",
+    "description": "Descripción",
+    "start": "Inicio",
+    "end": "Fin",
+    "minTeam": "Equipo mínimo",
+    "maxTeam": "Equipo máximo",
+    "manage": "Gestionar",
+    "formTitle": "Nuevo evento",
+    "phasesTitle": "Fases del evento",
+    "tasksTitle": "Tareas",
+    "phaseCreate": "Añadir fase",
+    "phaseCreated": "Fase creada correctamente",
+    "taskCreate": "Añadir tarea",
+    "taskCreated": "Tarea creada correctamente",
+    "phaseName": "Nombre de la fase",
+    "phaseStart": "Inicio de la fase",
+    "phaseEnd": "Fin de la fase",
+    "phaseElimination": "Es eliminatoria",
+    "taskTitle": "Título de la tarea",
+    "taskPhase": "Fase",
+    "taskType": "Tipo de entrega",
+    "taskRequired": "Entrega obligatoria",
+    "taskDueDate": "Fecha límite",
+    "taskDelete": "Eliminar tarea",
+    "phaseDelete": "Eliminar fase",
+    "noTasks": "No hay tareas configuradas"
+  },
+  "teams": {
+    "title": "Mi equipo",
+    "createTitle": "Crear equipo",
+    "name": "Nombre del equipo",
+    "description": "Descripción",
+    "requirements": "Requisitos",
+    "create": "Crear equipo",
+    "members": "Miembros",
+    "addMember": "Agregar miembro",
+    "memberEmail": "Correo electrónico del miembro",
+    "project": "Proyecto",
+    "updateProject": "Actualizar proyecto",
+    "projectName": "Nombre del proyecto",
+    "projectSummary": "Resumen",
+    "projectProblem": "Problema",
+    "projectSolution": "Solución",
+    "projectRepo": "Repositorio",
+    "projectPitch": "Pitch",
+    "save": "Guardar cambios",
+    "noTeam": "Aún no perteneces a un equipo en este evento.",
+    "createSuccess": "Equipo creado correctamente",
+    "updateSuccess": "Proyecto actualizado",
+    "memberAdded": "Miembro añadido",
+    "memberRemoved": "Miembro eliminado",
+    "removeMember": "Eliminar miembro"
+  },
+  "submissions": {
+    "register": "Registrar entrega",
+    "description": "Descripción",
+    "attachment": "URL de adjunto",
+    "type": "Tipo de entrega",
+    "draft": "Borrador",
+    "final": "Final",
+    "submit": "Enviar entrega",
+    "created": "Entrega registrada",
+    "list": "Entregas registradas",
+    "noSubmissions": "Aún no hay entregas",
+    "viewEvaluations": "Ver evaluaciones",
+    "noEvaluations": "Sin evaluaciones registradas",
+    "score": "Puntuación",
+    "evaluatedAt": "Evaluado el"
+  },
+  "evaluations": {
+    "add": "Registrar evaluación",
+    "score": "Puntuación",
+    "comment": "Comentario",
+    "submit": "Guardar evaluación",
+    "created": "Evaluación registrada"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markRead": "Marcar como leída",
+    "empty": "No tienes notificaciones"
+  },
+  "landing": {
+    "heroTitle": "Bienvenido a CREATE",
+    "heroSubtitle": "Descubre eventos y desarrolla tu talento",
+    "exploreEvents": "Explorar eventos",
+    "login": "Iniciar sesión",
+    "noEvents": "No hay eventos disponibles actualmente"
+  },
+  "superadmin": {
+    "title": "Panel Super Admin",
+    "tokenPrompt": "Introduce tu token de super administrador",
+    "createTitle": "Crear nuevo tenant",
+    "create": "Crear tenant",
+    "creating": "Creando..."
+  }
+}
+

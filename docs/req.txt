@@ -1,0 +1,181 @@
+Documento de Especificación de Funcionalidades Detallado: Plataforma CREATE
+
+1. Visión General y Principios Fundamentales
+1.1. Propósito del Proyecto
+CREATE de Acceleralia es una plataforma digital diseñada para la organización, gestión y ejecución integral de eventos colaborativos como hackatones, bootcamps y sprints de innovación. El objetivo principal es ofrecer un ecosistema centralizado que fomente la generación y el desarrollo de ideas, conectando a participantes (mentees) con mentores expertos. La plataforma gestionará desde el descubrimiento de mentores y la reserva de citas hasta la gestión de perfiles y la configuración completa de los eventos.
+1.2. Principios Clave de Diseño
+La arquitectura y el diseño de la plataforma se regirán por los siguientes principios no negociables:
+Personalización y Marca Blanca: La plataforma debe ser altamente personalizable para cada cliente. Esto incluye la capacidad de modificar el logotipo, la tipografía y la paleta de colores para que se ajuste a la identidad corporativa de cada cliente que la instale. Todas las secciones de la aplicación deben permitir una personalización estética y de contenido para adaptarse a cualquier requerimiento.
+Soporte Multilingüe: Todo el contenido, tanto el estático de la interfaz como el dinámico generado por los usuarios y administradores, debe estar disponible en múltiples idiomas. El usuario deberá poder seleccionar su idioma de preferencia en su perfil, y los administradores podrán habilitar o deshabilitar idiomas para cada evento específico.
+Diseño Responsivo: La experiencia de usuario debe ser óptima y consistente en cualquier dispositivo, garantizando una total funcionalidad en ordenadores de sobremesa (PC), tabletas y teléfonos móviles (mobile first).
+2. Roles de Usuario y Gestión de Permisos
+La plataforma contará con un sistema de roles claramente definidos para garantizar una gestión segura y eficiente.
+Administrador: Es el rol con el nivel más alto de control.
+Objetivo: Administración global de la plataforma y de todos los eventos que contiene.
+Permisos Específicos:
+Gestión de Eventos: Crear, configurar, modificar, bloquear, duplicar y eliminar eventos desde un dashboard centralizado.
+Gestión de Usuarios: Añadir, eliminar, bloquear y modificar los perfiles y roles de cualquier usuario en la plataforma.
+Gestión de equipos: Administrar todos los equipos de todos los eventos. Permitir reorganizar miembros y abrir y cerrar equipos.
+Configuración de Fases y Tareas: Definir la estructura completa de un evento, incluyendo la creación de fases, la asignación de tareas a cada fase, y la configuración de sus propiedades (duración, requisitos, obligatoriedad).
+Personalización: Control total sobre la apariencia (logotipo, colores) y el contenido de las páginas públicas y privadas de los eventos.
+Gestión de la Plataforma: Configurar los idiomas disponibles, gestionar integraciones de terceros y acceder a analíticas globales de uso de la plataforma.
+Organizador: Rol enfocado en la evaluación y seguimiento de los proyectos.
+Objetivo: Evaluar las tareas entregadas por los equipos.
+Permisos Específicos:
+Seguimiento: Revisión de proyectos para ver entregables, retrasos, mensajes, ver miembros de los equipos.
+Evaluación: Calificar las entregas de los proyectos a través de un dashboard de evaluaciones, así como dar feedback detallado en cada etapa.
+Visualización: Acceder a la información y progreso de los proyectos que le han sido asignados para su revisión.
+Asignación de Premios: Participar en la deliberación y asignación de premios a los proyectos ganadores según los criterios del evento.
+Limitaciones: No pueden modificar la estructura del evento (fases, tareas, fechas).
+Notificaciones: Se permite enviar notificaciones a equipos o a toda la comunidad. Las notificaciones se pueden planificar para que se envíen en una fecha determinada. Las notificaciones se verán en la plataforma y se enviarán también por correo electrónico.
+Mentor: Rol de asesoramiento y guía para los participantes.
+Objetivo: Evaluar las tareas entregadas y proporcionar feedback constructivo a los equipos.
+Permisos Específicos:
+Feedback: Dejar comentarios y evaluaciones en las entregas, tanto provisionales como finales.
+Comunicación: Interactuar con los equipos a través de un sistema de comentarios o mensajería interna para dar soporte. Tendrán un perfil visible donde los participantes podrán ver su área de expertise y disponibilidad.
+Limitaciones: Solo puede visualizar y comentar; no puede realizar ninguna modificación en el evento ni en el proyecto.
+Participante: Usuario que forma parte de un proyecto.
+Objetivo: Unirse a un proyecto y colaborar en su desarrollo dentro de un equipo.
+Permisos Específicos:
+Pertenencia: Solo pueden estar en un proyecto a la vez dentro del mismo evento.
+Colaboración: Pueden colaborar activamente en las entregas, proponer ideas y dar feedback a sus compañeros dentro del equipo (evaluación entre pares).
+Visualización: Pueden ver las fases, tareas, progreso del proyecto y todo el feedback recibido por mentores y organizadores.
+Solicitudes: Pueden solicitar unirse a un equipo ya existente.
+Limitaciones: La aprobación final de una entrega la realiza el capitán del equipo.
+Capitán de equipo: Es el líder y representante del proyecto.
+Objetivo: Liderar el proyecto y gestionar el equipo.
+Permisos Específicos:
+Hereda todos los permisos del rol "Participante".
+Creación: Puede crear un equipo, convirtiéndose automáticamente en capitán, y presentar un proyecto al evento.
+Gestión de equipo: Es responsable de aceptar o rechazar solicitudes de nuevos miembros y de expulsar a miembros existentes desde el dashboard de equipo.
+Gestión del Proyecto: Tiene acceso a la gestión del proyecto, pudiendo modificar su información (descripción, logotipo, etc.).
+Entregas: Es el único responsable de realizar las entregas oficiales en nombre del equipo, tanto las provisionales como las finales.
+Comunicación: Actúa como punto de contacto principal entre el equipo y los organizadores/mentores
+Sólo hay un capitán en el equipo, cualquier miembro puede convertirse en capitán.
+3. Funcionalidades Detalladas por Módulos
+3.1. Módulo de Eventos
+Creación de Eventos : Los administradores pueden crear eventos desde su dashboard. Al crear un evento, se configuran los siguientes parámetros:
+Nombre, descripción, fechas de inicio y fin.
+Número de fases y si alguna de ellas es eliminatoria, donde los proyectos con menor puntuación son retirados.
+Tamaño mínimo y máximo de los equipos.
+Categorías de premios.
+Recursos del evento: Una sección donde los administradores pueden subir documentos, guías o enlaces de interés para todos los participantes.
+Dashboard de Evento : Cada evento tiene su propio panel de administración donde los administradores pueden modificar todos los datos mencionados anteriormente, así como visualizar y gestionar los proyectos inscritos.
+3.2. Módulo de Fases y Tareas
+Fases:
+Son marcos de tiempo dentro de un evento con objetivos concretos.
+Los administradores las crean y configuran desde el "Dashboard de Fases", ajustando su duración, tareas asociadas y requisitos para avanzar a la siguiente fase.
+
+Tareas:
+Cada tarea se compone de una descripción detallada, requisitos y objetivos de entrega.
+Están sujetas a fechas límite de entrega.
+Dashboard de Tareas : Los administradores tienen permisos completos para crear tareas adjuntas a una fase, establecer su obligatoriedad y configurar el tipo de entrega requerido. También pueden modificar, bloquear o eliminar tareas.
+3.3. Módulo de Entregas y Evaluaciones
+Entregas:
+Realizadas por el capitán del equipo para las tareas activas.
+Pueden requerir diferentes tipos de archivos (pdf, video, audio, zip) y un texto explicativo opcional u obligatorio.
+Entregas Provisionales: Se permite realizar entregas parciales para recibir feedback de los mentores antes de la entrega final, fomentando un proceso iterativo.
+Las entregas se realizan a través de un formulario.
+Evaluación entre Pares:
+Dentro del equipo, los miembros pueden hacer comentarios y proponer ideas para las entregas, enriqueciendo el trabajo colaborativo. Esta información también es visible para la organización.
+Dashboard de Evaluaciones:
+Interfaz centralizada para que organizadores y mentores revisen los proyectos asignados de forma ordenada.
+Contará con paneles de estadísticas para visualizar de forma eficaz la información necesaria para las evaluaciones y la asignación de premios.
+Sistema de Rúbricas: Los administradores podrán crear rúbricas de evaluación personalizadas para cada tarea o fase, con criterios y puntuaciones predefinidas, para estandarizar las calificaciones.
+3.4. Módulo de Proyectos y equipos
+Proyectos:
+Gestionado por un equipo, se desarrolla a través de las fases del evento.
+Al inscribirse en un evento, el proyecto se configura automáticamente con las fases y tareas de dicho evento.
+Dispone de un apartado de información general sobre su estado y acceso a los comentarios de organizadores y mentores.
+equipos:
+Un usuario crea un equipo y se convierte en capitán para presentar un proyecto.
+Los equipos se crean vinculados a un evento específico.
+El capitán puede definir requisitos para los nuevos miembros que quieran unirse.
+Dashboard de equipo: Accesible por capitanes y administradores, permite gestionar miembros (aceptar/expulsar), modificar la información del equipo y presentar un proyecto. También se podrá ver un historial de mensajes del equipo.
+Premios: 
+Los premios se mostrarán en los dashboards de todos los perfiles. Si no están asignados solo mostrarán información de los mismos. Si están asignados mostrará el nombre del equipo y al hacer clic navegará a la página de descripción del proyecto.
+4. Secciones de la Interfaz de Usuario (UI)
+4.1. Landing Page (Portal de Eventos) 
+Será el portal de acceso principal a los distintos eventos.
+Incluirá apartados para presentar los eventos con opciones avanzadas de filtro y búsqueda.
+La presentación de los eventos será configurable por los administradores, pudiendo elegir entre:
+Formatos: Tarjeta, lista.
+Paginación: Sí/No.
+Ordenación: Alfabético, aleatorio, por fecha de creación, por fecha de inicio del evento.
+Cada evento mostrado tendrá un "call to action" (CTA) que llevará a su página de inscripción.
+Podrá incluir una sección para presentar a la organización y a las empresas patrocinadoras.
+4.2. Página Principal del Evento 
+Su contenido variará dinámicamente dependiendo de si el usuario está identificado y de su rol.
+Contenido Público (para todos los visitantes):
+Logotipo y descripción del evento.
+Estadísticas de participación (ej: número de proyectos, participantes) y fechas clave.
+Galería de proyectos presentados, cuyo formato de visualización (card, lista, orden) también será configurable por el administrador. Cada proyecto tendrá un CTA para ver su ficha de presentación.
+Contenido Privado (para usuarios registrados): Acceso a dashboards específicos según el rol, calendario detallado del evento y sección de recursos.
+4.3. Ficha de Presentación de los Proyectos 
+Página de perfil de cada proyecto, que mostrará:
+Logotipo y descripción del proyecto.
+Sección opcional de objetivos del proyecto.
+Sección de presentación de los integrantes del equipo.
+Un CTA para solicitar unirse al equipo si el capitán lo ha dejado abierto a nuevas incorporaciones.
+Estadísticas de progreso del proyecto en la parte inferior.
+4.4. Dashboard de Usuario 
+Área personal accesible para todos los roles de usuario.
+Gestión de Perfil: Podrán modificar sus datos personales como nombre, apellidos, email, nombre de usuario, fotografía, teléfono, redes sociales, descripción, y otros datos demográficos.
+Accesos Directos: Tendrán acceso a los dashboards de los equipos y proyectos a los que pertenezcan. El tipo de dashboard accesible dependerá de su rol en cada proyecto.
+Herramientas Adicionales: Acceso a estadísticas personales y a un sistema de mensajería interna.
+Sistema de Notificaciones: Un centro de notificaciones donde el usuario recibirá alertas sobre fechas límite próximas, nuevos mensajes, feedback recibido o cambios en sus proyectos.
+5. Propuesta de Sitemap Detallado
+1.0 Portal Público
+1.1 / - Landing Page (con listado de eventos y filtros)
+1.2 /events/{eventId} - Página de detalle del evento (vista pública)
+1.3 /projects/{projectId} - Ficha de presentación del proyecto (vista pública)
+1.4 /login - Página de Inicio de Sesión
+1.5 /register - Página de Registro de Usuario
+1.6 /about - Página de información sobre la organización/plataforma
+2.0 Área Privada (Requiere Autenticación)
+2.1 /dashboard - Panel Principal del Usuario
+2.1.1 /dashboard/profile - Edición del perfil de usuario
+2.1.2 /dashboard/my-events - Listado de eventos en los que participa
+2.1.3 /dashboard/notifications - Centro de notificaciones
+2.1.4 /dashboard/messages - Mensajería interna
+2.2 /event/{eventId}/home - Página principal del evento (vista privada según rol)
+2.2.1 /event/{eventId}/project - Dashboard del proyecto (para Participantes/Capitán)
+.../phases - Visualización de fases y tareas
+.../deliveries - Gestión y visualización de entregas
+.../feedback - Historial de feedback recibido
+.../team - Información y colaboración del equipo
+2.2.2 /event/{eventId}/team/manage - Dashboard de gestión del equipo (para Capitán)
+2.2.3 /event/{eventId}/evaluation - Dashboard de evaluación (para Organizadores/Mentores)
+.../projects-list - Listado de proyectos a evaluar
+.../project/{projectId}/review - Interfaz de evaluación de un proyecto
+2.3 /project/{projectId}/settings - Configuración del proyecto (para Capitán)
+3.0 Área de Administración (Rol Administrador)
+3.1 /admin - Dashboard de Administración Global
+3.2 /admin/events - Gestión de todos los eventos (crear, editar, eliminar)
+3.3 /admin/users - Gestión de todos los usuarios de la plataforma
+3.4 /admin/platform-settings - Configuración de la plataforma (branding, idiomas)
+3.5 /admin/events/{eventId}/dashboard - Panel de administración de un evento específico
+.../settings - Configuración general del evento
+.../phases - Creación y gestión de fases
+.../tasks - Creación y gestión de tareas
+.../prizes - Configuración de premios
+.../participants - Gestión de usuarios del evento
+.../analytics - Estadísticas y reportes del evento
+
+REQUISITOS CLAVE PARA LA CONVERSIÓN A SAAS MULTI-TENANT:
+La solución debe ser multitenant 
+Aislamiento de Datos Estricto (Data Segregation):
+Añade un principio fundamental que establezca: Todos los datos (mentores, usuarios, citas, etc) deben estar etiquetados y filtrados por un tenant_id. Un usuario o dato de un Tenant nunca debe ser visible o accesible para otro Tenant.
+Roles de Usuario y Tenancy:
+Renombra y Redefine el Rol "Administrador":
+El rol actual "Administrador" debe renombrarse a "Administrador de Cliente" (o Tenant Admin). Sus permisos deben limitarse exclusivamente a la gestión de su propio Tenant (su instancia, sus eventos, sus usuarios).
+Introduce el Rol "Administrador Global" (Super-Admin):
+Crea un nuevo rol de nivel superior (Super-Admin) que gestione la plataforma a nivel multi-cliente (ej: gestión de nuevos Tenants, facturación, configuración global), pero sin acceso a los datos internos (eventos, proyectos) de ningún cliente específico.
+Restricción de Acceso: Todos los roles deben pertenecer a un tenant_id específico y solo pueden interactuar con recursos dentro de ese Tenant.
+Estructura de Acceso (URL y UI):
+Define la Estrategia de URL: Especifica que la plataforma resolverá el Tenant usando un subdominio (ej: [nombre-cliente].coach.com).
+Landing Page del Tenant: La landing page del tenant será particular para cada tenant.
+Separación de Administración: El sitemap debe diferenciar claramente la URL para el Área de Administración Global (Super-Admin) de la URL para el Área de Administración de Cliente (Tenant Admin).
+Personalización:
+Modifica el principio de Personalización y Marca Blanca para aclarar que la personalización inicial (logotipo, colores, dominio) se configura a nivel de Tenant (Cliente) y se aplica a ese cliente.
+

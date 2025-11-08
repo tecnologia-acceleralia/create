@@ -1,0 +1,54 @@
+{
+  "name": "create-backend",
+  "version": "1.0.0",
+  "description": "Create Platform Backend API",
+  "main": "src/index.js",
+  "type": "module",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "migrate": "node src/scripts/db.js migrate:up",
+    "migrate:up": "node src/scripts/db.js migrate:up",
+    "migrate:down": "node src/scripts/db.js migrate:down",
+    "migrate:status": "node src/scripts/db.js migrate:status",
+    "seed:master": "node src/scripts/db.js seed:master",
+    "seed:test": "node src/scripts/db.js seed:test",
+    "seed:reset:test": "node src/scripts/db.js seed:reset:test",
+    "db:reset": "node src/scripts/db.js db:reset",
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs --watch",
+    "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs --coverage"
+  },
+  "keywords": [
+    "mentoring",
+    "coaching",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-validator": "^7.3.0",
+    "googleapis": "^165.0.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "mysql2": "^3.15.3",
+    "nodemailer": "^7.0.10",
+    "nodemon": "^3.1.10",
+    "sequelize": "^6.37.7",
+    "stripe": "^19.3.0",
+    "umzug": "^3.8.2"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
+  }
+}

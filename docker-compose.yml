@@ -1,0 +1,96 @@
+services:
+  # MySQL Database
+  database:
+    image: mysql:8.4
+    container_name: create-database
+    restart: unless-stopped
+    env_file:
+      - ./.env.dev
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3406:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - create-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: create-backend
+    restart: unless-stopped
+    env_file:
+      - ./.env.dev
+    environment:
+      NODE_ENV: development
+      PORT: 5100
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "5100:5100"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/logs:/app/logs
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - create-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:5100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    command: npm run dev
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: create-frontend
+    restart: unless-stopped
+    env_file:
+      - ./.env.dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL}
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - create-network
+    command: pnpm run dev --host --port 3100
+
+volumes:
+  mysql_data:
+    driver: local
+  backend_node_modules:
+    driver: local
+  frontend_node_modules:
+    driver: local
+
+networks:
+  create-network:
+    driver: bridge

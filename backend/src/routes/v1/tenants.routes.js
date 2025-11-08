@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/auth.middleware.js';
+
+export const tenantsRouter = Router();
+
+tenantsRouter.use(authenticate);
+
+tenantsRouter.get('/me', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      tenant: req.tenant,
+      user: req.user?.toSafeJSON()
+    }
+  });
+});
+
+tenantsRouter.get('/branding', (req, res) => {
+  const tenant = req.tenant;
+  res.json({
+    success: true,
+    data: {
+      logo_url: tenant.logo_url,
+      primary_color: tenant.primary_color,
+      secondary_color: tenant.secondary_color,
+      accent_color: tenant.accent_color
+    }
+  });
+});
+

@@ -1,0 +1,263 @@
+# Cursor Rules - Plataforma CREATE (Eventos Colaborativos Multi-Tenant)
+
+## Arquitectura del Proyecto
+
+**CREATE** es una plataforma SaaS multi-tenant para acelerar hackatones, bootcamps y sprints de innovación. Gestiona eventos, fases, tareas, equipos, proyectos, envíos y evaluaciones dentro de un mismo ecosistema.
+
+- **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + shadcn/ui
+- **Backend**: Node.js (ESM) + Express 5 + Sequelize + MySQL
+- **Capas compartidas**: logs centralizados, scripts de migraciones/seeders, Docker y docker-compose para despliegues.
+
+## Stack Tecnológico
+
+### Frontend
+- **Framework**: React 19.2.0 + React Router 7.9.5
+- **Lenguaje**: TypeScript estricto (`.tsx`, `.ts`)
+- **Build Tool**: Vite 7.2.2
+- **Estilos**: Tailwind CSS 4.1.x + shadcn/ui (`@/components/ui`)
+- **Utilidades UI**: lucide-react, FontAwesome, Radix UI primitives, class-variance-authority, tailwind-merge
+- **Forms**: react-hook-form + zod
+- **Internacionalización**: i18next + react-i18next (recursos en `frontend/src/i18n/locales`)
+- **Estado/Networking**: Axios (`apiClient`) con cabeceras multi-tenant, soporte para react-query (disponible en dependencias)
+- **Notificaciones**: sonner
+- **Calendario/Charts**: react-big-calendar, react-calendar, recharts
+- **Animaciones**: framer-motion
+
+### Backend
+- **Runtime**: Node.js LTS (ES Modules)
+- **Framework**: Express 5.1.0
+- **Auth**: JWT (access + refresh) + bcryptjs
+- **ORM**: Sequelize 6.37.7 con `AsyncLocalStorage` para scoping multi-tenant
+- **DB Driver**: mysql2 3.15.3
+- **Validación**: express-validator
+- **Seguridad**: helmet, cors, morgan, super-admin token (`x-super-admin-token`)
+- **Integraciones disponibles**: stripe, nodemailer, googleapis (no eliminar si no se usan todavía)
+- **Testing**: Jest 30 + Supertest (modo experimental ESM)
+
+### Base de Datos
+- **Engine**: MySQL (schema compartido)
+- **Migrations**: `backend/src/database/migrations/*.js` via Umzug
+- **Seeders**: datasets maestros y test en `backend/src/database/seeders`
+- **Scopes**: `enableTenantScoping` agrega hooks `beforeFind/Count/Create` para inyectar `tenant_id`
+
+## Dominios Clave
+
+- **Eventos** (`events`): definen fases, tareas, métricas, fechas y branding específico.
+- **Fases y Tareas**: controlan el flujo de trabajo dentro de cada evento, con deadlines y tipos de entrega.
+- **Equipos y Proyectos**: cada equipo está vinculado a un evento; un capitán crea el proyecto, gestiona miembros y envíos.
+- **Submissions & Evaluations**: entregas iterativas con feedback de mentores/organizadores, rúbricas y calificaciones.
+- **Notificaciones**: avisos in-app + correo (planificados o inmediatos).
+- **Roles principales**: superadmin, tenant_admin (organizer), mentor, participant, team_captain.
+
+## Arquitectura Multi-Tenant
+
+1. **Aislamiento obligatorio**: TODO modelo operativo posee columna `tenant_id`; nunca consultar datos sin scoping.
+2. **Detección de tenant**: se acepta `x-tenant-id`, `x-tenant-slug`, subdominio (`{slug}.create.`) o ruta `/tenant/{slug}`.
+3. **Contexto**: `tenantMiddleware` valida y anexa `req.tenant`; `tenantContextMiddleware` guarda `tenant_id` via `AsyncLocalStorage`.
+4. **Frontend**: `TenantProvider` detecta slug inicial, refresca branding vía `/api/public/tenant/branding` y configura `apiClient`.
+5. **Super-admin**: rutas bajo `/api/superadmin` saltan el middleware de tenant y exigen cabecera `x-super-admin-token`.
+
+### Modelo Tenant (backend/src/models/tenant.model.js)
+
+```javascript
+{
+  id: INTEGER UNSIGNED,
+  slug: STRING(100),                               // Identificador único
+  name: STRING(255),
+  subdomain: STRING(100),
+  custom_domain: STRING(255) | null,
+  logo_url: STRING(500) | null,
+  primary_color: STRING(7) | null,
+  secondary_color: STRING(7) | null,
+  accent_color: STRING(7) | null,
+  plan_type: ENUM('free','basic','professional','enterprise') default 'free',
+  max_mentors: INTEGER | null,
+  max_mentees: INTEGER | null,
+  max_appointments_per_month: INTEGER | null,
+  status: ENUM('active','suspended','trial','cancelled') default 'trial'
+}
+```
+
+## Estructura del Repositorio
+
+```
+create/
+├── backend/
+│   ├── src/
+│   │   ├── config/                # env.js, appConfig
+│   │   ├── controllers/           # auth, events, projects, submissions, notifications...
+│   │   ├── database/              # database.js, migrations, seeders, umzug
+│   │   ├── middleware/            # tenant, auth, validation, error, superadmin
+│   │   ├── models/                # Tenant, Role, User, Event, Phase, Task, Team, Project, Submission, Evaluation, Notification
+│   │   ├── routes/                # public, superadmin, v1/*
+│   │   ├── services/              # auth.service.js (+ extender módulos aquí)
+│   │   ├── utils/                 # logger, tenant-scoping
+│   │   └── server.js, index.js
+│   ├── scripts/                   # db.js (migrate/seed/reset)
+│   ├── tests/                     # suites Jest/Supertest (usar esta carpeta)
+│   └── logs/                      # montado en Docker, no borrar
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── common/            # PageHeader, Spinner, etc.
+│   │   │   └── ui/                # shadcn/ui wrappers (button.tsx...)
+│   │   ├── context/               # AuthContext, TenantContext
+│   │   ├── i18n/                  # config.ts y locales JSON
+│   │   ├── pages/                 # admin, mentee, mentor, public, superadmin
+│   │   ├── services/              # api.ts + endpoints específicos (events.ts, teams.ts...)
+│   │   ├── utils/                 # cn.ts, helpers
+│   │   └── App.tsx, main.tsx
+│   ├── tailwind.config.ts / postcss.config.js
+│   ├── vite.config.ts
+│   └── tsconfig*.json
+├── docs/                          # documentación funcional
+├── docker-compose.yml
+├── backups/                       # copias automáticas
+└── scripts/                       # utilidades Windows/Linux
+```
+
+## Reglas de Desarrollo Frontend
+
+### Principios
+- **TypeScript obligatorio**: declara tipos/Interfaces; evita `any`.
+- **Import paths**: usa alias `@/` definido en `tsconfig.base.json`.
+- **i18n**: todos los textos visibles provienen de `useTranslation`; usa claves `namespace.key`. Mantén `es.json` y `en.json` sincronizados.
+- **Branding**: consume `useTenant()`; para colores personalizados puedes usar `style={{ color: branding.primaryColor }}` cuando Tailwind no cubra casos dinámicos. Documenta cuando apliques estilos inline por branding.
+- **shadcn/ui**: utiliza componentes de `@/components/ui`. Nuevas variantes → define con `cva` en el componente UI.
+- **Estado de carga**: usa `Spinner`, placeholders y fallback con `Suspense` si cargas dinámicamente. Siempre controla `loading`/`error`.
+- **Autenticación**: `AuthContext` maneja sesión. No manipules localStorage fuera de este contexto; emplea `setAuthToken` y `configureTenant`.
+- **Servicios HTTP**: crea helpers en `frontend/src/services/*.ts`. Nunca llames `axios` directo desde componentes.
+- **Formularios**: preferir react-hook-form + resolver de zod.
+- **Accesibilidad**: íconos con `aria-hidden`, botones con `aria-label` cuando apliquen.
+
+### Qué evitar
+- ❌ Hardcodear strings o formatos de fecha.
+- ❌ Consultar APIs sin `apiClient` (perderías cabeceras `x-tenant-slug`/`Authorization`).
+- ❌ Duplicar componentes UI existentes (reutiliza `PageHeader`, `Card`, etc.).
+- ❌ Inyectar CSS externo o archivos `.css` adicionales; usa Tailwind.
+- ❌ Mezclar lógica de auth/tenant en componentes (centralizar en contextos y hooks).
+
+## Reglas de Desarrollo Backend
+
+### Middleware y Contexto
+- Monta siempre rutas privadas bajo `app.use('/api', tenantMiddleware, tenantContextMiddleware, router);`.
+- Usa `ensureSuperAdmin` para endpoints globales y valida `x-super-admin-token`.
+- `tenantContextMiddleware` + `enableTenantScoping` rellenan `tenant_id`. Si se necesita omitirlo, pasa `{ skipTenant: true }` explícitamente y justifica en comentarios.
+
+### Controladores y Servicios
+- Estructura CRUD en `controllers/*` delegando a `services/*` (crea servicios por dominio igual que en frontend).
+- Maneja errores con `try/catch` y responde `{ success: false, message }`. Centraliza fallos inesperados en `errorHandler`.
+- Loguea con `logger`/`generalLogger`/`tenantLogger`. Nunca uses `console.*` directo en controladores.
+- Validación con `express-validator` + `validateRequest`.
+- Métodos que devuelvan usuarios deben usar `toSafeJSON()`; jamás expongas `password` u otros campos sensibles.
+- Usa `async/await`; no mezcles `.then()` en código nuevo.
+
+### Sequelize
+- Declara asociaciones en `models/index.js` (ya definidas). Nuevos modelos deben habilitar `enableTenantScoping`.
+- Mantén `underscored: true`, `timestamps: true` y tipos UNSIGNED cuando apliquen.
+- Reutiliza `AsyncLocalStorage` para insertar automáticamente `tenant_id` al crear registros.
+- Para consultas multitenant masivas, añade índices compuestos `(tenant_id, columna)` en migraciones.
+
+### Scripts, Migraciones y Seeders
+- Ejecuta migraciones vía `npm run migrate[:up|:down|:status]`.
+- Seeders: `npm run seed:master` para datos globales y `npm run seed:test` para dataset mínimo. Mantén idempotencia.
+- Documenta dependencias entre seeders con comentarios al inicio del archivo.
+- Resets locales: `npm run db:reset` (drop + migrate + seed master).
+
+### Seguridad
+- JWT access token estándar; refresh token firmado con secreto distinto (`JWT_REFRESH_SECRET`). Si introduces endpoints que generen tokens, reutiliza `AuthService.generateTokens`.
+- Requiere HTTPS en producción (config en proxy/reverse).
+- Almacena API keys (Stripe, Google) en variables de entorno; nunca en el repo.
+- El middleware `auth.middleware` lee `Authorization: Bearer`; úsalo en rutas privadas.
+
+## Flujo Super-Admin
+
+- Rutas bajo `/api/superadmin` (sin scopes de tenant).
+- Cabecera `x-super-admin-token` obliga al consumo interno o CLI (ver `backend/scripts`).
+- Permite crear/listar tenants, inicializar branding y planes.
+
+## Frontend: Patrones Comunes
+
+### Página conectada a Tenant
+
+```startLine:endLine:frontend/src/pages/public/LandingPage.tsx
+const { branding, tenantSlug } = useTenant();
+// ...
+<h1 className="text-4xl font-bold" style={{ color: branding.primaryColor }}>
+  {t('landing.title')}
+</h1>
+// ...
+```
+
+- Usa hooks `useTenant` + `useTranslation`.
+- Personaliza CTA con colores del tenant (inline justificado por branding).
+- Carga datos públicos (`public.ts`) antes de renderizar listados.
+
+### Router principal
+- Definido en `App.tsx` a través de `useRoutes`. Mantén rutas protegidas con `Navigate` y `useAuth`.
+- `DashboardRouter` decide layout según `user.role.scope` (`tenant_admin`, `organizer`, `mentor`, etc.).
+
+## Backend: Ejemplo de Ruta Multi-Tenant
+
+```startLine:endLine:backend/src/routes/index.js
+router.use('/events', eventsRouter);
+router.use('/teams', teamsRouter);
+router.use('/projects', projectsRouter);
+router.use('/', submissionsRouter);
+router.use('/', evaluationsRouter);
+```
+
+- Cada router importa `authenticate`, `authorization` según permisos.
+- Mantén rutas versionadas dentro de `routes/v1/`.
+- Documenta permisos esperados al inicio de cada archivo.
+
+## Internacionalización
+
+- Configuración en `frontend/src/i18n/config.ts`. `lng` por defecto `es`, fallback `en`.
+- Archivos `en.json`/`es.json` organizados por namespaces (`common`, `landing`, `dashboard`, etc.). Añade claves en ambos idiomas.
+- No concatenes strings; usa interpolación de i18next (`t('key', { value })`).
+- Textos del backend (mensajes de error/respuesta) deben estar en español por defecto; si se exponen al frontend, mapéalos a claves en el cliente.
+
+## Testing
+
+- Backend: usa `backend/tests` con Jest + Supertest. Config ESM en `jest.config.mjs`.
+- Tests deben levantar la app vía `createServer()` y setear cabeceras `x-tenant-*`.
+- Al probar scoping, crea datos con seeders o factories limitados al tenant.
+- Frontend: si se añaden pruebas, ubícalas en `frontend/tests` (configura Vitest o Jest según necesidad).
+- Mantén datasets de prueba en `backend/src/database/seeders/test`.
+
+## Performance y Observabilidad
+
+- **Frontend**: aplica lazy loading para páginas (`React.lazy`), Suspense y division del bundle por rol.
+- **Backend**:
+  - Pool Sequelize (`max:10`) ya configurado. Ajusta si se escala.
+  - Pagina listados largos (`limit`, `offset`) y ordena por `created_at`.
+  - Indexa columnas intensivas (submissions, evaluations, notifications).
+  - Usa `logger.debug` para SQL solo en desarrollo (activado por `NODE_ENV=development`).
+- **Logs**: `backend/src/utils/logger.js` escribe en archivos persistentes. No borres carpetas montadas.
+
+## Do & Don't (Resumen)
+
+### ✅ SIEMPRE
+- usa `useTranslation`, `useTenant`, `useAuth`.
+- respeta alias `@/`.
+- documenta decisiones complejas con comentarios concisos.
+- filtra por tenant en cualquier acceso a datos.
+- maneja errores y respuestas `{ success, data | message }`.
+- agrega pruebas cuando cambies lógica crítica multitenant.
+- emplea JSDoc en servicios/middlewares complejos.
+
+### ❌ NUNCA
+- Hardcodear textos o colores globales (excepto defaults controlados).
+- Saltarte `tenantMiddleware`/`enableTenantScoping` sin justificación.
+- Compartir datos entre tenants (ni siquiera temporalmente).
+- Introducir CSS externo, módulos o `styled-components`.
+- Enviar contraseñas/hashes/token en respuestas o logs.
+- Crear archivos `.md` adicionales fuera de `docs/` ni modificar backups manualmente.
+
+---
+
+**Versión**: 2.0  
+**Última actualización**: 2025-11-08  
+**Arquitectura**: Multi-Tenant SaaS (CREATE Platform)  
+**Stack**: React 19 + TypeScript + Node.js + MySQL + Tailwind CSS + shadcn/ui

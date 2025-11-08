@@ -1,0 +1,124 @@
+{
+  "common": {
+    "loading": "Loading…",
+    "error": "An error occurred",
+    "retry": "Retry"
+  },
+  "auth": {
+    "loginTitle": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Log in"
+  },
+  "dashboard": {
+    "welcome": "Welcome to CREATE",
+    "tenantAdmin": "Tenant Admin Panel",
+    "organizer": "Organizer Panel",
+    "participant": "Participant Panel",
+    "participantActions": "Manage your team and projects",
+    "mentor": "Mentor Panel"
+  },
+  "tenant": {
+    "brandingFallback": "Customize your experience"
+  },
+  "events": {
+    "title": "Event management",
+    "create": "Create event",
+    "created": "Event created successfully",
+    "name": "Name",
+    "description": "Description",
+    "start": "Start",
+    "end": "End",
+    "minTeam": "Min team size",
+    "maxTeam": "Max team size",
+    "manage": "Manage",
+    "formTitle": "New event",
+    "phasesTitle": "Event phases",
+    "tasksTitle": "Tasks",
+    "phaseCreate": "Add phase",
+    "phaseCreated": "Phase created successfully",
+    "taskCreate": "Add task",
+    "taskCreated": "Task created successfully",
+    "phaseName": "Phase name",
+    "phaseStart": "Phase start",
+    "phaseEnd": "Phase end",
+    "phaseElimination": "Elimination phase",
+    "taskTitle": "Task title",
+    "taskPhase": "Phase",
+    "taskType": "Delivery type",
+    "taskRequired": "Required submission",
+    "taskDueDate": "Due date",
+    "taskDelete": "Delete task",
+    "phaseDelete": "Delete phase",
+    "noTasks": "No tasks configured"
+  },
+  "teams": {
+    "title": "My team",
+    "createTitle": "Create team",
+    "name": "Team name",
+    "description": "Description",
+    "requirements": "Requirements",
+    "create": "Create team",
+    "members": "Members",
+    "addMember": "Add member",
+    "memberEmail": "Member email",
+    "project": "Project",
+    "updateProject": "Update project",
+    "projectName": "Project name",
+    "projectSummary": "Summary",
+    "projectProblem": "Problem",
+    "projectSolution": "Solution",
+    "projectRepo": "Repository",
+    "projectPitch": "Pitch",
+    "save": "Save changes",
+    "noTeam": "You are not part of a team in this event yet.",
+    "createSuccess": "Team created successfully",
+    "updateSuccess": "Project updated",
+    "memberAdded": "Member added",
+    "memberRemoved": "Member removed",
+    "removeMember": "Remove member"
+  },
+  "submissions": {
+    "register": "Submit deliverable",
+    "description": "Description",
+    "attachment": "Attachment URL",
+    "type": "Submission type",
+    "draft": "Draft",
+    "final": "Final",
+    "submit": "Send submission",
+    "created": "Submission recorded",
+    "list": "Submitted deliverables",
+    "noSubmissions": "No submissions yet",
+    "viewEvaluations": "View evaluations",
+    "noEvaluations": "No evaluations recorded",
+    "score": "Score",
+    "evaluatedAt": "Evaluated on"
+  },
+  "evaluations": {
+    "add": "Add evaluation",
+    "score": "Score",
+    "comment": "Comment",
+    "submit": "Save evaluation",
+    "created": "Evaluation recorded"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markRead": "Mark as read",
+    "empty": "You have no notifications"
+  },
+  "landing": {
+    "heroTitle": "Welcome to CREATE",
+    "heroSubtitle": "Discover events and grow your talent",
+    "exploreEvents": "Explore events",
+    "login": "Sign in",
+    "noEvents": "No events available right now"
+  },
+  "superadmin": {
+    "title": "Super Admin Panel",
+    "tokenPrompt": "Enter your super admin token",
+    "createTitle": "Create new tenant",
+    "create": "Create tenant",
+    "creating": "Creating..."
+  }
+}
+
