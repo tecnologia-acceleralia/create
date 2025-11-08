@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { PageHeader, Spinner } from '@/components/common';
 import { createEvent, getEvents, type Event } from '@/services/events';
+import { useTenantPath } from '@/hooks/useTenantPath';
 
 const eventSchema = z.object({
   name: z.string().min(3),
@@ -26,6 +27,7 @@ type FormValues = z.infer<typeof eventSchema>;
 function EventsListPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const tenantPath = useTenantPath();
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -119,7 +121,7 @@ function EventsListPage() {
                   {new Date(event.start_date).toLocaleDateString()} - {new Date(event.end_date).toLocaleDateString()}
                 </p>
                 <Button asChild variant="outline">
-                  <Link to={`/dashboard/events/${event.id}`}>{t('events.manage')}</Link>
+                  <Link to={tenantPath(`dashboard/events/${event.id}`)}>{t('events.manage')}</Link>
                 </Button>
               </CardContent>
             </Card>

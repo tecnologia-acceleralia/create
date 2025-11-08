@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const SUPERADMIN_URL = import.meta.env.VITE_API_URL?.replace('/api', '/api/superadmin') ?? 'http://localhost:4000/api/superadmin';
+const SUPERADMIN_URL = import.meta.env.VITE_API_URL?.replace('/api', '/api/superadmin') ?? 'http://localhost:5100/api/superadmin';
 
 export async function getTenantsSuperAdmin(token: string) {
   const response = await axios.get(`${SUPERADMIN_URL}/tenants`, {

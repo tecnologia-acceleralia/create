@@ -9,7 +9,6 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptRoot
 $projectName = Split-Path $scriptRoot -Leaf
-
 function Write-Info {
     param([string]$Message)
     Write-Host "[INFO] $Message"
@@ -221,6 +220,62 @@ function Invoke-Seeders {
     Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "npm", "run", "seed:test")
 }
 
+function Get-SeedersStatus {
+    try {
+        $rawOutput = Invoke-CliOutput "docker" @("compose", "exec", "-T", "backend", "node", "src/scripts/db.js", "seed:status", "--json")
+        if (-not $rawOutput) {
+            return $null
+        }
+
+        $jsonText = ($rawOutput | Where-Object { $_ -ne "" }) -join ""
+        if (-not $jsonText) {
+            return $null
+        }
+
+        return $jsonText | ConvertFrom-Json
+    } catch {
+        Write-Info "No se pudo obtener el estado de los seeders: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Invoke-SeedersIfPending {
+    param([switch]$Force)
+
+    $status = Get-SeedersStatus
+    if ($Force -or -not $status) {
+        if (-not $status) {
+            Write-Info "Estado de seeders no disponible. Ejecutando seeders por defecto."
+        }
+        Invoke-Seeders
+        return
+    }
+
+    $hasPending = $false
+    foreach ($entry in $status) {
+        $pending = $entry.pending
+        $pendingItems = @()
+        if ($pending -is [System.Array]) {
+            $pendingItems = $pending
+        } elseif ($pending) {
+            $pendingItems = @($pending)
+        }
+        if ($pendingItems.Count -gt 0) {
+            $hasPending = $true
+            break
+        }
+    }
+
+    if ($Force -or $hasPending) {
+        if (-not $Force) {
+            Write-Info "Seeders pendientes detectados. Ejecutando seeders."
+        }
+        Invoke-Seeders
+    } else {
+        Write-Info "Seeders ya aplicados. No se ejecutan nuevas semillas."
+    }
+}
+
 function Write-EnvironmentSummary {
     Write-Host ""
     Write-Host "=================================================="
@@ -231,9 +286,10 @@ function Write-EnvironmentSummary {
     Write-Host "Backend API:   http://localhost:5100/api"
     Write-Host ""
     Write-Host "Credenciales de demo (tenant 'demo'):"
-    Write-Host "  - Admin:   admin@demo.create / Adm1n#Demo!2025"
-    Write-Host "  - Mentor:  mentor@demo.create / Ment0r#Demo!2025"
-    Write-Host "  - Mentee:  mentee@demo.create / Mentee#Demo!2025"
+    Write-Host "  - Admin:      admin@demo.com      / Password123!"
+    Write-Host "  - Mentor:     mentor@demo.com     / Mentor123!"
+    Write-Host "  - Capitán:    captain@demo.com    / Participant123!"
+    Write-Host "  - Participante: participant@demo.com / Participant123!"
     Write-Host "=================================================="
 }
 
@@ -364,39 +420,6 @@ function Test-RebuildRequired {
     return $false
 }
 
-function Test-InstallDependencies {
-    param(
-        [string[]]$Paths,
-        [string[]]$DependencyFiles,
-        [string]$ModulesPath
-    )
-
-    $normalizedPaths = @()
-    if ($Paths) {
-        $normalizedPaths = $Paths | ForEach-Object { $_ -replace '\\', '/' }
-    }
-
-    if (-not $Paths -or $Paths.Count -eq 0) {
-        if (-not (Test-Path $ModulesPath)) {
-            return $true
-        }
-        return $false
-    }
-
-    foreach ($dependencyFile in $DependencyFiles) {
-        $normalizedDependency = $dependencyFile -replace '\\', '/'
-        if ($normalizedPaths -contains $normalizedDependency) {
-            return $true
-        }
-    }
-
-    if (-not (Test-Path $ModulesPath)) {
-        return $true
-    }
-
-    return $false
-}
-
 function Install-Dependencies {
     param(
         [string]$WorkingDirectory,
@@ -467,6 +490,10 @@ try {
     $envFilePath = Join-Path $scriptRoot ".env.dev"
     $envValues = Get-EnvFileValues -FilePath $envFilePath
 
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "npm" -Arguments @("install")
+
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
+
     if ($Fresh) {
         Write-Info "Fresh mode selected"
         Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
@@ -474,7 +501,7 @@ try {
         Invoke-Cli "docker" @("compose", "up", "--build", "-d")
         Initialize-Database -EnvValues $envValues
         Invoke-Migrations
-        Invoke-Seeders
+        Invoke-SeedersIfPending -Force
         Invoke-Cli "docker" @("compose", "ps")
         Write-Info "Fresh setup completed"
         Write-EnvironmentSummary
@@ -513,17 +540,6 @@ try {
     }
     $allChanges = $allChanges | Where-Object { $_ } | Sort-Object -Unique
 
-    $backendDependencyFiles = @("backend/package.json", "backend/package-lock.json", "backend/pnpm-lock.yaml")
-    $frontendDependencyFiles = @("frontend/package.json", "frontend/pnpm-lock.yaml")
-
-    if (Test-InstallDependencies -Paths $allChanges -DependencyFiles $backendDependencyFiles -ModulesPath (Join-Path $scriptRoot "backend/node_modules")) {
-        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "npm" -Arguments @("install")
-    }
-
-    if (Test-InstallDependencies -Paths $allChanges -DependencyFiles $frontendDependencyFiles -ModulesPath (Join-Path $scriptRoot "frontend/node_modules")) {
-        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
-    }
-
     if (Test-RebuildRequired -Paths $allChanges) {
         Write-Info "Changes require rebuild"
         Invoke-Cli "docker" @("compose", "up", "--build", "-d")
@@ -534,7 +550,7 @@ try {
 
     Initialize-Database -EnvValues $envValues
     Invoke-Migrations
-    Invoke-Seeders
+    Invoke-SeedersIfPending
 
     Invoke-Cli "docker" @("compose", "ps")
     Write-Info "Setup completed"

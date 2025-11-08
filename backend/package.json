@@ -16,6 +16,7 @@
     "migrate:status": "node src/scripts/db.js migrate:status",
     "seed:master": "node src/scripts/db.js seed:master",
     "seed:test": "node src/scripts/db.js seed:test",
+    "seed:status": "node src/scripts/db.js seed:status",
     "seed:reset:test": "node src/scripts/db.js seed:reset:test",
     "db:reset": "node src/scripts/db.js db:reset",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { useTenantPath } from '@/hooks/useTenantPath';
 
 const schema = z.object({
   email: z.string().email(),
@@ -20,6 +21,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const tenantPath = useTenantPath();
   const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -30,7 +32,7 @@ function LoginPage() {
     try {
       setError(null);
       await login(values);
-      navigate('/dashboard');
+      navigate(tenantPath('dashboard'));
     } catch (err) {
       setError(t('common.error'));
     }

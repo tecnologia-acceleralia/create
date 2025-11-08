@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router';
+import { useTenantPath } from '@/hooks/useTenantPath';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -46,6 +47,7 @@ function EventDetailPage() {
   const numericId = Number(eventId);
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const tenantPath = useTenantPath();
 
   const { data: eventDetail, isLoading } = useQuery({
     queryKey: ['events', numericId],
@@ -100,7 +102,7 @@ function EventDetailPage() {
     return (
       <div className="p-6">
         <p className="text-sm text-destructive">{t('common.error')}</p>
-        <Link to="/dashboard/events" className="text-primary underline">
+        <Link to={tenantPath('dashboard/events')} className="text-primary underline">
           {t('events.manage')}
         </Link>
       </div>

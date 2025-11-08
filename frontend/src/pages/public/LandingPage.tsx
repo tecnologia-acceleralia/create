@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getPublicEvents } from '@/services/public';
+import { useTenantPath } from '@/hooks/useTenantPath';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
 function LandingPage() {
   const { t } = useTranslation();
   const { branding, tenantSlug } = useTenant();
+  const tenantPath = useTenantPath();
   const [events, setEvents] = useState<PublicEvent[]>([]);
 
   useEffect(() => {
@@ -28,7 +30,7 @@ function LandingPage() {
         <p className="max-w-2xl text-lg text-muted-foreground">{t('landing.heroSubtitle')}</p>
         <div className="flex gap-4">
           <Button asChild>
-            <Link to="/login">{t('landing.login')}</Link>
+            <Link to={tenantPath('login')}>{t('landing.login')}</Link>
           </Button>
           <Button variant="outline" style={{ borderColor: branding.accentColor, color: branding.accentColor }}>
             {t('landing.exploreEvents')}

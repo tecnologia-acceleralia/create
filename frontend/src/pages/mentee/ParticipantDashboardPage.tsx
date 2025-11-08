@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { useTenantPath } from '@/hooks/useTenantPath';
 
 import { PageHeader, Spinner } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { getEvents, getEventDetail, type Event } from '@/services/events';
 
 function ParticipantDashboardPage() {
   const { t } = useTranslation();
+  const tenantPath = useTenantPath();
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ['events'], queryFn: getEvents });
   const [expandedEventId, setExpandedEventId] = useState<number | null>(null);
   const [eventTasks, setEventTasks] = useState<Record<number, any[]>>({});
@@ -37,7 +39,7 @@ function ParticipantDashboardPage() {
       <PageHeader title={t('dashboard.participant')} subtitle={t('dashboard.participantActions')} />
       <div>
         <Button asChild variant="outline">
-          <Link to="/dashboard/notifications">{t('notifications.title')}</Link>
+          <Link to={tenantPath('dashboard/notifications')}>{t('notifications.title')}</Link>
         </Button>
       </div>
 
@@ -50,7 +52,7 @@ function ParticipantDashboardPage() {
             <CardContent className="space-y-3 text-sm">
               <p className="text-muted-foreground">{event.description}</p>
               <Button asChild>
-                <Link to={`/dashboard/events/${event.id}/team`}>{t('teams.title')}</Link>
+                <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{t('teams.title')}</Link>
               </Button>
               <Button variant="outline" onClick={() => handleToggleTasks(event.id)}>
                 {expandedEventId === event.id ? t('submissions.list') : t('events.tasksTitle')}
@@ -63,7 +65,7 @@ function ParticipantDashboardPage() {
                       <p className="font-medium">{task.title}</p>
                       <p className="text-xs text-muted-foreground">{task.description}</p>
                       <Button asChild size="sm" variant="secondary" className="mt-2">
-                        <Link to={`/dashboard/events/${event.id}/tasks/${task.id}`}>{t('submissions.register')}</Link>
+                        <Link to={tenantPath(`dashboard/events/${event.id}/tasks/${task.id}`)}>{t('submissions.register')}</Link>
                       </Button>
                     </div>
                   )) : <p className="text-xs text-muted-foreground">{t('events.noTasks')}</p>}

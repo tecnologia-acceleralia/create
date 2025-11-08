@@ -30,8 +30,22 @@ const printUsage = () => {
   console.log('  migrate:status            Muestra migraciones ejecutadas y pendientes');
   console.log('  seed:master               Ejecuta los seeders de master data');
   console.log('  seed:test                 Ejecuta los seeders de datos de prueba');
+  console.log('  seed:status [--json]      Muestra el estado de los seeders master y test');
   console.log('  seed:reset:test           Revierte los seeders de datos de prueba');
   console.log('  db:reset                  Revierte todo y vuelve a ejecutar migraciones + seeders');
+};
+
+const collectSeederStatus = async (scope, seeder) => {
+  const [executed, pending] = await Promise.all([
+    seeder.executed(),
+    seeder.pending()
+  ]);
+
+  return {
+    scope,
+    executed: executed.map((item) => item.name),
+    pending: pending.map((item) => item.name)
+  };
 };
 
 async function run() {
@@ -71,6 +85,25 @@ async function run() {
         await testSeeder.up();
         logger.info('Seeders test aplicados');
         break;
+      case 'seed:status': {
+        const status = await Promise.all([
+          collectSeederStatus('master', masterSeeder),
+          collectSeederStatus('test', testSeeder)
+        ]);
+        if (flags.includes('--json')) {
+          console.log(JSON.stringify(status));
+        } else {
+          status.forEach(({ scope, executed, pending }) => {
+            console.log(`Seeders ${scope}:`);
+            console.log(`  Ejecutados (${executed.length})`);
+            executed.forEach((name) => console.log(`    ✔ ${name}`));
+            console.log(`  Pendientes (${pending.length})`);
+            pending.forEach((name) => console.log(`    ✖ ${name}`));
+            console.log('');
+          });
+        }
+        break;
+      }
       case 'seed:reset:test':
         await testSeeder.down({ step: Infinity });
         logger.info('Seeders test revertidos');
@@ -105,4 +138,3 @@ async function run() {
 }
 
 run();
-

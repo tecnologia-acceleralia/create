@@ -1,9 +1,10 @@
-import { Suspense } from 'react';
-import { useRoutes, Navigate } from 'react-router';
+import { Suspense, useEffect } from 'react';
+import { useRoutes, Navigate, Outlet, useParams } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/common';
 import { Toaster } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useTenant } from '@/context/TenantContext';
 
 import LandingPage from '@/pages/public/LandingPage';
 import LoginPage from '@/pages/public/LoginPage';
@@ -17,44 +18,80 @@ import TaskSubmissionPage from '@/pages/mentee/TaskSubmissionPage';
 import NotificationsPage from '@/pages/common/NotificationsPage';
 import SuperAdminDashboardPage from '@/pages/superadmin/SuperAdminDashboardPage';
 
+function TenantLayout() {
+  const { tenantSlug, setTenantSlug } = useTenant();
+  const params = useParams<{ tenantSlug?: string }>();
+
+  useEffect(() => {
+    if (!params.tenantSlug) {
+      setTenantSlug(null);
+      return;
+    }
+
+    if (params.tenantSlug !== tenantSlug) {
+      setTenantSlug(params.tenantSlug);
+    }
+  }, [params.tenantSlug, tenantSlug, setTenantSlug]);
+
+  if (!params.tenantSlug) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+}
+
 function AppRoutes() {
   const { user } = useAuth();
+  const { tenantSlug } = useTenant();
+  const loginPath = tenantSlug ? `/tenant/${tenantSlug}/login` : '/';
 
   return useRoutes([
-    { path: '/', element: <LandingPage /> },
-    { path: '/login', element: <LoginPage /> },
+    {
+      path: '/tenant/:tenantSlug/*',
+      element: <TenantLayout />,
+      children: [
+        { index: true, element: <LandingPage /> },
+        { path: 'login', element: <LoginPage /> },
+        {
+          path: 'dashboard',
+          element: user ? <DashboardRouter /> : <Navigate to={loginPath} replace />
+        },
+        {
+          path: 'dashboard/events',
+          element: user ? <EventsListPage /> : <Navigate to={loginPath} replace />
+        },
+        {
+          path: 'dashboard/events/:eventId',
+          element: user ? <EventDetailPage /> : <Navigate to={loginPath} replace />
+        },
+        {
+          path: 'dashboard/events/:eventId/team',
+          element: user ? <TeamDashboardPage /> : <Navigate to={loginPath} replace />
+        },
+        {
+          path: 'dashboard/events/:eventId/tasks/:taskId',
+          element: user ? <TaskSubmissionPage /> : <Navigate to={loginPath} replace />
+        },
+        {
+          path: 'dashboard/notifications',
+          element: user ? <NotificationsPage /> : <Navigate to={loginPath} replace />
+        }
+      ]
+    },
     { path: '/superadmin', element: <SuperAdminDashboardPage /> },
-    {
-      path: '/dashboard',
-      element: user ? <DashboardRouter /> : <Navigate to="/login" replace />
-    },
-    {
-      path: '/dashboard/events',
-      element: user ? <EventsListPage /> : <Navigate to="/login" replace />
-    },
-    {
-      path: '/dashboard/events/:eventId',
-      element: user ? <EventDetailPage /> : <Navigate to="/login" replace />
-    },
-    {
-      path: '/dashboard/events/:eventId/team',
-      element: user ? <TeamDashboardPage /> : <Navigate to="/login" replace />
-    },
-    {
-      path: '/dashboard/events/:eventId/tasks/:taskId',
-      element: user ? <TaskSubmissionPage /> : <Navigate to="/login" replace />
-    },
-    {
-      path: '/dashboard/notifications',
-      element: user ? <NotificationsPage /> : <Navigate to="/login" replace />
-    }
+    { path: '/', element: <Navigate to={tenantSlug ? `/tenant/${tenantSlug}` : '/superadmin'} replace /> },
+    { path: '*', element: <Navigate to={tenantSlug ? `/tenant/${tenantSlug}` : '/superadmin'} replace /> }
   ]);
 }
 
 function DashboardRouter() {
   const { user } = useAuth();
+  const { tenantSlug } = useTenant();
+
+  const loginPath = tenantSlug ? `/tenant/${tenantSlug}/login` : '/';
+
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={loginPath} replace />;
   }
 
   const role = user.role?.scope;

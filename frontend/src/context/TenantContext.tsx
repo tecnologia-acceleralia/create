@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { apiClient, configureTenant } from '@/services/api';
 
@@ -12,7 +12,7 @@ type Branding = {
 type TenantContextValue = {
   tenantSlug: string | null;
   branding: Branding;
-  setTenantSlug: (slug: string) => void;
+  setTenantSlug: (slug: string | null) => void;
   refreshBranding: () => Promise<void>;
   loading: boolean;
 };
@@ -48,14 +48,7 @@ export function TenantProvider({ children }: Props) {
   const [branding, setBranding] = useState<Branding>(defaultBranding);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (tenantSlug) {
-      configureTenant(tenantSlug);
-      void refreshBranding();
-    }
-  }, [tenantSlug]);
-
-  const refreshBranding = async () => {
+  const refreshBranding = useCallback(async () => {
     if (!tenantSlug) {
       return;
     }
@@ -77,9 +70,19 @@ export function TenantProvider({ children }: Props) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tenantSlug]);
 
-  const value = useMemo(() => ({ tenantSlug, branding, setTenantSlug, refreshBranding, loading }), [tenantSlug, branding, loading]);
+  useEffect(() => {
+    if (tenantSlug) {
+      configureTenant(tenantSlug);
+      void refreshBranding();
+    }
+  }, [tenantSlug, refreshBranding]);
+
+  const value = useMemo(
+    () => ({ tenantSlug, branding, setTenantSlug, refreshBranding, loading }),
+    [tenantSlug, branding, setTenantSlug, refreshBranding, loading]
+  );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { useTenantPath } from '@/hooks/useTenantPath';
 
 import { PageHeader, Spinner } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +11,7 @@ import { getEvents, getEventDetail, type Event } from '@/services/events';
 
 function MentorDashboardPage() {
   const { t } = useTranslation();
+  const tenantPath = useTenantPath();
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ['events'], queryFn: getEvents });
   const [expanded, setExpanded] = useState<number | null>(null);
   const [eventTasks, setEventTasks] = useState<Record<number, any[]>>({});
@@ -36,7 +38,7 @@ function MentorDashboardPage() {
       <PageHeader title={t('dashboard.mentor')} subtitle={t('dashboard.welcome')} />
       <div>
         <Button asChild variant="outline">
-          <Link to="/dashboard/notifications">{t('notifications.title')}</Link>
+          <Link to={tenantPath('dashboard/notifications')}>{t('notifications.title')}</Link>
         </Button>
       </div>
 
@@ -58,7 +60,7 @@ function MentorDashboardPage() {
                       <p className="font-medium">{task.title}</p>
                       <p className="text-xs text-muted-foreground">{task.description}</p>
                       <Button asChild size="sm" variant="secondary" className="mt-2">
-                        <Link to={`/dashboard/events/${event.id}/tasks/${task.id}`}>{t('submissions.list')}</Link>
+                        <Link to={tenantPath(`dashboard/events/${event.id}/tasks/${task.id}`)}>{t('submissions.list')}</Link>
                       </Button>
                     </div>
                   )) : <p className="text-xs text-muted-foreground">{t('events.noTasks')}</p>}
