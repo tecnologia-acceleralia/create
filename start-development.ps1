@@ -9,9 +9,114 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $scriptRoot
 $projectName = Split-Path $scriptRoot -Leaf
+$stateDirectory = Join-Path $scriptRoot ".docker-state"
 function Write-Info {
     param([string]$Message)
     Write-Host "[INFO] $Message"
+}
+
+function Initialize-StateDirectory {
+    if (-not (Test-Path $stateDirectory)) {
+        New-Item -ItemType Directory -Path $stateDirectory | Out-Null
+    }
+}
+
+function Get-FileHashValue {
+    param([string]$FilePath)
+
+    if (-not (Test-Path $FilePath)) {
+        throw "No se encontro el archivo para calcular hash: $FilePath"
+    }
+
+    return (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
+}
+
+function Test-DockerVolumeExists {
+    param(
+        [string]$VolumeName,
+        [string]$ProjectName
+    )
+
+    $candidates = @()
+    if ($VolumeName) {
+        $candidates += $VolumeName
+    }
+    if ($ProjectName) {
+        $candidates += "$ProjectName`_$VolumeName"
+    }
+
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        try {
+            $raw = Invoke-CliOutput "docker" @("volume", "ls", "--quiet", "--filter", "name=$candidate")
+            if ($raw) {
+                $match = $raw | Where-Object { $_ -and $_.Trim() -ne "" }
+                if ($match) {
+                    return $true
+                }
+            }
+        } catch {
+            continue
+        }
+    }
+
+    return $false
+}
+
+function Update-DockerDependencies {
+    param(
+        [string]$ServiceName,
+        [string]$VolumeName,
+        [string]$LockFilePath,
+        [string]$HashFileName,
+        [string[]]$InstallCommandArgs
+    )
+
+    Initialize-StateDirectory
+
+    $volumeExists = Test-DockerVolumeExists -VolumeName $VolumeName -ProjectName $projectName
+    $currentHash = Get-FileHashValue -FilePath $LockFilePath
+    $hashFilePath = Join-Path $stateDirectory $HashFileName
+    $storedHash = $null
+
+    if (Test-Path $hashFilePath) {
+        $storedHash = (Get-Content -Path $hashFilePath -Raw).Trim().ToLower()
+    }
+
+    $needsInstall = $false
+    $reason = ""
+
+    if (-not $volumeExists) {
+        $needsInstall = $true
+        $reason = "el volumen '$VolumeName' no existe"
+    } elseif ($storedHash -ne $currentHash) {
+        $needsInstall = $true
+        $reason = "se detectaron cambios en $LockFilePath"
+    }
+
+    if ($needsInstall) {
+        if ($reason) {
+            Write-Info "Reinstalando dependencias de Docker para '$ServiceName' porque $reason"
+        } else {
+            Write-Info "Reinstalando dependencias de Docker para '$ServiceName'"
+        }
+        Invoke-Cli "docker" $InstallCommandArgs
+        Set-Content -Path $hashFilePath -Value $currentHash
+    } else {
+        Write-Info "Dependencias Docker para '$ServiceName' ya estan sincronizadas"
+    }
+}
+
+function Ensure-DockerDependencies {
+    param(
+        [string]$ServiceName,
+        [string]$VolumeName,
+        [string]$LockFilePath,
+        [string]$HashFileName,
+        [string[]]$InstallCommandArgs
+    )
+
+    Update-DockerDependencies @PSBoundParameters
 }
 
 function Invoke-Cli {
@@ -292,9 +397,14 @@ function Write-EnvironmentSummary {
     Write-Host ""
     Write-Host "Credenciales de demo (tenant 'demo'):"
     Write-Host "  - Admin:      admin@demo.com      / Password123!"
-    Write-Host "  - Mentor:     mentor@demo.com     / Mentor123!"
-    Write-Host "  - Capitán:    captain@demo.com    / Participant123!"
+    Write-Host "  - Evaluador:  evaluator@demo.com  / Evaluator123!"
+    Write-Host "  - Capitan:    captain@demo.com    / Participant123!"
     Write-Host "  - Participante: participant@demo.com / Participant123!"
+    Write-Host ""
+    Write-Host "Superadmin global:"
+    Write-Host "  - Acceso:     http://localhost:3100/superadmin"
+    Write-Host "  - Email:      superadmin@create.dev"
+    Write-Host "  - Password:   SuperAdmin2025!"
     Write-Host "=================================================="
 }
 
@@ -499,10 +609,15 @@ try {
 
     Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
 
+    $backendLockFile = Join-Path $scriptRoot "backend/package-lock.json"
+    $frontendLockFile = Join-Path $scriptRoot "frontend/pnpm-lock.yaml"
+
     if ($Fresh) {
         Write-Info "Fresh mode selected"
         Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
         Remove-ProjectDockerResources -ProjectName $projectName
+        Ensure-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
+        Ensure-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
         Invoke-Cli "docker" @("compose", "up", "--build", "-d")
         Initialize-Database -EnvValues $envValues
         Invoke-Migrations
@@ -544,6 +659,11 @@ try {
         $allChanges += $localChanges
     }
     $allChanges = $allChanges | Where-Object { $_ } | Sort-Object -Unique
+
+    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
+    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
+    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
+    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
 
     if (Test-RebuildRequired -Paths $allChanges) {
         Write-Info "Changes require rebuild"

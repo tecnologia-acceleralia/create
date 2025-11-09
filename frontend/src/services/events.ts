@@ -9,6 +9,11 @@ export type Event = {
   min_team_size: number;
   max_team_size: number;
   status: 'draft' | 'published' | 'archived';
+  video_url?: string | null;
+  is_public: boolean;
+  allow_open_registration: boolean;
+  publish_start_at?: string | null;
+  publish_end_at?: string | null;
 };
 
 export type Phase = {
@@ -19,6 +24,8 @@ export type Phase = {
   is_elimination: boolean;
   start_date?: string;
   end_date?: string;
+  view_start_date?: string | null;
+  view_end_date?: string | null;
 };
 
 export type Task = {
@@ -30,6 +37,31 @@ export type Task = {
   due_date?: string;
   status: 'draft' | 'active' | 'closed';
   phase_id: number;
+  phase_rubric_id?: number | null;
+  max_files?: number;
+  max_file_size_mb?: number | null;
+  allowed_mime_types?: string[] | null;
+};
+
+export type RubricCriterion = {
+  id: number;
+  title: string;
+  description?: string | null;
+  weight: number;
+  max_score?: number | null;
+  order_index: number;
+};
+
+export type PhaseRubric = {
+  id: number;
+  name: string;
+  description?: string | null;
+  event_id: number;
+  phase_id: number;
+  scale_min: number;
+  scale_max: number;
+  model_preference?: string | null;
+  criteria: RubricCriterion[];
 };
 
 export async function getEvents() {
@@ -53,7 +85,7 @@ export async function archiveEvent(eventId: number) {
 
 export async function getEventDetail(eventId: number) {
   const response = await apiClient.get(`/events/${eventId}`);
-  return response.data.data as Event & { phases: Phase[]; tasks: Task[] };
+  return response.data.data as Event & { phases: Phase[]; tasks: Task[]; rubrics: PhaseRubric[] };
 }
 
 export async function createPhase(eventId: number, payload: Partial<Phase>) {
@@ -82,5 +114,39 @@ export async function updateTask(eventId: number, taskId: number, payload: Parti
 
 export async function deleteTask(eventId: number, taskId: number) {
   await apiClient.delete(`/events/${eventId}/tasks/${taskId}`);
+}
+
+export type RubricPayload = {
+  name: string;
+  description?: string;
+  scale_min?: number;
+  scale_max?: number;
+  model_preference?: string;
+  criteria: Array<{
+    title: string;
+    description?: string;
+    weight?: number;
+    max_score?: number | null;
+    order_index?: number;
+  }>;
+};
+
+export async function getRubrics(eventId: number, phaseId: number) {
+  const response = await apiClient.get(`/events/${eventId}/phases/${phaseId}/rubrics`);
+  return response.data.data as PhaseRubric[];
+}
+
+export async function createRubric(eventId: number, phaseId: number, payload: RubricPayload) {
+  const response = await apiClient.post(`/events/${eventId}/phases/${phaseId}/rubrics`, payload);
+  return response.data.data as PhaseRubric;
+}
+
+export async function updateRubric(eventId: number, phaseId: number, rubricId: number, payload: Partial<RubricPayload>) {
+  const response = await apiClient.put(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`, payload);
+  return response.data.data as PhaseRubric;
+}
+
+export async function deleteRubric(eventId: number, phaseId: number, rubricId: number) {
+  await apiClient.delete(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`);
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import '../config/env.js';
 import { getMigrator, getSeeder, getMigrationStatus } from '../database/umzug.js';
 import { logger } from '../utils/logger.js';
 import { connectDatabase, getSequelize } from '../database/database.js';

@@ -2,10 +2,10 @@ Documento de Especificación de Funcionalidades Detallado: Plataforma CREATE
 
 1. Visión General y Principios Fundamentales
 1.1. Propósito del Proyecto
-CREATE de Acceleralia es una plataforma digital diseñada para la organización, gestión y ejecución integral de eventos colaborativos como hackatones, bootcamps y sprints de innovación. El objetivo principal es ofrecer un ecosistema centralizado que fomente la generación y el desarrollo de ideas, conectando a participantes (mentees) con mentores expertos. La plataforma gestionará desde el descubrimiento de mentores y la reserva de citas hasta la gestión de perfiles y la configuración completa de los eventos.
+CREATE de Acceleralia es una plataforma digital diseñada para la organización, gestión y ejecución integral de eventos colaborativos como hackatones, bootcamps y sprints de innovación. El objetivo principal es ofrecer un ecosistema centralizado que fomente la generación y el desarrollo de ideas, conectando a participantes con jurados y evaluadores expertos. La plataforma gestionará desde la activación de los evaluadores y la reserva de citas hasta la gestión de perfiles y la configuración completa de los eventos.
 1.2. Principios Clave de Diseño
 La arquitectura y el diseño de la plataforma se regirán por los siguientes principios no negociables:
-Personalización y Marca Blanca: La plataforma debe ser altamente personalizable para cada cliente. Esto incluye la capacidad de modificar el logotipo, la tipografía y la paleta de colores para que se ajuste a la identidad corporativa de cada cliente que la instale. Todas las secciones de la aplicación deben permitir una personalización estética y de contenido para adaptarse a cualquier requerimiento.
+Personalización y Marca Blanca: La plataforma debe ser altamente personalizable para cada cliente (tenant). La personalización inicial se configura por tenant (logotipo, colores, dominio personalizado, contenidos destacados) y se propaga a todo el front, respetando espacios privados y públicos. Todas las secciones deben permitir personalización estética y de contenido conforme a la identidad del tenant sin afectar a otros clientes.
 Soporte Multilingüe: Todo el contenido, tanto el estático de la interfaz como el dinámico generado por los usuarios y administradores, debe estar disponible en múltiples idiomas. El usuario deberá poder seleccionar su idioma de preferencia en su perfil, y los administradores podrán habilitar o deshabilitar idiomas para cada evento específico.
 Diseño Responsivo: La experiencia de usuario debe ser óptima y consistente en cualquier dispositivo, garantizando una total funcionalidad en ordenadores de sobremesa (PC), tabletas y teléfonos móviles (mobile first).
 2. Roles de Usuario y Gestión de Permisos
@@ -28,7 +28,7 @@ Visualización: Acceder a la información y progreso de los proyectos que le han
 Asignación de Premios: Participar en la deliberación y asignación de premios a los proyectos ganadores según los criterios del evento.
 Limitaciones: No pueden modificar la estructura del evento (fases, tareas, fechas).
 Notificaciones: Se permite enviar notificaciones a equipos o a toda la comunidad. Las notificaciones se pueden planificar para que se envíen en una fecha determinada. Las notificaciones se verán en la plataforma y se enviarán también por correo electrónico.
-Mentor: Rol de asesoramiento y guía para los participantes.
+Evaluador (Jurado): Rol de valoración y guía para los proyectos.
 Objetivo: Evaluar las tareas entregadas y proporcionar feedback constructivo a los equipos.
 Permisos Específicos:
 Feedback: Dejar comentarios y evaluaciones en las entregas, tanto provisionales como finales.
@@ -39,7 +39,7 @@ Objetivo: Unirse a un proyecto y colaborar en su desarrollo dentro de un equipo.
 Permisos Específicos:
 Pertenencia: Solo pueden estar en un proyecto a la vez dentro del mismo evento.
 Colaboración: Pueden colaborar activamente en las entregas, proponer ideas y dar feedback a sus compañeros dentro del equipo (evaluación entre pares).
-Visualización: Pueden ver las fases, tareas, progreso del proyecto y todo el feedback recibido por mentores y organizadores.
+Visualización: Pueden ver las fases, tareas, progreso del proyecto y todo el feedback recibido por evaluadores y organizadores.
 Solicitudes: Pueden solicitar unirse a un equipo ya existente.
 Limitaciones: La aprobación final de una entrega la realiza el capitán del equipo.
 Capitán de equipo: Es el líder y representante del proyecto.
@@ -50,7 +50,7 @@ Creación: Puede crear un equipo, convirtiéndose automáticamente en capitán, 
 Gestión de equipo: Es responsable de aceptar o rechazar solicitudes de nuevos miembros y de expulsar a miembros existentes desde el dashboard de equipo.
 Gestión del Proyecto: Tiene acceso a la gestión del proyecto, pudiendo modificar su información (descripción, logotipo, etc.).
 Entregas: Es el único responsable de realizar las entregas oficiales en nombre del equipo, tanto las provisionales como las finales.
-Comunicación: Actúa como punto de contacto principal entre el equipo y los organizadores/mentores
+Comunicación: Actúa como punto de contacto principal entre el equipo y los organizadores/evaluadores
 Sólo hay un capitán en el equipo, cualquier miembro puede convertirse en capitán.
 3. Funcionalidades Detalladas por Módulos
 3.1. Módulo de Eventos
@@ -72,21 +72,24 @@ Están sujetas a fechas límite de entrega.
 Dashboard de Tareas : Los administradores tienen permisos completos para crear tareas adjuntas a una fase, establecer su obligatoriedad y configurar el tipo de entrega requerido. También pueden modificar, bloquear o eliminar tareas.
 3.3. Módulo de Entregas y Evaluaciones
 Entregas:
-Realizadas por el capitán del equipo para las tareas activas.
-Pueden requerir diferentes tipos de archivos (pdf, video, audio, zip) y un texto explicativo opcional u obligatorio.
-Entregas Provisionales: Se permite realizar entregas parciales para recibir feedback de los mentores antes de la entrega final, fomentando un proceso iterativo.
+Realizadas por el capitán del equipo para las tareas activas; cualquier participante puede preparar el formulario pero sólo el capitán confirma la entrega final.
+Pueden requerir diferentes tipos de archivos (pdf, video, audio, zip) y un texto explicativo opcional u obligatorio. La plataforma debe ofrecer un flujo de subida de archivos con almacenamiento seguro multi-tenant (espacio de objetos segregado por `tenant_id`), soporte de progreso, validación de tamaño y tipo según configuración de la tarea y generación de URL firmadas o públicas según políticas del tenant.
+Se admite enviar múltiples archivos por entrega cuando la tarea lo defina, guardando metadatos (nombre original, tamaño, tipo MIME) junto con cada envío.
+Entregas Provisionales: Se permite realizar entregas parciales para recibir feedback de los evaluadores antes de la entrega final, fomentando un proceso iterativo.
 Las entregas se realizan a través de un formulario.
 Evaluación entre Pares:
 Dentro del equipo, los miembros pueden hacer comentarios y proponer ideas para las entregas, enriqueciendo el trabajo colaborativo. Esta información también es visible para la organización.
 Dashboard de Evaluaciones:
-Interfaz centralizada para que organizadores y mentores revisen los proyectos asignados de forma ordenada.
+Interfaz centralizada para que organizadores y evaluadores revisen los proyectos asignados de forma ordenada.
 Contará con paneles de estadísticas para visualizar de forma eficaz la información necesaria para las evaluaciones y la asignación de premios.
-Sistema de Rúbricas: Los administradores podrán crear rúbricas de evaluación personalizadas para cada tarea o fase, con criterios y puntuaciones predefinidas, para estandarizar las calificaciones.
+Sistema de Rúbricas: Los administradores podrán crear rúbricas de evaluación personalizadas asociadas a cada fase y reutilizables por tarea. Cada rúbrica define criterios, pesos, escala numérica y mensajes guía. Las evaluaciones deben almacenar un snapshot de la rúbrica utilizada.
+Evaluación asistida por IA: Los evaluadores y organizadores dispondrán de un botón “Generar evaluación con IA” en el dashboard de evaluaciones. Al activarlo, la plataforma consultará OpenAI (modelo configurable por tenant) usando la rúbrica y la entrega como contexto, devolviendo puntajes por criterio, observaciones y recomendaciones. El resultado se guarda como evaluación con origen `ai_assisted`, incluyendo el prompt utilizado, el identificador de la rúbrica y métricas de coste. El evaluador puede editar o complementar la evaluación generada antes de publicarla.
+Historial de Evaluaciones: Debe diferenciar evaluaciones manuales y asistidas por IA, mostrar quién las creó y en qué momento, y permitir comparar versiones para cada entrega final.
 3.4. Módulo de Proyectos y equipos
 Proyectos:
 Gestionado por un equipo, se desarrolla a través de las fases del evento.
 Al inscribirse en un evento, el proyecto se configura automáticamente con las fases y tareas de dicho evento.
-Dispone de un apartado de información general sobre su estado y acceso a los comentarios de organizadores y mentores.
+Dispone de un apartado de información general sobre su estado y acceso a los comentarios de organizadores y evaluadores.
 equipos:
 Un usuario crea un equipo y se convierte en capitán para presentar un proyecto.
 Los equipos se crean vinculados a un evento específico.
@@ -145,7 +148,7 @@ Sistema de Notificaciones: Un centro de notificaciones donde el usuario recibir�
 .../feedback - Historial de feedback recibido
 .../team - Información y colaboración del equipo
 2.2.2 /event/{eventId}/team/manage - Dashboard de gestión del equipo (para Capitán)
-2.2.3 /event/{eventId}/evaluation - Dashboard de evaluación (para Organizadores/Mentores)
+2.2.3 /event/{eventId}/evaluation - Dashboard de evaluación (para Organizadores/Evaluadores)
 .../projects-list - Listado de proyectos a evaluar
 .../project/{projectId}/review - Interfaz de evaluación de un proyecto
 2.3 /project/{projectId}/settings - Configuración del proyecto (para Capitán)
@@ -165,7 +168,7 @@ Sistema de Notificaciones: Un centro de notificaciones donde el usuario recibir�
 REQUISITOS CLAVE PARA LA CONVERSIÓN A SAAS MULTI-TENANT:
 La solución debe ser multitenant 
 Aislamiento de Datos Estricto (Data Segregation):
-Añade un principio fundamental que establezca: Todos los datos (mentores, usuarios, citas, etc) deben estar etiquetados y filtrados por un tenant_id. Un usuario o dato de un Tenant nunca debe ser visible o accesible para otro Tenant.
+Añade un principio fundamental que establezca: Todos los datos (evaluadores, usuarios, citas, etc.) deben estar etiquetados y filtrados por un tenant_id. Un usuario o dato de un Tenant nunca debe ser visible o accesible para otro Tenant.
 Roles de Usuario y Tenancy:
 Renombra y Redefine el Rol "Administrador":
 El rol actual "Administrador" debe renombrarse a "Administrador de Cliente" (o Tenant Admin). Sus permisos deben limitarse exclusivamente a la gestión de su propio Tenant (su instancia, sus eventos, sus usuarios).

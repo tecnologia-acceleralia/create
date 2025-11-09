@@ -34,6 +34,14 @@ export function PhaseModel(sequelize) {
         type: DataTypes.DATE,
         allowNull: true
       },
+      view_start_date: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
+      view_end_date: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
       order_index: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: false,

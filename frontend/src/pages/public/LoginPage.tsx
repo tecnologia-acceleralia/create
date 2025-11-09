@@ -1,14 +1,18 @@
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
+﻿import { z } from "zod";
+import { useForm } from "react-hook-form";
 import { zodResolver } from '@hookform/resolvers/zod';
+import { isAxiosError } from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { PageContainer } from '@/components/common';
+import { useTenant } from '@/context/TenantContext';
+import { FormField } from '@/components/form';
 
 const schema = z.object({
   email: z.string().email(),
@@ -22,6 +26,7 @@ function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
+  const { branding, tenantSlug } = useTenant();
   const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -34,45 +39,68 @@ function LoginPage() {
       await login(values);
       navigate(tenantPath('dashboard'));
     } catch (err) {
-      setError(t('common.error'));
+      if (isAxiosError(err)) {
+        const message = err.response?.data?.message ?? t('auth.invalidCredentials');
+        setError(message);
+      } else {
+        setError(t('common.error'));
+      }
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>{t('auth.loginTitle')}</CardTitle>
+    <PageContainer className="flex justify-center">
+      <Card className="h-full w-full max-w-md border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
+        <CardHeader className="flex flex-col items-center gap-3">
+          {branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={t('navigation.brand', { defaultValue: 'Create' })}
+              className="h-12 w-auto"
+            />
+          ) : null}
+          {tenantSlug ? (
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t('auth.loginForTenant', { tenant: tenantSlug })}
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" htmlFor="email">
-                {t('auth.email')}
-              </label>
-              <Input id="email" type="email" {...register('email')} />
-              {errors.email ? <p className="text-xs text-destructive">{errors.email.message}</p> : null}
-            </div>
+            <FormField
+              label={t('auth.email')}
+              htmlFor="email"
+              error={errors.email ? t(errors.email.message ?? '', { defaultValue: errors.email.message }) : undefined}
+              required
+            >
+              <Input id="email" type="email" autoComplete="email" {...register('email')} />
+            </FormField>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium" htmlFor="password">
-                {t('auth.password')}
-              </label>
-              <Input id="password" type="password" {...register('password')} />
-              {errors.password ? <p className="text-xs text-destructive">{errors.password.message}</p> : null}
-            </div>
+            <FormField
+              label={t('auth.password')}
+              htmlFor="password"
+              error={errors.password ? t(errors.password.message ?? '', { defaultValue: errors.password.message }) : undefined}
+              required
+            >
+              <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
+            </FormField>
 
             {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? t('common.loading') : t('auth.submit')}
             </Button>
+
+            <div className="text-center">
+              <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
+                {t('auth.forgotPassword')}
+              </Link>
+            </div>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </PageContainer>
   );
 }
 
 export default LoginPage;
-

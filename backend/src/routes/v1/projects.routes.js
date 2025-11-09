@@ -11,7 +11,7 @@ projectsRouter.use(authenticate);
 
 projectsRouter.get(
   '/:projectId',
-  authorizeRoles('tenant_admin', 'organizer', 'mentor', 'team_captain', 'participant'),
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'team_captain', 'participant'),
   [param('projectId').isInt()],
   validateRequest,
   ProjectsController.detail

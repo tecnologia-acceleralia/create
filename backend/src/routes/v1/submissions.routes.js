@@ -16,7 +16,10 @@ submissionsRouter.post(
     body('attachment_url').optional().isString(),
     body('status').optional().isIn(['draft', 'final']),
     body('type').optional().isIn(['provisional', 'final']),
-    body('team_id').optional().isInt()
+    body('team_id').optional().isInt(),
+    body('files').optional().isArray(),
+    body('files.*.base64').optional().isString(),
+    body('files.*.name').optional().isString()
   ],
   validateRequest,
   SubmissionsController.create

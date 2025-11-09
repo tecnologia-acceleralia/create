@@ -68,6 +68,20 @@ export async function tenantMiddleware(req, res, next) {
       });
     }
 
+    const now = new Date();
+    const startDate = tenant.start_date ? new Date(`${tenant.start_date}T00:00:00Z`) : null;
+    const endDate = tenant.end_date ? new Date(`${tenant.end_date}T23:59:59Z`) : null;
+
+    if (
+      (startDate && now < startDate) ||
+      (endDate && now > endDate)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Tenant fuera de periodo activo'
+      });
+    }
+
     req.tenant = tenant;
     return next();
   } catch (error) {

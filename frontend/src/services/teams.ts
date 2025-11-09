@@ -3,7 +3,7 @@ import { apiClient } from './api';
 export type TeamMember = {
   id: number;
   user_id: number;
-  role: 'captain' | 'member' | 'mentor';
+  role: 'captain' | 'member' | 'evaluator';
   user?: {
     id: number;
     email: string;

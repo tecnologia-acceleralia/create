@@ -16,6 +16,30 @@ export async function getPublicEvents(slug: string) {
     start_date: string;
     end_date: string;
     status: string;
+    video_url?: string | null;
+    allow_open_registration: boolean;
+  }>;
+}
+
+export async function getAllPublicEvents() {
+  const response = await axios.get(`${PUBLIC_BASE_URL}/events/all`);
+  return response.data.data as Array<{
+    id: number;
+    name: string;
+    description: string;
+    start_date: string;
+    end_date: string;
+    status: string;
+    video_url?: string | null;
+    allow_open_registration: boolean;
+    tenant: {
+      id: number;
+      name: string;
+      slug: string;
+      logo_url: string | null;
+      primary_color: string | null;
+      secondary_color: string | null;
+    } | null;
   }>;
 }
 

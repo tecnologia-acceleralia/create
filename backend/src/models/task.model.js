@@ -45,6 +45,23 @@ export function TaskModel(sequelize) {
       status: {
         type: DataTypes.ENUM('draft', 'active', 'closed'),
         defaultValue: 'draft'
+      },
+      phase_rubric_id: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: true
+      },
+      max_files: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        defaultValue: 1
+      },
+      max_file_size_mb: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: true
+      },
+      allowed_mime_types: {
+        type: DataTypes.JSON,
+        allowNull: true
       }
     },
     {

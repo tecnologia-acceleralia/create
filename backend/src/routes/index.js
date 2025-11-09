@@ -7,6 +7,7 @@ import { projectsRouter } from './v1/projects.routes.js';
 import { submissionsRouter } from './v1/submissions.routes.js';
 import { evaluationsRouter } from './v1/evaluations.routes.js';
 import { notificationsRouter } from './v1/notifications.routes.js';
+import { rubricsRouter } from './v1/rubrics.routes.js';
 
 export const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/teams', teamsRouter);
 router.use('/projects', projectsRouter);
 router.use('/', submissionsRouter);
 router.use('/', evaluationsRouter);
+router.use('/', rubricsRouter);
 router.use('/notifications', notificationsRouter);
 

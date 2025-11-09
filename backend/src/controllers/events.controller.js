@@ -5,14 +5,94 @@ function toInt(value) {
   return Number.parseInt(value, 10);
 }
 
+function toDateOrNull(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeEventPayload(body) {
+  const payload = { ...body };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'video_url')) {
+    if (!payload.video_url || (typeof payload.video_url === 'string' && payload.video_url.trim() === '')) {
+      payload.video_url = null;
+    } else if (typeof payload.video_url === 'string') {
+      payload.video_url = payload.video_url.trim();
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'publish_start_at')) {
+    if (!payload.publish_start_at) {
+      payload.publish_start_at = null;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'publish_end_at')) {
+    if (!payload.publish_end_at) {
+      payload.publish_end_at = null;
+    }
+  }
+
+  if (payload.is_public === false) {
+    payload.publish_start_at = null;
+    payload.publish_end_at = null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'allow_open_registration')) {
+    const value = payload.allow_open_registration;
+    if (typeof value === 'string') {
+      payload.allow_open_registration = value === 'true' || value === '1';
+    } else {
+      payload.allow_open_registration = Boolean(value);
+    }
+  }
+
+  if (
+    payload.publish_start_at &&
+    payload.publish_end_at &&
+    new Date(payload.publish_start_at).getTime() > new Date(payload.publish_end_at).getTime()
+  ) {
+    const error = new Error('La fecha de publicación final debe ser posterior a la inicial');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (payload.is_public && (!payload.publish_start_at || !payload.publish_end_at)) {
+    const error = new Error('Las fechas de publicación son obligatorias para eventos públicos');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (payload[key] === undefined) {
+      delete payload[key];
+    }
+  }
+
+  return payload;
+}
+
 async function findEventOr404(eventId) {
   const id = toInt(eventId);
-  const { Event, Phase, Task } = getModels();
+  const { Event, Phase, Task, PhaseRubric } = getModels();
   const event = await Event.findOne({
     where: { id },
     include: [
       { model: Phase, as: 'phases', separate: true, order: [['order_index', 'ASC']] },
-      { model: Task, as: 'tasks', separate: true }
+      { model: Task, as: 'tasks', separate: true },
+      {
+        model: PhaseRubric,
+        as: 'rubrics',
+        separate: true,
+        include: [{ association: 'criteria' }],
+        order: [['created_at', 'DESC']]
+      }
     ]
   });
 
@@ -35,8 +115,9 @@ export class EventsController {
   static async create(req, res) {
     try {
       const { Event } = getModels();
+      const payload = normalizeEventPayload(req.body);
       const event = await Event.create({
-        ...req.body,
+        ...payload,
         created_by: req.user.id
       });
 
@@ -44,13 +125,24 @@ export class EventsController {
       res.status(201).json({ success: true, data: event });
     } catch (error) {
       logger.error('Error creando evento', { error: error.message });
-      res.status(500).json({ success: false, message: 'Error creando evento' });
+      const statusCode = error.statusCode ?? 500;
+      res.status(statusCode).json({
+        success: false,
+        message: error.statusCode ? error.message : 'Error creando evento'
+      });
     }
   }
 
   static async detail(req, res, next) {
     try {
       const event = await findEventOr404(req.params.eventId);
+      if (Array.isArray(event.rubrics)) {
+        event.rubrics.forEach(rubric => {
+          if (Array.isArray(rubric.criteria)) {
+            rubric.criteria.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+          }
+        });
+      }
       res.json({ success: true, data: event });
     } catch (error) {
       next(error);
@@ -60,7 +152,8 @@ export class EventsController {
   static async update(req, res, next) {
     try {
       const event = await findEventOr404(req.params.eventId);
-      await event.update(req.body);
+      const payload = normalizeEventPayload({ ...req.body });
+      await event.update(payload);
       res.json({ success: true, data: event });
     } catch (error) {
       next(error);
@@ -97,11 +190,40 @@ export class EventsController {
       const event = await findEventOr404(req.params.eventId);
 
       const count = await Phase.count({ where: { event_id: event.id } });
-      const phase = await Phase.create({
+      const eventStartAt = toDateOrNull(event.start_date);
+      const eventEndAt = toDateOrNull(event.end_date);
+
+      const payload = {
         ...req.body,
         event_id: event.id,
         order_index: req.body.order_index ?? count + 1
-      });
+      };
+      payload.start_date = toDateOrNull(payload.start_date);
+      payload.end_date = toDateOrNull(payload.end_date);
+
+      const resolvedViewStart =
+        toDateOrNull(payload.view_start_date) ??
+        eventStartAt ??
+        toDateOrNull(payload.start_date) ??
+        null;
+      const resolvedViewEnd =
+        toDateOrNull(payload.view_end_date) ??
+        eventEndAt ??
+        toDateOrNull(payload.end_date) ??
+        null;
+
+      if (resolvedViewStart && resolvedViewEnd && resolvedViewStart > resolvedViewEnd) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
+        });
+      }
+
+      payload.view_start_date = resolvedViewStart;
+      payload.view_end_date = resolvedViewEnd;
+
+      const phase = await Phase.create(payload);
 
       res.status(201).json({ success: true, data: phase });
     } catch (error) {
@@ -112,6 +234,7 @@ export class EventsController {
   static async updatePhase(req, res, next) {
     try {
       const { Phase } = getModels();
+      const event = await findEventOr404(req.params.eventId);
       const phase = await Phase.findOne({
         where: { id: toInt(req.params.phaseId), event_id: toInt(req.params.eventId) }
       });
@@ -120,7 +243,43 @@ export class EventsController {
         return res.status(404).json({ success: false, message: 'Fase no encontrada' });
       }
 
-      await phase.update(req.body);
+      const payload = { ...req.body };
+      if (Object.prototype.hasOwnProperty.call(payload, 'start_date')) {
+        payload.start_date = toDateOrNull(payload.start_date);
+      }
+      if (Object.prototype.hasOwnProperty.call(payload, 'end_date')) {
+        payload.end_date = toDateOrNull(payload.end_date);
+      }
+      const eventStartAt = toDateOrNull(event.start_date);
+      const eventEndAt = toDateOrNull(event.end_date);
+
+      if (Object.prototype.hasOwnProperty.call(payload, 'view_start_date')) {
+        payload.view_start_date =
+          payload.view_start_date === null
+            ? eventStartAt ?? toDateOrNull(phase.start_date) ?? null
+            : toDateOrNull(payload.view_start_date);
+      }
+
+      if (Object.prototype.hasOwnProperty.call(payload, 'view_end_date')) {
+        payload.view_end_date =
+          payload.view_end_date === null
+            ? eventEndAt ?? toDateOrNull(phase.end_date) ?? null
+            : toDateOrNull(payload.view_end_date);
+      }
+
+      if (
+        payload.view_start_date &&
+        payload.view_end_date &&
+        payload.view_start_date > payload.view_end_date
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
+        });
+      }
+
+      await phase.update(payload);
       res.json({ success: true, data: phase });
     } catch (error) {
       next(error);
@@ -161,7 +320,7 @@ export class EventsController {
 
   static async createTask(req, res, next) {
     try {
-      const { Task, Phase } = getModels();
+      const { Task, Phase, PhaseRubric } = getModels();
       const event = await findEventOr404(req.params.eventId);
       const phaseId = toInt(req.body.phase_id);
       const phase = await Phase.findOne({
@@ -172,10 +331,23 @@ export class EventsController {
         return res.status(404).json({ success: false, message: 'Fase inválida' });
       }
 
+      let phaseRubricId = req.body.phase_rubric_id ?? null;
+
+      if (phaseRubricId) {
+        const rubric = await PhaseRubric.findOne({
+          where: { id: phaseRubricId, event_id: event.id, phase_id: phase.id }
+        });
+        if (!rubric) {
+          return res.status(400).json({ success: false, message: 'Rúbrica inválida para la fase' });
+        }
+      }
+
       const task = await Task.create({
         ...req.body,
         event_id: event.id,
-        phase_id: phase.id
+        phase_id: phase.id,
+        phase_rubric_id: phaseRubricId,
+        allowed_mime_types: Array.isArray(req.body.allowed_mime_types) ? req.body.allowed_mime_types : null
       });
 
       res.status(201).json({ success: true, data: task });
@@ -186,7 +358,7 @@ export class EventsController {
 
   static async updateTask(req, res, next) {
     try {
-      const { Task } = getModels();
+      const { Task, PhaseRubric } = getModels();
       const task = await Task.findOne({
         where: { id: toInt(req.params.taskId), event_id: toInt(req.params.eventId) }
       });
@@ -195,7 +367,33 @@ export class EventsController {
         return res.status(404).json({ success: false, message: 'Tarea no encontrada' });
       }
 
-      await task.update(req.body);
+      let updates = { ...req.body };
+
+      if (Object.prototype.hasOwnProperty.call(req.body, 'phase_rubric_id')) {
+        if (req.body.phase_rubric_id === null) {
+          updates.phase_rubric_id = null;
+        } else {
+          const rubric = await PhaseRubric.findOne({
+            where: {
+              id: Number(req.body.phase_rubric_id),
+              event_id: task.event_id,
+              phase_id: task.phase_id
+            }
+          });
+          if (!rubric) {
+            return res.status(400).json({ success: false, message: 'Rúbrica inválida para la fase' });
+          }
+          updates.phase_rubric_id = Number(req.body.phase_rubric_id);
+        }
+      }
+
+      if (Object.prototype.hasOwnProperty.call(req.body, 'allowed_mime_types')) {
+        updates.allowed_mime_types = Array.isArray(req.body.allowed_mime_types)
+          ? req.body.allowed_mime_types
+          : null;
+      }
+
+      await task.update(updates);
       res.json({ success: true, data: task });
     } catch (error) {
       next(error);

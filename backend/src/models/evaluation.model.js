@@ -29,6 +29,19 @@ export function EvaluationModel(sequelize) {
       comment: {
         type: DataTypes.TEXT,
         allowNull: true
+      },
+      source: {
+        type: DataTypes.ENUM('manual', 'ai_assisted'),
+        defaultValue: 'manual',
+        allowNull: false
+      },
+      rubric_snapshot: {
+        type: DataTypes.JSON,
+        allowNull: true
+      },
+      metadata: {
+        type: DataTypes.JSON,
+        allowNull: true
       }
     },
     {

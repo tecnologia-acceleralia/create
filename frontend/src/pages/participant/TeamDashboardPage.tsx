@@ -8,11 +8,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useAuth } from '@/context/AuthContext';
-import { Spinner, PageHeader } from '@/components/common';
+import { Spinner } from '@/components/common';
+import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { FormField, FormGrid } from '@/components/form';
 import { getMyTeams, createTeam, addTeamMember, removeTeamMember } from '@/services/teams';
 import { updateProject } from '@/services/projects';
 
@@ -133,10 +135,10 @@ function TeamDashboardPage() {
     projectMutation.mutate(values);
   };
 
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader title={t('teams.title')} subtitle={myMembership?.team.name ?? ''} />
+  const translateError = (message?: string) => (message ? t(message, { defaultValue: message }) : undefined);
 
+  return (
+    <DashboardLayout title={t('teams.title')} subtitle={myMembership?.team.name ?? ''}>
       {!myMembership ? (
         <Card>
           <CardHeader>
@@ -145,18 +147,20 @@ function TeamDashboardPage() {
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">{t('teams.noTeam')}</p>
             <form onSubmit={createTeamForm.handleSubmit(handleCreateTeam)} className="space-y-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium" htmlFor="team-name">{t('teams.name')}</label>
+              <FormField
+                label={t('teams.name')}
+                htmlFor="team-name"
+                error={translateError(createTeamForm.formState.errors.name?.message)}
+                required
+              >
                 <Input id="team-name" {...createTeamForm.register('name')} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium" htmlFor="team-description">{t('teams.description')}</label>
+              </FormField>
+              <FormField label={t('teams.description')} htmlFor="team-description">
                 <Textarea id="team-description" rows={3} {...createTeamForm.register('description')} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium" htmlFor="team-requirements">{t('teams.requirements')}</label>
+              </FormField>
+              <FormField label={t('teams.requirements')} htmlFor="team-requirements">
                 <Textarea id="team-requirements" rows={3} {...createTeamForm.register('requirements')} />
-              </div>
+              </FormField>
               <Button type="submit" disabled={createTeamMutation.isLoading}>
                 {createTeamMutation.isLoading ? t('common.loading') : t('teams.create')}
               </Button>
@@ -192,11 +196,15 @@ function TeamDashboardPage() {
 
               {isCaptain ? (
                 <form onSubmit={addMemberForm.handleSubmit(handleAddMember)} className="flex flex-col gap-3 md:flex-row">
-                  <div className="flex-grow">
-                    <label className="text-sm font-medium" htmlFor="member-email">{t('teams.memberEmail')}</label>
+                  <FormField
+                    className="flex-1"
+                    label={t('teams.memberEmail')}
+                    htmlFor="member-email"
+                    error={translateError(addMemberForm.formState.errors.user_email?.message)}
+                  >
                     <Input id="member-email" type="email" {...addMemberForm.register('user_email')} />
-                  </div>
-                  <Button type="submit" className="md:self-end" disabled={addMemberMutation.isLoading}>
+                  </FormField>
+                  <Button type="submit" className="md:self-end md:whitespace-nowrap" disabled={addMemberMutation.isLoading}>
                     {addMemberMutation.isLoading ? t('common.loading') : t('teams.addMember')}
                   </Button>
                 </form>
@@ -211,34 +219,33 @@ function TeamDashboardPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={projectForm.handleSubmit(handleUpdateProject)} className="space-y-4">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium" htmlFor="project-name">{t('teams.projectName')}</label>
-                    <Input id="project-name" defaultValue={myMembership.team.project.name} {...projectForm.register('name')} />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-sm font-medium" htmlFor="project-summary">{t('teams.projectSummary')}</label>
-                    <Textarea id="project-summary" rows={3} defaultValue={myMembership.team.project.summary ?? ''} {...projectForm.register('summary')} />
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" htmlFor="project-problem">{t('teams.projectProblem')}</label>
-                      <Textarea id="project-problem" rows={3} defaultValue={myMembership.team.project.problem ?? ''} {...projectForm.register('problem')} />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" htmlFor="project-solution">{t('teams.projectSolution')}</label>
-                      <Textarea id="project-solution" rows={3} defaultValue={myMembership.team.project.solution ?? ''} {...projectForm.register('solution')} />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" htmlFor="project-repo">{t('teams.projectRepo')}</label>
-                      <Input id="project-repo" defaultValue={myMembership.team.project.repository_url ?? ''} {...projectForm.register('repository_url')} />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-sm font-medium" htmlFor="project-pitch">{t('teams.projectPitch')}</label>
-                      <Input id="project-pitch" defaultValue={myMembership.team.project.pitch_url ?? ''} {...projectForm.register('pitch_url')} />
-                    </div>
-                  </div>
+                  <FormField
+                    label={t('teams.projectName')}
+                    htmlFor="project-name"
+                    error={translateError(projectForm.formState.errors.name?.message)}
+                    required
+                  >
+                    <Input id="project-name" {...projectForm.register('name')} />
+                  </FormField>
+                  <FormField label={t('teams.projectSummary')} htmlFor="project-summary">
+                    <Textarea id="project-summary" rows={3} {...projectForm.register('summary')} />
+                  </FormField>
+                  <FormGrid columns={2}>
+                    <FormField label={t('teams.projectProblem')} htmlFor="project-problem">
+                      <Textarea id="project-problem" rows={3} {...projectForm.register('problem')} />
+                    </FormField>
+                    <FormField label={t('teams.projectSolution')} htmlFor="project-solution">
+                      <Textarea id="project-solution" rows={3} {...projectForm.register('solution')} />
+                    </FormField>
+                  </FormGrid>
+                  <FormGrid columns={2}>
+                    <FormField label={t('teams.projectRepo')} htmlFor="project-repo">
+                      <Input id="project-repo" {...projectForm.register('repository_url')} />
+                    </FormField>
+                    <FormField label={t('teams.projectPitch')} htmlFor="project-pitch">
+                      <Input id="project-pitch" {...projectForm.register('pitch_url')} />
+                    </FormField>
+                  </FormGrid>
                   <Button type="submit" disabled={projectMutation.isLoading || !isCaptain}>
                     {projectMutation.isLoading ? t('common.loading') : t('teams.save')}
                   </Button>
@@ -248,7 +255,7 @@ function TeamDashboardPage() {
           ) : null}
         </>
       )}
-    </div>
+    </DashboardLayout>
   );
 }
 

@@ -47,6 +47,28 @@ export function EventModel(sequelize) {
       status: {
         type: DataTypes.ENUM('draft', 'published', 'archived'),
         defaultValue: 'draft'
+      },
+      video_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      is_public: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
+      allow_open_registration: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
+      },
+      publish_start_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
+      publish_end_at: {
+        type: DataTypes.DATE,
+        allowNull: true
       }
     },
     {

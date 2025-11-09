@@ -1,5 +1,4 @@
 import { DataTypes } from 'sequelize';
-import { enableTenantScoping } from '../utils/tenant-scoping.js';
 
 export function UserModel(sequelize) {
   const User = sequelize.define(
@@ -9,14 +8,6 @@ export function UserModel(sequelize) {
         type: DataTypes.INTEGER.UNSIGNED,
         autoIncrement: true,
         primaryKey: true
-      },
-      tenant_id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: false
-      },
-      role_id: {
-        type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: false
       },
       email: {
         type: DataTypes.STRING(255),
@@ -42,6 +33,10 @@ export function UserModel(sequelize) {
         type: DataTypes.STRING(500),
         allowNull: true
       },
+    profile_image_url: {
+      type: DataTypes.STRING(500),
+      allowNull: true
+    },
       language: {
         type: DataTypes.STRING(10),
         defaultValue: 'es'
@@ -49,6 +44,11 @@ export function UserModel(sequelize) {
       status: {
         type: DataTypes.ENUM('active', 'inactive', 'invited'),
         defaultValue: 'active'
+    },
+    is_super_admin: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
       }
     },
     {
@@ -65,8 +65,6 @@ export function UserModel(sequelize) {
       }
     }
   );
-
-  enableTenantScoping(User);
 
   User.prototype.toSafeJSON = function toSafeJSON() {
     const { password, ...rest } = this.toJSON();

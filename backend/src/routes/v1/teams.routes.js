@@ -11,7 +11,7 @@ teamsRouter.use(authenticate);
 
 teamsRouter.get(
   '/events/:eventId',
-  authorizeRoles('tenant_admin', 'organizer', 'mentor'),
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
   [param('eventId').isInt()],
   validateRequest,
   TeamsController.listByEvent
@@ -33,7 +33,7 @@ teamsRouter.post(
 
 teamsRouter.get(
   '/:teamId',
-  authorizeRoles('tenant_admin', 'organizer', 'mentor'),
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
   [param('teamId').isInt()],
   validateRequest,
   TeamsController.detail

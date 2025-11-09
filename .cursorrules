@@ -45,9 +45,9 @@
 - **Eventos** (`events`): definen fases, tareas, métricas, fechas y branding específico.
 - **Fases y Tareas**: controlan el flujo de trabajo dentro de cada evento, con deadlines y tipos de entrega.
 - **Equipos y Proyectos**: cada equipo está vinculado a un evento; un capitán crea el proyecto, gestiona miembros y envíos.
-- **Submissions & Evaluations**: entregas iterativas con feedback de mentores/organizadores, rúbricas y calificaciones.
+- **Submissions & Evaluations**: entregas iterativas con feedback de evaluadores/jurado y organizadores, rúbricas y calificaciones.
 - **Notificaciones**: avisos in-app + correo (planificados o inmediatos).
-- **Roles principales**: superadmin, tenant_admin (organizer), mentor, participant, team_captain.
+- **Roles principales**: superadmin, tenant_admin (organizer), evaluator, participant, team_captain.
 
 ## Arquitectura Multi-Tenant
 
@@ -71,8 +71,8 @@
   secondary_color: STRING(7) | null,
   accent_color: STRING(7) | null,
   plan_type: ENUM('free','basic','professional','enterprise') default 'free',
-  max_mentors: INTEGER | null,
-  max_mentees: INTEGER | null,
+  max_evaluators: INTEGER | null,
+  max_participants: INTEGER | null,
   max_appointments_per_month: INTEGER | null,
   status: ENUM('active','suspended','trial','cancelled') default 'trial'
 }
@@ -103,7 +103,7 @@ create/
 │   │   │   └── ui/                # shadcn/ui wrappers (button.tsx...)
 │   │   ├── context/               # AuthContext, TenantContext
 │   │   ├── i18n/                  # config.ts y locales JSON
-│   │   ├── pages/                 # admin, mentee, mentor, public, superadmin
+│   │   ├── pages/                 # admin, participant, evaluator, public, superadmin
 │   │   ├── services/              # api.ts + endpoints específicos (events.ts, teams.ts...)
 │   │   ├── utils/                 # cn.ts, helpers
 │   │   └── App.tsx, main.tsx
@@ -195,7 +195,7 @@ const { branding, tenantSlug } = useTenant();
 
 ### Router principal
 - Definido en `App.tsx` a través de `useRoutes`. Mantén rutas protegidas con `Navigate` y `useAuth`.
-- `DashboardRouter` decide layout según `user.role.scope` (`tenant_admin`, `organizer`, `mentor`, etc.).
+- `DashboardRouter` decide layout según `user.role.scope` (`tenant_admin`, `organizer`, `evaluator`, etc.).
 
 ## Backend: Ejemplo de Ruta Multi-Tenant
 

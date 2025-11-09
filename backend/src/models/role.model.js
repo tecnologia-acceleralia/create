@@ -23,7 +23,7 @@ export function RoleModel(sequelize) {
         allowNull: true
       },
       scope: {
-        type: DataTypes.ENUM('super_admin', 'tenant_admin', 'organizer', 'mentor', 'participant', 'team_captain'),
+        type: DataTypes.ENUM('super_admin', 'tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
         allowNull: false
       }
     },

@@ -2,8 +2,20 @@ import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 
-function isTenantAdmin(user) {
-  return user?.role?.scope === 'tenant_admin';
+function getRoleScopes(user) {
+  const scopes = user?.roleScopes;
+  if (!Array.isArray(scopes)) {
+    return [];
+  }
+  return scopes;
+}
+
+function isTenantAdmin(req) {
+  if (req.auth?.isSuperAdmin) {
+    return true;
+  }
+  const roleScopes = getRoleScopes(req.user);
+  return roleScopes.includes('tenant_admin');
 }
 
 async function ensureUserNotInOtherTeam(userId, eventId) {
@@ -39,8 +51,14 @@ async function findTeamOr404(teamId) {
   return team;
 }
 
-function canManageTeam(user, team) {
-  return isTenantAdmin(user) || team.captain_id === user.id;
+function canManageTeam(req, team) {
+  if (req.auth?.isSuperAdmin) {
+    return true;
+  }
+  if (isTenantAdmin(req)) {
+    return true;
+  }
+  return team.captain_id === req.user.id;
 }
 
 export class TeamsController {
@@ -95,7 +113,7 @@ export class TeamsController {
         throw Object.assign(new Error('Evento no encontrado'), { statusCode: 404 });
       }
 
-      const captainId = isTenantAdmin(req.user) && req.body.captain_user_id
+      const captainId = isTenantAdmin(req) && req.body.captain_user_id
         ? Number(req.body.captain_user_id)
         : req.user.id;
 
@@ -145,7 +163,7 @@ export class TeamsController {
       const { TeamMember, User } = getModels();
       const team = await findTeamOr404(req.params.teamId);
 
-      if (!canManageTeam(req.user, team)) {
+      if (!canManageTeam(req, team)) {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
 
@@ -187,7 +205,7 @@ export class TeamsController {
       const { TeamMember } = getModels();
       const team = await findTeamOr404(req.params.teamId);
 
-      if (!canManageTeam(req.user, team)) {
+      if (!canManageTeam(req, team)) {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
 
@@ -216,7 +234,7 @@ export class TeamsController {
       const { Team, TeamMember } = getModels();
       const team = await findTeamOr404(req.params.teamId);
 
-      if (!canManageTeam(req.user, team)) {
+      if (!canManageTeam(req, team)) {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
 

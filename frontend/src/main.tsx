@@ -7,6 +7,7 @@ import './index.css';
 import '@/i18n/config';
 import { TenantProvider } from '@/context/TenantContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { SuperAdminProvider } from '@/context/SuperAdminContext';
 
 const queryClient = new QueryClient();
 
@@ -15,9 +16,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <TenantProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <SuperAdminProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </SuperAdminProvider>
         </AuthProvider>
       </TenantProvider>
     </QueryClientProvider>

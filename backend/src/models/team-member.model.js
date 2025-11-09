@@ -23,7 +23,7 @@ export function TeamMemberModel(sequelize) {
         allowNull: false
       },
       role: {
-        type: DataTypes.ENUM('captain', 'member', 'mentor'),
+        type: DataTypes.ENUM('captain', 'member', 'evaluator'),
         defaultValue: 'member'
       },
       status: {

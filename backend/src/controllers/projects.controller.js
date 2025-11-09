@@ -1,20 +1,35 @@
 import { getModels } from '../models/index.js';
 
+function getRoleScopes(user) {
+  const scopes = user?.roleScopes;
+  if (!Array.isArray(scopes)) {
+    return [];
+  }
+  return scopes;
+}
+
 function canEditProject(user, team) {
-  const role = user?.role?.scope;
-  if (!role) return false;
-  if (role === 'tenant_admin' || role === 'organizer') return true;
-  if (role === 'team_captain' || role === 'participant') {
+  const roleScopes = getRoleScopes(user);
+  if (!roleScopes.length) return false;
+
+  if (roleScopes.includes('tenant_admin') || roleScopes.includes('organizer')) return true;
+
+  if (roleScopes.some(scope => scope === 'team_captain' || scope === 'participant')) {
     return team.captain_id === user.id;
   }
+
   return false;
 }
 
 function canViewProject(user, team) {
-  const role = user?.role?.scope;
-  if (!role) return false;
-  if (['tenant_admin', 'organizer', 'mentor'].includes(role)) return true;
-  if (['team_captain', 'participant'].includes(role)) {
+  const roleScopes = getRoleScopes(user);
+  if (!roleScopes.length) return false;
+
+  if (roleScopes.some(scope => ['tenant_admin', 'organizer', 'evaluator'].includes(scope))) {
+    return true;
+  }
+
+  if (roleScopes.some(scope => scope === 'team_captain' || scope === 'participant')) {
     if (team.captain_id === user.id) return true;
     return team.members?.some(member => member.user_id === user.id);
   }
@@ -38,7 +53,7 @@ export class ProjectsController {
         return res.status(404).json({ success: false, message: 'Proyecto no encontrado' });
       }
 
-      if (!canViewProject(req.user, project.team)) {
+      if (!(req.auth?.isSuperAdmin || canViewProject(req.user, project.team))) {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
 
@@ -64,7 +79,7 @@ export class ProjectsController {
         return res.status(404).json({ success: false, message: 'Proyecto no encontrado' });
       }
 
-      if (!canEditProject(req.user, project.team)) {
+      if (!(req.auth?.isSuperAdmin || canEditProject(req.user, project.team))) {
         return res.status(403).json({ success: false, message: 'No autorizado' });
       }
 

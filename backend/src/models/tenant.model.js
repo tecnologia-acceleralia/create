@@ -1,4 +1,6 @@
-import { DataTypes } from 'sequelize';
+﻿import { DataTypes } from "sequelize";
+import { deleteTenantAssetsBySlug } from "../services/tenant-assets.service.js";
+import { logger } from "../utils/logger.js";
 
 export function TenantModel(sequelize) {
   const Tenant = sequelize.define(
@@ -43,15 +45,57 @@ export function TenantModel(sequelize) {
         type: DataTypes.STRING(7),
         allowNull: true
       },
+      hero_content: {
+        type: DataTypes.JSON,
+        allowNull: true
+      },
+      start_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        defaultValue: () => new Date().toISOString().slice(0, 10)
+      },
+      end_date: {
+        type: DataTypes.DATEONLY,
+        allowNull: false,
+        defaultValue: '2099-12-31'
+      },
+      tenant_css: {
+        type: DataTypes.TEXT('long'),
+        allowNull: true
+      },
+      website_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      facebook_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      instagram_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      linkedin_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      twitter_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      youtube_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
       plan_type: {
         type: DataTypes.ENUM('free', 'basic', 'professional', 'enterprise'),
         defaultValue: 'free'
       },
-      max_mentors: {
+      max_evaluators: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: true
       },
-      max_mentees: {
+      max_participants: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: true
       },
@@ -71,6 +115,16 @@ export function TenantModel(sequelize) {
     }
   );
 
+  Tenant.addHook('afterDestroy', async tenantInstance => {
+    try {
+      await deleteTenantAssetsBySlug(tenantInstance.slug);
+    } catch (error) {
+      logger.warn('No se pudieron eliminar los assets del tenant tras su eliminación', {
+        error: error.message,
+        tenantId: tenantInstance.id
+      });
+    }
+  });
+
   return Tenant;
 }
-

@@ -20,7 +20,9 @@ export async function connectDatabase() {
   const { db, databaseUrl } = appConfig;
 
   const commonOptions = {
-    logging: msg => logger.debug?.(msg) ?? console.debug(msg),
+    logging: msg => {
+      logger.debug?.(`[SEQUELIZE] ${msg}`);
+    },
     pool: {
       max: 10,
       min: 0,

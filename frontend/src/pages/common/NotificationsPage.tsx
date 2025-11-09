@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { PageHeader, Spinner } from '@/components/common';
+import { Spinner } from '@/components/common';
+import { DashboardLayout } from '@/components/layout';
+import { ResourceListCard } from '@/components/cards';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getNotifications, markNotificationRead, type Notification } from '@/services/notifications';
@@ -23,10 +25,11 @@ function NotificationsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <PageHeader title={t('notifications.title')} />
-      <div className="space-y-3">
-        {notifications?.length ? notifications.map(notification => (
+    <DashboardLayout title={t('notifications.title')}>
+      <ResourceListCard
+        title={t('notifications.title')}
+        items={notifications ?? []}
+        renderItem={notification => (
           <Card key={notification.id} className={notification.is_read ? 'opacity-70' : ''}>
             <CardContent className="space-y-2 p-4">
               <div className="flex items-center justify-between">
@@ -41,9 +44,11 @@ function NotificationsPage() {
               <p className="text-xs text-muted-foreground">{new Date(notification.created_at).toLocaleString()}</p>
             </CardContent>
           </Card>
-        )) : <p className="text-sm text-muted-foreground">{t('notifications.empty')}</p>}
-      </div>
-    </div>
+        )}
+        emptyMessage={<p className="text-sm text-muted-foreground">{t('notifications.empty')}</p>}
+        contentClassName="space-y-3"
+      />
+    </DashboardLayout>
   );
 }
 
