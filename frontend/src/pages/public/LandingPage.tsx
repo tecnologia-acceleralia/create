@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { getPublicEvents } from '@/services/public';
 import { EventCard } from '@/components/events/EventCard';
 import { PublicHero, PublicEventsSection } from '@/components/public';
+import { createSurfaceTheme } from '@/utils/color';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
@@ -25,6 +27,20 @@ function LandingPage() {
       ? heroVariant.subtitle.trim()
       : t('landing.heroSubtitle');
 
+  const landingTheme = useMemo(() => createSurfaceTheme(branding.primaryColor), [branding.primaryColor]);
+  const landingStyle = useMemo<CSSProperties>(
+    () => ({
+      '--landing-bg': landingTheme.subtle,
+      '--landing-surface': landingTheme.surface,
+      '--landing-border': landingTheme.border,
+      '--landing-hover': landingTheme.hover,
+      '--landing-foreground': landingTheme.foreground,
+      '--landing-muted': landingTheme.muted,
+      '--landing-accent': branding.accentColor
+    }),
+    [landingTheme, branding.accentColor]
+  );
+
   useEffect(() => {
     if (!tenantSlug) return;
     getPublicEvents(tenantSlug).then(setEvents).catch(() => setEvents([]));
@@ -36,7 +52,15 @@ function LandingPage() {
   );
 
   return (
-    <div className="bg-gradient-to-br from-background via-white to-background">
+    <div
+      className="relative overflow-hidden"
+      style={landingStyle}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[color:var(--landing-bg)] via-transparent to-[color:var(--landing-surface)]"
+        aria-hidden="true"
+      />
+      <div className="relative z-10 space-y-12 pb-12">
       <PublicHero
         title={heroTitle}
         subtitle={heroSubtitle}
@@ -47,7 +71,7 @@ function LandingPage() {
       <PublicEventsSection
         title={t('events.title')}
         events={publishedEvents}
-        emptyMessage={<p className="text-sm text-muted-foreground">{t('landing.noEvents')}</p>}
+          emptyMessage={<p className="text-sm text-[color:var(--landing-muted)]">{t('landing.noEvents')}</p>}
         renderEvent={event => (
           <EventCard
             key={event.id}
@@ -56,8 +80,8 @@ function LandingPage() {
             showVideo
           />
         )}
-        className="bg-transparent"
       />
+      </div>
     </div>
   );
 }

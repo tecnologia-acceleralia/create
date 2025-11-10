@@ -332,17 +332,26 @@ function Get-SeedersStatus {
             return $null
         }
 
-        $lines = $rawOutput | Where-Object { $_ -ne "" }
-        if (-not $lines -or $lines.Count -eq 0) {
-            return $null
+        $lines = @()
+        if ($rawOutput -is [System.Array]) {
+            $lines = $rawOutput
+        } elseif ($rawOutput) {
+            $lines = @($rawOutput)
         }
 
-        $jsonLine = $lines | ForEach-Object { $_.Trim() } | Where-Object { $_.StartsWith('[') -or $_.StartsWith('{') } | Select-Object -First 1
-        if (-not $jsonLine) {
-            return $null
+        foreach ($line in $lines) {
+            if (-not $line) { continue }
+            $trimmed = $line.Trim()
+            if (-not $trimmed) { continue }
+
+            try {
+                return $trimmed | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+                continue
+            }
         }
 
-        return $jsonLine | ConvertFrom-Json
+        return $null
     } catch {
         Write-Info "No se pudo obtener el estado de los seeders: $($_.Exception.Message)"
         return $null
@@ -405,6 +414,12 @@ function Write-EnvironmentSummary {
     Write-Host "  - Acceso:     http://localhost:3100/superadmin"
     Write-Host "  - Email:      superadmin@create.dev"
     Write-Host "  - Password:   SuperAdmin2025!"
+    Write-Host ""
+    Write-Host "Tenant UIC:"
+    Write-Host "  - Frontend:   http://localhost:3100/uic"
+    Write-Host "  - Admin:      admin@uic.cat / UICAdmin2025!"
+    Write-Host "  - Admin eval: mgraells@uic.es / UICAdminEval2025!"
+    Write-Host "  - Evaluadores: agironza@uic.es, marisam@uic.es, margemi@uic.es, fdyck@uic.es, nnogales@uic.es (clave UICEvaluador2025!)"
     Write-Host "=================================================="
 }
 
@@ -660,8 +675,6 @@ try {
     }
     $allChanges = $allChanges | Where-Object { $_ } | Sort-Object -Unique
 
-    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
-    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
     Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
     Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
 

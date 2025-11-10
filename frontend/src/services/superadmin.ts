@@ -1,7 +1,55 @@
 import axios from 'axios';
 
-const SUPERADMIN_URL =
-  import.meta.env.VITE_API_URL?.replace('/api', '/api/superadmin') ?? 'http://localhost:5100/api/superadmin';
+const DEFAULT_SUPERADMIN_URL = '/api';
+
+function normalizeUrl(value: string) {
+  return value.replace(/\/+$/, '');
+}
+
+function resolveSuperAdminBaseUrl() {
+  const explicit = import.meta.env.VITE_SUPERADMIN_API_URL;
+  if (explicit) {
+    return normalizeUrl(explicit);
+  }
+
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (!apiUrl) {
+    return DEFAULT_SUPERADMIN_URL;
+  }
+
+  try {
+    const url = new URL(apiUrl);
+    const segments = url.pathname.split('/').filter(Boolean);
+    const apiIndex = segments.indexOf('api');
+
+    if (apiIndex === -1) {
+      segments.push('api', 'superadmin');
+    } else {
+      segments.splice(apiIndex + 1, segments.length - (apiIndex + 1), 'superadmin');
+    }
+
+    url.pathname = `/${segments.join('/')}`;
+    return normalizeUrl(url.toString());
+  } catch {
+    const trimmed = normalizeUrl(apiUrl);
+
+    if (trimmed.includes('/api/v1')) {
+      return normalizeUrl(trimmed.replace('/api/v1', '/api/superadmin'));
+    }
+
+    if (trimmed.endsWith('/api')) {
+      return `${trimmed}/superadmin`;
+    }
+
+    if (trimmed.includes('/api')) {
+      return normalizeUrl(trimmed.replace('/api', '/api/superadmin'));
+    }
+
+    return `${trimmed}/api/superadmin`;
+  }
+}
+
+const SUPERADMIN_URL = resolveSuperAdminBaseUrl();
 
 const superAdminClient = axios.create({
   baseURL: SUPERADMIN_URL,
@@ -14,7 +62,12 @@ let currentToken: string | null = null;
 
 superAdminClient.interceptors.request.use(config => {
   if (currentToken) {
-    config.headers.Authorization = `Bearer ${currentToken}`;
+    if (typeof config.headers.set === 'function') {
+      config.headers.set('Authorization', `Bearer ${currentToken}`);
+    } else {
+      // Fallback for Axios < 1.3 without AxiosHeaders helper
+      config.headers.Authorization = `Bearer ${currentToken}`;
+    }
   }
   return config;
 });
@@ -51,7 +104,7 @@ export type SuperAdminTenant = {
   max_appointments_per_month: number | null;
   start_date: string;
   end_date: string;
-  hero_content?: unknown | null;
+  hero_content?: unknown;
   tenant_css: string | null;
   created_at: string;
   updated_at: string;

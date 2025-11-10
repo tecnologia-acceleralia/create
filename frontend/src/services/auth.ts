@@ -15,6 +15,15 @@ type PasswordResetConfirmPayload = {
   password: string;
 };
 
+type RegisterPayload = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+  language?: 'es' | 'en' | 'ca';
+  event_id?: number;
+};
+
 export async function requestPasswordResetCode(payload: PasswordResetRequestPayload) {
   return apiClient.post('/auth/password-reset/request', payload);
 }
@@ -25,5 +34,9 @@ export async function verifyPasswordResetCode(payload: PasswordResetVerifyPayloa
 
 export async function confirmPasswordReset(payload: PasswordResetConfirmPayload) {
   return apiClient.post('/auth/password-reset/confirm', payload);
+}
+
+export async function registerUser(payload: RegisterPayload) {
+  return apiClient.post('/auth/register', payload);
 }
 

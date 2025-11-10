@@ -63,14 +63,16 @@ function formatDate(locale: string, raw: string) {
 function EventLandingPage() {
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
-  const { eventId } = useParams<{ eventId: string }>();
+  const { tenantSlug: tenantSlugFromParams, eventId } = useParams<{ tenantSlug?: string; eventId?: string }>();
   const { t, i18n } = useTranslation();
   const [eventDetail, setEventDetail] = useState<PublicEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
+  const effectiveTenantSlug = tenantSlug ?? tenantSlugFromParams ?? null;
+
   useEffect(() => {
-    if (!tenantSlug || !eventId) {
+    if (!effectiveTenantSlug || !eventId) {
       return;
     }
 
@@ -78,13 +80,12 @@ function EventLandingPage() {
     setLoading(true);
     setError(false);
 
-    getPublicEvents(tenantSlug)
+    getPublicEvents(effectiveTenantSlug)
       .then(events => {
         if (!isMounted) {
           return;
         }
-        const numericId = Number(eventId);
-        const found = events.find(candidate => candidate.id === numericId);
+        const found = events.find(candidate => String(candidate.id) === eventId);
         if (found) {
           setEventDetail(found);
         } else {
@@ -105,7 +106,7 @@ function EventLandingPage() {
     return () => {
       isMounted = false;
     };
-  }, [tenantSlug, eventId]);
+  }, [effectiveTenantSlug, eventId]);
 
   const locale = i18n.language ?? 'es';
   const formattedDates = useMemo(() => {
@@ -115,7 +116,7 @@ function EventLandingPage() {
     return `${formatDate(locale, eventDetail.start_date)} — ${formatDate(locale, eventDetail.end_date)}`;
   }, [eventDetail, locale]);
 
-  if (!tenantSlug) {
+  if (!effectiveTenantSlug) {
     return <Navigate to="/" replace />;
   }
 
@@ -128,7 +129,9 @@ function EventLandingPage() {
       <PageContainer className="flex flex-col items-center gap-4 text-center">
         <p className="text-sm text-destructive">{t('eventLanding.error')}</p>
         <Button asChild variant="outline">
-          <Link to={tenantPath('')}>{t('eventLanding.backToHome')}</Link>
+          <Link to={tenantSlug ? tenantPath('') : tenantSlugFromParams ? `/${tenantSlugFromParams}` : '/'}>
+            {t('eventLanding.backToHome')}
+          </Link>
         </Button>
       </PageContainer>
     );
@@ -139,7 +142,9 @@ function EventLandingPage() {
       <PageContainer className="flex flex-col items-center gap-4 text-center">
         <p className="text-sm text-muted-foreground">{t('eventLanding.notFound')}</p>
         <Button asChild variant="outline">
-          <Link to={tenantPath('')}>{t('eventLanding.backToHome')}</Link>
+          <Link to={tenantSlug ? tenantPath('') : tenantSlugFromParams ? `/${tenantSlugFromParams}` : '/'}>
+            {t('eventLanding.backToHome')}
+          </Link>
         </Button>
       </PageContainer>
     );
@@ -166,12 +171,30 @@ function EventLandingPage() {
           isRegistrationOpen ? (
             <>
               <Button size="lg" asChild>
-                <Link to={tenantPath('login')} state={{ intent: 'register', eventId: eventDetail.id }}>
+                <Link
+                  to={{
+                    pathname: tenantSlug
+                      ? tenantPath('register')
+                      : tenantSlugFromParams
+                      ? `/${tenantSlugFromParams}/register`
+                      : '/register',
+                    search: `?eventId=${eventDetail.id}`
+                  }}
+                >
                   {t('eventLanding.registerCta')}
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link to={tenantPath('login')} state={{ intent: 'login', eventId: eventDetail.id }}>
+                <Link
+                  to={
+                    tenantSlug
+                      ? tenantPath('login')
+                      : tenantSlugFromParams
+                      ? `/${tenantSlugFromParams}/login`
+                      : '/login'
+                  }
+                  state={{ intent: 'login', eventId: eventDetail.id }}
+                >
                   {t('eventLanding.loginCta')}
                 </Link>
               </Button>

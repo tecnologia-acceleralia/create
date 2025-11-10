@@ -1,8 +1,11 @@
-﻿import { useTranslation } from "react-i18next";
+﻿import { useMemo } from "react";
+import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Globe, createLucideIcon } from "lucide-react";
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { createSurfaceTheme } from '@/utils/color';
 
 const FacebookIcon = createLucideIcon("social-facebook", [
   [
@@ -69,6 +72,21 @@ export function SiteFooter() {
   const { branding } = useTenant();
   const tenantPath = useTenantPath();
   const year = new Date().getFullYear();
+  const footerTheme = useMemo(() => createSurfaceTheme(branding.primaryColor), [branding.primaryColor]);
+  const footerStyle = useMemo<CSSProperties>(
+    () => ({
+      '--footer-bg': footerTheme.background,
+      '--footer-fg': footerTheme.foreground,
+      '--footer-muted': footerTheme.muted,
+      '--footer-border': footerTheme.border,
+      '--footer-subtle': footerTheme.subtle,
+      '--footer-surface': footerTheme.surface,
+      '--footer-hover': footerTheme.hover,
+      color: footerTheme.foreground,
+      backgroundColor: footerTheme.background
+    }),
+    [footerTheme]
+  );
 
   const socialLinks = SOCIAL_ICON_MAP.flatMap(entry => {
     const value = branding.socialLinks?.[entry.key];
@@ -86,17 +104,23 @@ export function SiteFooter() {
   });
 
   return (
-    <footer className="relative mt-auto overflow-hidden border-t border-border/60 bg-background/80 backdrop-blur">
-      <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--tenant-primary)]/20 via-transparent to-[color:var(--tenant-accent)]/20" aria-hidden="true" />
+    <footer
+      className="relative mt-auto overflow-hidden border-t border-[color:var(--footer-border)] bg-[color:var(--footer-bg)] text-[color:var(--footer-fg)]"
+      style={footerStyle}
+    >
+      <div
+        className="absolute inset-0 bg-gradient-to-r from-[color:var(--footer-subtle)] via-transparent to-[color:var(--footer-hover)]"
+        aria-hidden="true"
+      />
       <div className="relative mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-4">
             {branding.logoUrl ? (
               <img src={branding.logoUrl} alt={t('navigation.brand', { defaultValue: 'Create' })} className="h-10 w-auto" />
             ) : (
-              <span className="text-lg font-semibold text-[color:var(--tenant-primary)]">Create</span>
+              <span className="text-lg font-semibold text-[color:var(--footer-fg)]">Create</span>
             )}
-            <p className="text-sm text-muted-foreground">{t('footer.description')}</p>
+            <p className="text-sm text-[color:var(--footer-muted)]">{t('footer.description')}</p>
             {socialLinks.length ? (
               <div className="flex flex-wrap gap-3 pt-2">
                 {socialLinks.map(({ key, Icon, href, label }) => (
@@ -105,7 +129,7 @@ export function SiteFooter() {
                     href={href}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors hover:border-[color:var(--tenant-primary)] hover:text-[color:var(--tenant-primary)]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--footer-border)] text-[color:var(--footer-muted)] transition-colors hover:border-[color:var(--footer-fg)] hover:text-[color:var(--footer-fg)]"
                     aria-label={label}
                   >
                     <Icon className="h-5 w-5" />
@@ -116,10 +140,10 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('footer.resources')}</h3>
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{t('footer.resources')}</h3>
+            <ul className="mt-4 space-y-2 text-sm text-[color:var(--footer-muted)]">
               <li>
-                <a href="mailto:support@acceleralia.com" className="transition-colors hover:text-[color:var(--tenant-primary)]">
+                <a href="mailto:support@acceleralia.com" className="transition-colors hover:text-[color:var(--footer-fg)]">
                   {t('footer.support')}
                 </a>
               </li>
@@ -128,7 +152,7 @@ export function SiteFooter() {
                   href="https://acceleralia.com/create-2/"
                   target="_blank"
                   rel="noreferrer"
-                  className="transition-colors hover:text-[color:var(--tenant-primary)]"
+                  className="transition-colors hover:text-[color:var(--footer-fg)]"
                 >
                   {t('footer.aboutCreate')}
                 </a>
@@ -137,20 +161,20 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('footer.legal')}</h3>
-            <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{t('footer.legal')}</h3>
+            <ul className="mt-4 space-y-2 text-sm text-[color:var(--footer-muted)]">
               <li>
-                <Link to={tenantPath('legal/privacy')} className="transition-colors hover:text-[color:var(--tenant-primary)]">
+                <Link to={tenantPath('legal/privacy')} className="transition-colors hover:text-[color:var(--footer-fg)]">
                   {t('footer.privacy')}
                 </Link>
               </li>
               <li>
-                <Link to={tenantPath('legal/terms')} className="transition-colors hover:text-[color:var(--tenant-primary)]">
+                <Link to={tenantPath('legal/terms')} className="transition-colors hover:text-[color:var(--footer-fg)]">
                   {t('footer.terms')}
                 </Link>
               </li>
               <li>
-                <Link to={tenantPath('legal/cookies')} className="transition-colors hover:text-[color:var(--tenant-primary)]">
+                <Link to={tenantPath('legal/cookies')} className="transition-colors hover:text-[color:var(--footer-fg)]">
                   {t('footer.cookies')}
                 </Link>
               </li>
@@ -159,9 +183,12 @@ export function SiteFooter() {
         </div>
       </div>
 
-      <div className="relative border-t border-border/60">
-        <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--tenant-secondary)]/20 via-transparent to-[color:var(--tenant-accent)]/20" aria-hidden="true" />
-        <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-center text-xs text-muted-foreground sm:flex-row sm:px-6 lg:px-8">
+      <div className="relative border-t border-[color:var(--footer-border)]">
+        <div
+          className="absolute inset-0 bg-gradient-to-r from-[color:var(--footer-subtle)] via-transparent to-[color:var(--footer-hover)]"
+          aria-hidden="true"
+        />
+        <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-center text-xs text-[color:var(--footer-muted)] sm:flex-row sm:px-6 lg:px-8">
           <span>
             {'\u00a9'} {year} Create. {t('footer.rights')}
           </span>
@@ -170,7 +197,7 @@ export function SiteFooter() {
               href="https://www.acceleralia.com"
               target="_blank"
               rel="noreferrer"
-              className="transition-colors hover:text-[color:var(--tenant-primary)]"
+              className="transition-colors hover:text-[color:var(--footer-fg)]"
             >
               {t('footer.madeWith')}
             </a>

@@ -11,28 +11,28 @@ export async function up(queryInterface) {
       subdomain: 'demo',
       status: 'active',
       plan_type: 'free',
-      primary_color: '#0ea5e9',
-      secondary_color: '#1f2937',
+      primary_color: '#9333ea',
+      secondary_color: '#16a34a',
       accent_color: '#f97316',
       start_date: new Date().toISOString().slice(0, 10),
       end_date: '2099-12-31',
       tenant_css: `@theme inline {
   --radius: 0.75rem;
-  --background: 210 40% 95%;
-  --foreground: 222 47% 11%;
-  --card: 210 22% 98%;
-  --card-foreground: 222 53% 12%;
-  --primary: 198 93% 55%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 222 14% 35%;
-  --secondary-foreground: 210 40% 98%;
-  --accent: 14 100% 63%;
-  --accent-foreground: 222 47% 11%;
-  --muted: 210 27% 94%;
-  --muted-foreground: 215 17% 38%;
-  --border: 214 32% 87%;
-  --input: 214 32% 87%;
-  --ring: 198 93% 55%;
+      --background: 270 48% 97%;
+      --foreground: 230 35% 15%;
+      --card: 270 40% 99%;
+      --card-foreground: 230 35% 15%;
+      --primary: 271 81% 56%;
+      --primary-foreground: 0 0% 100%;
+      --secondary: 142 76% 36%;
+      --secondary-foreground: 0 0% 100%;
+      --accent: 14 100% 63%;
+      --accent-foreground: 230 35% 15%;
+      --muted: 268 30% 92%;
+      --muted-foreground: 230 20% 35%;
+      --border: 268 25% 85%;
+      --input: 268 25% 85%;
+      --ring: 271 81% 56%;
 }`,
       created_at: new Date(),
       updated_at: new Date()
@@ -237,14 +237,32 @@ export async function up(queryInterface) {
       min_team_size: 2,
       max_team_size: 6,
       status: 'published',
+      is_public: true,
       allow_open_registration: true,
+      created_at: new Date(),
+      updated_at: new Date()
+    },
+    {
+      tenant_id: tenant.id,
+      created_by: adminUser.id,
+      name: 'Demo Public Launch',
+      description: 'Evento público de lanzamiento para experimentar CREATE.',
+      start_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      end_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
+      min_team_size: 1,
+      max_team_size: 10,
+      status: 'published',
+      is_public: true,
+      allow_open_registration: true,
+      publish_start_at: new Date(),
+      publish_end_at: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
       created_at: new Date(),
       updated_at: new Date()
     }
   ]);
 
   const [[eventRecord]] = await queryInterface.sequelize.query(
-    `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} LIMIT 1`
+    `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'Demo Event' LIMIT 1`
   );
 
   const eventStartDate = eventRecord?.start_date ? new Date(eventRecord.start_date) : eventStart;

@@ -1,6 +1,7 @@
-﻿import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+﻿import { createContext, useContext, useEffect, useMemo, useState, useCallback, useLayoutEffect } from "react";
 import type { ReactNode } from "react";
 import { apiClient, configureTenant } from '@/services/api';
+import { applyBrandingVariables } from '@/utils/color';
 
 type TenantSocialLinks = {
   website?: string | null;
@@ -71,9 +72,31 @@ const defaultAccessWindow: TenantAccessWindow = {
   isActiveNow: true
 };
 
+const BRANDING_CACHE_PREFIX = 'create:tenant-branding:';
+const BRANDING_CACHE_TTL = 1000 * 60 * 60 * 24; // 24 horas
+
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
-type Props = { children: ReactNode };
+type Props = { readonly children: ReactNode };
+
+type CachedTenantBranding = {
+  branding: Branding;
+  tenantCss: string | null;
+  accessWindow: TenantAccessWindow;
+  timestamp: number;
+};
+
+function getBrowserWindow(): Window | null {
+  const maybeGlobal = globalThis as typeof globalThis & { window?: Window };
+  if (!('window' in maybeGlobal)) {
+    return null;
+  }
+
+  const maybeWindow = maybeGlobal.window;
+  return maybeWindow ?? null;
+}
+
+const useIsomorphicLayoutEffect = getBrowserWindow() ? useLayoutEffect : useEffect;
 
 function normalizeHeroContent(data: unknown): HeroContent {
   if (!data || typeof data !== 'object') {
@@ -88,10 +111,20 @@ function normalizeHeroContent(data: unknown): HeroContent {
     const title = typeof (value as Record<string, unknown>).title === 'string' ? (value as Record<string, string>).title : null;
     const subtitle = typeof (value as Record<string, unknown>).subtitle === 'string' ? (value as Record<string, string>).subtitle : null;
 
-    acc[lang] = {
+    const normalizedLang = lang.toLowerCase();
+    const baseLang = normalizedLang.split('-')[0];
+
+    const heroCopy = {
       title,
       subtitle
     };
+
+    acc[normalizedLang] = heroCopy;
+
+    if (!acc[baseLang]) {
+      acc[baseLang] = heroCopy;
+    }
+
     return acc;
   }, {});
 
@@ -99,7 +132,12 @@ function normalizeHeroContent(data: unknown): HeroContent {
 }
 
 function detectInitialSlug(): string | null {
-  const host = window.location.hostname;
+  const browserWindow = getBrowserWindow();
+  if (!browserWindow) {
+    return null;
+  }
+
+  const host = browserWindow.location.hostname;
   if (host.includes('.')) {
     const [subdomain] = host.split('.');
     if (subdomain && subdomain !== 'www') {
@@ -107,7 +145,7 @@ function detectInitialSlug(): string | null {
     }
   }
 
-  const [firstSegment] = window.location.pathname.split('/').filter(Boolean);
+  const firstSegment = browserWindow.location.pathname.split('/').find(Boolean);
   const reservedSegments = new Set(['superadmin', 'dashboard']);
   if (firstSegment && !reservedSegments.has(firstSegment.toLowerCase())) {
     return firstSegment.toLowerCase();
@@ -116,13 +154,97 @@ function detectInitialSlug(): string | null {
   return null;
 }
 
+function loadCachedBranding(slug: string | null): CachedTenantBranding | null {
+  const browserWindow = getBrowserWindow();
+  if (!slug || !browserWindow) {
+    return null;
+  }
+
+  try {
+    const storageKey = `${BRANDING_CACHE_PREFIX}${slug}`;
+    const raw = browserWindow.localStorage.getItem(storageKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<CachedTenantBranding>;
+    if (!parsed || typeof parsed !== 'object' || !parsed.branding) {
+      return null;
+    }
+
+    if (parsed.timestamp && Date.now() - parsed.timestamp > BRANDING_CACHE_TTL) {
+      browserWindow.localStorage.removeItem(storageKey);
+      return null;
+    }
+
+    return {
+      branding: {
+        ...defaultBranding,
+        ...parsed.branding,
+        heroContent: parsed.branding?.heroContent ?? defaultBranding.heroContent,
+        socialLinks: parsed.branding?.socialLinks ?? defaultBranding.socialLinks
+      },
+      tenantCss: typeof parsed.tenantCss === 'string' ? parsed.tenantCss : null,
+      accessWindow: {
+        ...defaultAccessWindow,
+        ...(parsed.accessWindow ?? defaultAccessWindow)
+      },
+      timestamp: parsed.timestamp ?? Date.now()
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistCachedBranding(slug: string, payload: CachedTenantBranding) {
+  const browserWindow = getBrowserWindow();
+  if (!slug || !browserWindow) {
+    return;
+  }
+
+  try {
+    const storageKey = `${BRANDING_CACHE_PREFIX}${slug}`;
+    browserWindow.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        branding: payload.branding,
+        tenantCss: payload.tenantCss,
+        accessWindow: payload.accessWindow,
+        timestamp: payload.timestamp
+      })
+    );
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('No se pudo guardar la marca en caché', error);
+    }
+  }
+}
+
+function clearCachedBranding(slug: string | null) {
+  const browserWindow = getBrowserWindow();
+  if (!slug || !browserWindow) {
+    return;
+  }
+
+  try {
+    browserWindow.localStorage.removeItem(`${BRANDING_CACHE_PREFIX}${slug}`);
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.warn('No se pudo limpiar la marca en caché', error);
+    }
+  }
+}
+
 export function TenantProvider({ children }: Props) {
-  const [tenantSlug, setTenantSlug] = useState<string | null>(detectInitialSlug());
-  const [branding, setBranding] = useState<Branding>(defaultBranding);
+  const initialSlug = detectInitialSlug();
+  const initialCachedBranding = loadCachedBranding(initialSlug);
+
+  const [tenantSlug, setTenantSlug] = useState<string | null>(initialSlug);
+  const [branding, setBranding] = useState<Branding>(initialCachedBranding?.branding ?? defaultBranding);
   const [phases, setPhases] = useState<TenantPhase[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tenantCss, setTenantCss] = useState<string | null>(null);
-  const [accessWindow, setAccessWindow] = useState<TenantAccessWindow>(defaultAccessWindow);
+  const [tenantCss, setTenantCss] = useState<string | null>(initialCachedBranding?.tenantCss ?? null);
+  const [accessWindow, setAccessWindow] = useState<TenantAccessWindow>(initialCachedBranding?.accessWindow ?? defaultAccessWindow);
 
   const refreshBranding = useCallback(async () => {
     if (!tenantSlug) {
@@ -141,7 +263,7 @@ export function TenantProvider({ children }: Props) {
       ]);
 
       const data = brandingResponse.data?.data;
-      setBranding({
+      const nextBranding: Branding = {
         logoUrl: data?.logo_url ?? null,
         primaryColor: data?.primary_color ?? defaultBranding.primaryColor,
         secondaryColor: data?.secondary_color ?? defaultBranding.secondaryColor,
@@ -155,8 +277,8 @@ export function TenantProvider({ children }: Props) {
           twitter: data?.twitter_url ?? null,
           youtube: data?.youtube_url ?? null
         }
-      });
-      setTenantCss(data?.tenant_css ?? null);
+      };
+      const nextTenantCss = data?.tenant_css ?? null;
 
       const startDate = data?.start_date ?? null;
       const endDate = data?.end_date ?? null;
@@ -169,10 +291,21 @@ export function TenantProvider({ children }: Props) {
               const endAt = endDate ? new Date(`${endDate}T23:59:59Z`) : null;
               return (!startAt || now >= startAt) && (!endAt || now <= endAt);
             })();
-      setAccessWindow({
+      const nextAccessWindow: TenantAccessWindow = {
         startDate,
         endDate,
         isActiveNow
+      };
+
+      setBranding(nextBranding);
+      setTenantCss(nextTenantCss);
+      setAccessWindow(nextAccessWindow);
+
+      persistCachedBranding(tenantSlug, {
+        branding: nextBranding,
+        tenantCss: nextTenantCss,
+        accessWindow: nextAccessWindow,
+        timestamp: Date.now()
       });
 
       const phasesData: TenantPhase[] = (phasesResponse.data?.data ?? []).map((phase: any) => {
@@ -197,19 +330,38 @@ export function TenantProvider({ children }: Props) {
       });
       setPhases(phasesData);
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('Error al refrescar el branding del tenant', error);
+      }
       setBranding(defaultBranding);
       setPhases([]);
       setTenantCss(null);
       setAccessWindow(defaultAccessWindow);
+      clearCachedBranding(tenantSlug);
     } finally {
       setLoading(false);
     }
   }, [tenantSlug]);
 
+  useIsomorphicLayoutEffect(() => {
+    applyBrandingVariables(branding.primaryColor, branding.secondaryColor, branding.accentColor);
+  }, [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
+
   useEffect(() => {
     configureTenant(tenantSlug);
 
     if (tenantSlug) {
+      const cached = loadCachedBranding(tenantSlug);
+      if (cached) {
+        setBranding(cached.branding);
+        setTenantCss(cached.tenantCss);
+        setAccessWindow(cached.accessWindow);
+      } else {
+        setBranding(defaultBranding);
+        setTenantCss(null);
+        setAccessWindow(defaultAccessWindow);
+      }
+      setPhases([]);
       void refreshBranding();
     } else {
       setBranding(defaultBranding);

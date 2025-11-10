@@ -11,9 +11,9 @@ export async function up(queryInterface) {
       subdomain: 'uic',
       custom_domain: null,
       logo_url: null,
-      primary_color: '#00AEEF',
-      secondary_color: '#003A70',
-      accent_color: '#F9A01B',
+      primary_color: '#00416b',
+      secondary_color: '#007bff',
+      accent_color: '#007bff',
       hero_content: JSON.stringify({
         es: {
           title: 'Transforma ideas en impacto real',
@@ -31,24 +31,51 @@ export async function up(queryInterface) {
       status: 'active',
       start_date: '2025-09-01',
       end_date: '2026-06-30',
-      tenant_css: `@theme inline {
+      tenant_css: `:root {
   --radius: 0.85rem;
-  --background: 199 100% 97%;
-  --foreground: 207 100% 20%;
-  --card: 199 90% 98%;
-  --card-foreground: 207 100% 20%;
-  --primary: 197 100% 45%;
+  --background: 204 100% 97%;
+  --foreground: 210 28% 18%;
+  --card: 204 100% 97%;
+  --card-foreground: 210 28% 18%;
+  --primary: 204 100% 21%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 207 100% 22%;
+  --secondary: 211 100% 50%;
   --secondary-foreground: 0 0% 100%;
-  --accent: 36 95% 54%;
-  --accent-foreground: 207 100% 20%;
-  --muted: 199 60% 92%;
-  --muted-foreground: 207 30% 32%;
-  --border: 199 40% 85%;
-  --input: 199 40% 85%;
-  --ring: 197 100% 45%;
-}`,
+  --accent: 211 100% 50%;
+  --accent-foreground: 0 0% 100%;
+  --muted: 204 100% 97%;
+  --muted-foreground: 210 20% 32%;
+  --border: 204 35% 82%;
+  --input: 204 35% 82%;
+  --ring: 204 100% 21%;
+}
+
+.bg-gradient-to-r,
+.bg-gradient-to-br,
+.bg-gradient-to-b {
+  background-image: none !important;
+}
+
+.backdrop-blur,
+.backdrop-blur-sm,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl,
+.backdrop-blur-2xl,
+.backdrop-blur-3xl {
+  backdrop-filter: none !important;
+}
+
+.blur,
+.blur-sm,
+.blur-md,
+.blur-lg,
+.blur-xl,
+.blur-2xl,
+.blur-3xl {
+  filter: none !important;
+}
+`,
       created_at: new Date(),
       updated_at: new Date()
     }

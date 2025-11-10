@@ -272,6 +272,26 @@
     "backToHome": "Back to home",
     "registrationClosed": "Registration is closed for this event"
   },
+  "register": {
+    "title": "Create your account",
+    "subtitle": "Fill in your details to join this space.",
+    "passwordMismatch": "Passwords do not match",
+    "genericError": "We could not complete your registration. Please try again.",
+    "missingTenant": "We could not find the requested space.",
+    "goToPublicHub": "View public events",
+    "closed": "Registration is not available at the moment.",
+    "backToLanding": "Back to the landing page",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email",
+    "password": "Password",
+    "passwordHelper": "It must be at least 8 characters long.",
+    "confirmPassword": "Confirm password",
+    "submit": "Create account",
+    "alreadyHaveAccount": "Already have an account?",
+    "goToLogin": "Go to login",
+    "eventTag": "Registering for {{name}}"
+  },
   "publicHub": {
     "title": "Explore open events across CREATE",
     "subtitle": "Discover public hackathons, bootcamps and collaborative innovation events.",
@@ -310,6 +330,13 @@
       "testing": "Testing…",
       "testSuccess": "API test completed for {{service}}.",
       "testError": "The API test could not be executed.",
+      "status": {
+        "ok": "Operational",
+        "warning": "Warning",
+        "error": "Error",
+        "pending": "Pending"
+      },
+      "notRun": "Healthcheck has not been executed yet.",
       "services": {
         "mailersend": "Mailersend",
         "openai": "OpenAI",

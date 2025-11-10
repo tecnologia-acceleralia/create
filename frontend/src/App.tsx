@@ -21,6 +21,7 @@ import ProfilePage from '@/pages/common/ProfilePage';
 import SuperAdminRootPage from '@/pages/superadmin/SuperAdminRootPage';
 import EventLandingPage from '@/pages/public/EventLandingPage';
 import PasswordResetPage from '@/pages/public/PasswordResetPage';
+import RegisterPage from '@/pages/public/RegisterPage';
 
 function TenantLayout() {
   const { tenantSlug, setTenantSlug, accessWindow, loading } = useTenant();
@@ -74,6 +75,7 @@ function AppRoutes() {
       children: [
         { index: true, element: <LandingPage /> },
         { path: 'login', element: <LoginPage /> },
+        { path: 'register', element: <RegisterPage /> },
         { path: 'password-reset', element: <PasswordResetPage /> },
         { path: 'events/:eventId', element: <EventLandingPage /> },
         {

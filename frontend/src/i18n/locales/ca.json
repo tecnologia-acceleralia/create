@@ -272,6 +272,26 @@
     "backToHome": "Torna a l'inici",
     "registrationClosed": "Registre tancat en aquest esdeveniment"
   },
+  "register": {
+    "title": "Crea el teu compte",
+    "subtitle": "Omple les teves dades per unir-te a aquest espai.",
+    "passwordMismatch": "Les contrasenyes no coincideixen",
+    "genericError": "No hem pogut completar el registre. Torna-ho a provar.",
+    "missingTenant": "No hem trobat l'espai sol·licitat.",
+    "goToPublicHub": "Veure esdeveniments públics",
+    "closed": "El registre no està disponible ara mateix.",
+    "backToLanding": "Torna a la pàgina inicial",
+    "firstName": "Nom",
+    "lastName": "Cognoms",
+    "email": "Correu electrònic",
+    "password": "Contrasenya",
+    "passwordHelper": "Ha de tenir almenys 8 caràcters.",
+    "confirmPassword": "Confirma la contrasenya",
+    "submit": "Crear compte",
+    "alreadyHaveAccount": "Ja tens un compte?",
+    "goToLogin": "Anar a l'inici de sessió",
+    "eventTag": "Registre per {{name}}"
+  },
   "publicHub": {
     "title": "Explora esdeveniments oberts a CREATE",
     "subtitle": "Descobreix hackatons, bootcamps i esdeveniments d'innovació col·laborativa.",
@@ -310,6 +330,13 @@
       "testing": "Provant…",
       "testSuccess": "Prova completada per a {{service}}.",
       "testError": "No s'ha pogut executar la prova d'API.",
+      "status": {
+        "ok": "Operatiu",
+        "warning": "Advertència",
+        "error": "Error",
+        "pending": "Pendent"
+      },
+      "notRun": "Encara no s'ha executat la verificació.",
       "services": {
         "mailersend": "Mailersend",
         "openai": "OpenAI",

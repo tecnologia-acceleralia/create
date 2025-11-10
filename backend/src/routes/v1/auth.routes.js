@@ -7,6 +7,20 @@ import { PasswordResetController } from '../../controllers/password-reset.contro
 export const authRouter = Router();
 
 authRouter.post(
+  '/register',
+  [
+    body('first_name').isString().trim().isLength({ min: 1, max: 150 }),
+    body('last_name').isString().trim().isLength({ min: 1, max: 150 }),
+    body('email').isEmail().normalizeEmail(),
+    body('password').isString().isLength({ min: 8 }),
+    body('language').optional().isString().isIn(['es', 'en', 'ca']),
+    body('event_id').optional().isInt({ min: 1 })
+  ],
+  validateRequest,
+  (req, res, next) => AuthController.register(req, res, next)
+);
+
+authRouter.post(
   '/login',
   [
     body('email').isEmail().normalizeEmail(),

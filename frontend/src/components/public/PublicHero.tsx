@@ -27,11 +27,15 @@ export function PublicHero({
   className,
   withBackground = true
 }: PublicHeroProps) {
+  const backgroundClass = withBackground
+    ? 'rounded-3xl bg-[color:var(--landing-surface)] p-8 shadow-xl backdrop-blur'
+    : '';
+
   return (
     <section
       className={cn(
-        'flex flex-col gap-6 px-6 py-16',
-        withBackground ? 'bg-gradient-to-br from-background via-white to-background' : '',
+        'mx-auto mb-8 flex w-full max-w-5xl flex-col gap-6 px-6 py-16 text-[color:var(--landing-foreground)]',
+        backgroundClass,
         alignmentMap[align],
         className
       )}
@@ -39,7 +43,7 @@ export function PublicHero({
       {logoUrl ? <img src={logoUrl} alt={logoAlt ?? ''} className="h-20 w-auto" /> : null}
       <div className="space-y-4">
         <h1 className="text-4xl font-bold text-[color:var(--tenant-primary)] sm:text-5xl">{title}</h1>
-        {subtitle ? <p className="max-w-2xl text-lg text-muted-foreground">{subtitle}</p> : null}
+        {subtitle ? <p className="max-w-2xl text-lg text-[color:var(--landing-muted)]">{subtitle}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap justify-center gap-3 sm:justify-start">{actions}</div> : null}
     </section>

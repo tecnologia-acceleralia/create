@@ -22,12 +22,12 @@ export function PublicEventsSection<T>({
 
   return (
     <section className={cn('px-6 pb-16', className)}>
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-5xl space-y-6 rounded-3xl border border-[color:var(--landing-border)] bg-[color:var(--landing-surface)] p-6 shadow-lg backdrop-blur">
         <h2 className="text-2xl font-semibold text-[color:var(--tenant-secondary)]">{title}</h2>
         {hasEvents ? (
           <div className={cn('grid gap-4 md:grid-cols-2', gridClassName)}>{events.map(renderEvent)}</div>
         ) : (
-          emptyMessage ?? <p className="text-sm text-muted-foreground">—</p>
+          emptyMessage ?? <p className="text-sm text-[color:var(--landing-muted)]">—</p>
         )}
       </div>
     </section>

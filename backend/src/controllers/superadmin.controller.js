@@ -1085,7 +1085,7 @@ export class SuperAdminController {
     const { apiKey } = appConfig.mailersend;
 
     try {
-      const response = await fetch('https://api.mailersend.com/v1/domains?page=1&limit=1', {
+      const response = await fetch('https://api.mailersend.com/v1/domains?page=1&limit=10', {
         headers: {
           Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json'

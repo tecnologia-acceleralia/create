@@ -272,6 +272,26 @@
     "backToHome": "Volver al inicio",
     "registrationClosed": "Registro cerrado en este evento"
   },
+  "register": {
+    "title": "Crea tu cuenta",
+    "subtitle": "Completa tus datos para unirte a este espacio.",
+    "passwordMismatch": "Las contraseñas no coinciden",
+    "genericError": "No pudimos completar tu registro. Inténtalo de nuevo.",
+    "missingTenant": "No encontramos el espacio solicitado.",
+    "goToPublicHub": "Ver eventos públicos",
+    "closed": "El registro no está disponible en este momento.",
+    "backToLanding": "Volver a la página inicial",
+    "firstName": "Nombre",
+    "lastName": "Apellidos",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "passwordHelper": "Debe tener al menos 8 caracteres.",
+    "confirmPassword": "Confirmar contraseña",
+    "submit": "Crear cuenta",
+    "alreadyHaveAccount": "¿Ya tienes una cuenta?",
+    "goToLogin": "Ir al inicio de sesión",
+    "eventTag": "Registro para {{name}}"
+  },
   "publicHub": {
     "title": "Explora eventos abiertos en CREATE",
     "subtitle": "Descubre hackatones, bootcamps y eventos de innovación colaborativos.",
@@ -310,6 +330,13 @@
       "testing": "Probando…",
       "testSuccess": "Prueba completada para {{service}}.",
       "testError": "No se pudo ejecutar la prueba de API.",
+      "status": {
+        "ok": "Operativo",
+        "warning": "Advertencia",
+        "error": "Error",
+        "pending": "Pendiente"
+      },
+      "notRun": "Aún no se ha ejecutado la verificación.",
       "services": {
         "mailersend": "Mailersend",
         "openai": "OpenAI",

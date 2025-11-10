@@ -1,11 +1,14 @@
-﻿import { useEffect, useMemo, type ReactNode } from "react";
+﻿import { useEffect, useLayoutEffect, useMemo, type ReactNode } from "react";
 import { useTenant } from '@/context/TenantContext';
 import { SiteHeader } from './SiteHeader';
 import { SiteFooter } from './SiteFooter';
 
-type Props = {
+type Props = Readonly<{
   children: ReactNode;
-};
+}>;
+
+const useIsomorphicLayoutEffect =
+  typeof globalThis !== 'undefined' && 'window' in globalThis ? useLayoutEffect : useEffect;
 
 function normalizeTenantCss(rawCss: string | null) {
   if (!rawCss) {
@@ -17,12 +20,21 @@ function normalizeTenantCss(rawCss: string | null) {
     return null;
   }
 
-  const themeMatch = trimmed.match(/@theme\s+inline\s*\{([\s\S]+)\}$/i);
-  if (!themeMatch) {
+  const marker = '@theme inline';
+  const lowerTrimmed = trimmed.toLowerCase();
+  const markerIndex = lowerTrimmed.indexOf(marker);
+  if (markerIndex === -1) {
     return trimmed;
   }
 
-  const declarations = themeMatch[1]
+  const openBraceIndex = trimmed.indexOf('{', markerIndex);
+  const closeBraceIndex = trimmed.lastIndexOf('}');
+  if (openBraceIndex === -1 || closeBraceIndex === -1 || closeBraceIndex <= openBraceIndex) {
+    return trimmed;
+  }
+
+  const rawDeclarations = trimmed.slice(openBraceIndex + 1, closeBraceIndex);
+  const declarations = rawDeclarations
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean)
@@ -42,22 +54,12 @@ function normalizeTenantCss(rawCss: string | null) {
   ].join('\n');
 }
 
-function applyBrandingVariables(primary: string, secondary: string, accent: string) {
-  const root = document.documentElement;
-  root.style.setProperty('--tenant-primary', primary);
-  root.style.setProperty('--tenant-secondary', secondary);
-  root.style.setProperty('--tenant-accent', accent);
-}
-
-export function SiteLayout({ children }: Props) {
-  const { branding, tenantCss } = useTenant();
+export function SiteLayout(props: Props) {
+  const { children } = props;
+  const { tenantCss } = useTenant();
   const normalizedTenantCss = useMemo(() => normalizeTenantCss(tenantCss), [tenantCss]);
 
-  useEffect(() => {
-    applyBrandingVariables(branding.primaryColor, branding.secondaryColor, branding.accentColor);
-  }, [branding.primaryColor, branding.secondaryColor, branding.accentColor]);
-
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const styleElementId = 'tenant-theme-styles';
     let styleElement = document.getElementById(styleElementId) as HTMLStyleElement | null;
 
