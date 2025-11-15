@@ -15,6 +15,7 @@ type TenantSocialLinks = {
 type TenantPhase = {
   id: number;
   name: string;
+  description?: string | null;
   eventId: number;
   eventName: string | null;
   eventStatus: string | null;
@@ -319,6 +320,7 @@ export function TenantProvider({ children }: Props) {
         return {
           id: phase.id,
           name: phase.name,
+          description: phase.description ?? null,
           eventId: phase.eventId,
           eventName: phase.eventName,
           eventStatus: phase.eventStatus,

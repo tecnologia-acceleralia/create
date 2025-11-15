@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { EventsController } from '../../controllers/events.controller.js';
+import { EventTrackingController } from '../../controllers/event-tracking.controller.js';
+import { EventAssetsController, uploadMiddleware } from '../../controllers/event-assets.controller.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorizeRoles } from '../../middleware/authorization.middleware.js';
 import { validateRequest } from '../../middleware/validation.middleware.js';
@@ -9,7 +11,7 @@ export const eventsRouter = Router();
 
 eventsRouter.use(authenticate);
 
-eventsRouter.get('/', EventsController.list);
+eventsRouter.get('/', authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'), EventsController.list);
 eventsRouter.post(
   '/',
   authorizeRoles('tenant_admin'),
@@ -42,7 +44,22 @@ eventsRouter.post(
   EventsController.create
 );
 
-eventsRouter.get('/:eventId', param('eventId').isInt(), validateRequest, EventsController.detail);
+eventsRouter.get(
+  '/:eventId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventsController.detail
+);
+
+eventsRouter.get(
+  '/:eventId/tracking/overview',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventTrackingController.overview
+);
+
 eventsRouter.put(
   '/:eventId',
   authorizeRoles('tenant_admin'),
@@ -91,6 +108,7 @@ eventsRouter.post(
     param('eventId').isInt(),
     body('name').isString().notEmpty(),
     body('description').optional({ nullable: true }).isString(),
+    body('intro_html').optional({ nullable: true }).isString(),
     body('order_index').optional().isInt({ min: 1 }),
     body('is_elimination').optional().isBoolean(),
     body('start_date')
@@ -138,6 +156,7 @@ eventsRouter.put(
     param('phaseId').isInt(),
     body('name').optional().isString().notEmpty(),
     body('description').optional({ nullable: true }).isString(),
+    body('intro_html').optional({ nullable: true }).isString(),
     body('order_index').optional().isInt({ min: 1 }),
     body('is_elimination').optional().isBoolean(),
     body('start_date')
@@ -188,12 +207,13 @@ eventsRouter.delete(
 eventsRouter.get('/:eventId/tasks', [param('eventId').isInt()], validateRequest, EventsController.listTasks);
 eventsRouter.post(
   '/:eventId/tasks',
-  authorizeRoles('tenant_admin', 'organizer'),
+  authorizeRoles('tenant_admin'),
   [
     param('eventId').isInt(),
     body('title').isString().notEmpty(),
     body('phase_id').isInt(),
     body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip']),
+    body('intro_html').optional({ nullable: true }).isString(),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
       .optional({ nullable: true })
@@ -209,13 +229,14 @@ eventsRouter.post(
 );
 eventsRouter.put(
   '/:eventId/tasks/:taskId',
-  authorizeRoles('tenant_admin', 'organizer'),
+  authorizeRoles('tenant_admin'),
   [
     param('eventId').isInt(),
     param('taskId').isInt(),
     body('title').optional().isString().notEmpty(),
     body('phase_id').optional().isInt(),
     body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip']),
+    body('intro_html').optional({ nullable: true }).isString(),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
       .optional({ nullable: true })
@@ -235,5 +256,34 @@ eventsRouter.delete(
   [param('eventId').isInt(), param('taskId').isInt()],
   validateRequest,
   EventsController.deleteTask
+);
+
+// Rutas de assets de eventos
+eventsRouter.get(
+  '/:eventId/assets',
+  authorizeRoles('tenant_admin', 'organizer'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventAssetsController.list
+);
+
+eventsRouter.post(
+  '/:eventId/assets',
+  authorizeRoles('tenant_admin'),
+  [
+    param('eventId').isInt(),
+    body('name').isString().notEmpty().matches(/^[a-zA-Z0-9_-]+$/).withMessage('El nombre solo puede contener letras, números, guiones y guiones bajos')
+  ],
+  validateRequest,
+  uploadMiddleware,
+  EventAssetsController.upload
+);
+
+eventsRouter.delete(
+  '/:eventId/assets/:assetId',
+  authorizeRoles('tenant_admin'),
+  [param('eventId').isInt(), param('assetId').isInt()],
+  validateRequest,
+  EventAssetsController.delete
 );
 

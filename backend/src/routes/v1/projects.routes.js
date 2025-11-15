@@ -10,6 +10,22 @@ export const projectsRouter = Router();
 projectsRouter.use(authenticate);
 
 projectsRouter.get(
+  '/events/:eventId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'team_captain', 'participant'),
+  [param('eventId').isInt()],
+  validateRequest,
+  ProjectsController.listByEvent
+);
+
+projectsRouter.post(
+  '/events/:eventId',
+  authorizeRoles('tenant_admin', 'team_captain', 'participant'),
+  [param('eventId').isInt(), body('title').optional().isString().notEmpty()],
+  validateRequest,
+  ProjectsController.createForEvent
+);
+
+projectsRouter.get(
   '/:projectId',
   authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'team_captain', 'participant'),
   [param('projectId').isInt()],
@@ -23,5 +39,13 @@ projectsRouter.put(
   [param('projectId').isInt()],
   validateRequest,
   ProjectsController.update
+);
+
+projectsRouter.post(
+  '/:projectId/join',
+  authorizeRoles('tenant_admin', 'team_captain', 'participant'),
+  [param('projectId').isInt()],
+  validateRequest,
+  ProjectsController.join
 );
 

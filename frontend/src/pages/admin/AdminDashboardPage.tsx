@@ -12,7 +12,7 @@ function AdminDashboardPage() {
   const tenantPath = useTenantPath();
 
   return (
-    <DashboardLayout title={t('dashboard.tenantAdmin')} subtitle={user?.email ?? ''}>
+    <DashboardLayout title={t('dashboard.tenantAdmin')}>
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
           <CardTitle>{t('dashboard.welcome')}</CardTitle>

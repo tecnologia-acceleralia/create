@@ -41,9 +41,16 @@ function EvaluatorDashboardPage() {
               to={tenantPath(`events/${event.id}`)}
               showStatus={false}
               actions={
-                <Button variant="outline" onClick={() => toggle(event.id)}>
-                  {isExpanded(event.id) ? t('submissions.list') : t('events.tasksTitle')}
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => toggle(event.id)}>
+                    {isExpanded(event.id) ? t('submissions.list') : t('events.tasksTitle')}
+                  </Button>
+                  <Button variant="secondary" asChild>
+                    <Link to={tenantPath(`dashboard/events/${event.id}/tracking`)}>
+                      {t('events.tracking.title')}
+                    </Link>
+                  </Button>
+                </div>
               }
             >
               {expandedEventId === event.id ? (

@@ -1,5 +1,14 @@
 import bcrypt from 'bcryptjs';
 
+const ADMIN_PASSWORD = 'Ll4=u2D$S0>s';
+const EVALUATOR_PASSWORDS = {
+  'agironza@uic.es': 'fJ(wvc7OrMOw99',
+  'marisam@uic.es': 'fJ(wvc7OrMOw5a',
+  'margemi@uic.es': 'fJ(wvc7OrMOw9r',
+  'fdyck@uic.es': 'fJ(wvc7OrMOw8f',
+  'nnogales@uic.es': 'fJ(wvc7OrMOw7o'
+};
+
 // Seeder maestro para registrar el equipo de evaluadores de la UIC.
 // Dependencias: requiere que el tenant 'uic' y su rol de administrador ya existan (0002-uic-tenant.js).
 
@@ -59,8 +68,7 @@ export async function up(queryInterface) {
   const evaluatorRoleId = await ensureRole('evaluator', 'Evaluador UIC');
   const tenantAdminRoleId = await ensureRole('tenant_admin', 'Administrador UIC');
 
-  const evaluatorPasswordHash = await bcrypt.hash('UICEvaluador2025!', 10);
-  const adminPasswordHash = await bcrypt.hash('UICAdminEval2025!', 10);
+  const adminPasswordHash = await bcrypt.hash(ADMIN_PASSWORD, 10);
   const now = new Date();
 
   const ensureUserWithRole = async ({ email, firstName, lastName, passwordHashValue, roleId }) => {
@@ -149,6 +157,11 @@ export async function up(queryInterface) {
   };
 
   for (const evaluator of evaluatorSeedData) {
+    const evaluatorPassword = EVALUATOR_PASSWORDS[evaluator.email];
+    if (!evaluatorPassword) {
+      throw new Error(`No se encontró contraseña para el evaluador ${evaluator.email}`);
+    }
+    const evaluatorPasswordHash = await bcrypt.hash(evaluatorPassword, 10);
     await ensureUserWithRole({
       email: evaluator.email,
       firstName: evaluator.firstName,

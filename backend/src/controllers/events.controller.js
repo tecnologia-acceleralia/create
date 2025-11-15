@@ -1,5 +1,7 @@
+import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
+import { resolveAssetMarkers } from '../utils/asset-markers.js';
 
 function toInt(value) {
   return Number.parseInt(value, 10);
@@ -16,8 +18,25 @@ function toDateOrNull(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function toHtmlOrNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length ? value : null;
+}
+
 function normalizeEventPayload(body) {
   const payload = { ...body };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'description_html')) {
+    payload.description_html = toHtmlOrNull(payload.description_html);
+  }
 
   if (Object.prototype.hasOwnProperty.call(payload, 'video_url')) {
     if (!payload.video_url || (typeof payload.video_url === 'string' && payload.video_url.trim() === '')) {
@@ -42,6 +61,24 @@ function normalizeEventPayload(body) {
   if (payload.is_public === false) {
     payload.publish_start_at = null;
     payload.publish_end_at = null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'registration_schema')) {
+    const rawSchema = payload.registration_schema;
+    if (rawSchema === undefined) {
+      delete payload.registration_schema;
+    } else if (rawSchema === null || rawSchema === '') {
+      payload.registration_schema = null;
+    } else if (typeof rawSchema === 'string') {
+      try {
+        const parsed = JSON.parse(rawSchema);
+        payload.registration_schema = parsed;
+      } catch (error) {
+        const parseError = new Error('El esquema de registro debe ser un JSON válido');
+        parseError.statusCode = 400;
+        throw parseError;
+      }
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, 'allow_open_registration')) {
@@ -107,9 +144,108 @@ async function findEventOr404(eventId) {
 
 export class EventsController {
   static async list(req, res) {
-    const { Event } = getModels();
-    const events = await Event.findAll({ order: [['created_at', 'DESC']] });
-    res.json({ success: true, data: events });
+    const { Event, EventRegistration } = getModels();
+    const roleScopes = new Set(req.auth?.roleScopes ?? req.user?.roleScopes ?? []);
+    const isSuperAdmin = Boolean(req.auth?.isSuperAdmin ?? req.user?.is_super_admin);
+    const isManagement =
+      isSuperAdmin || roleScopes.has('tenant_admin') || roleScopes.has('organizer') || roleScopes.has('evaluator');
+
+    if (isManagement) {
+      const events = await Event.findAll({ order: [['created_at', 'DESC']] });
+      return res.json({ success: true, data: events });
+    }
+
+    const now = new Date();
+    const publicVisibilityClause = {
+      is_public: true,
+      [Op.and]: [
+        {
+          [Op.or]: [{ publish_start_at: null }, { publish_start_at: { [Op.lte]: now } }]
+        },
+        {
+          [Op.or]: [{ publish_end_at: null }, { publish_end_at: { [Op.gte]: now } }]
+        }
+      ]
+    };
+
+    const { TeamMember, Team } = getModels();
+    const registrations = await EventRegistration.findAll({
+      attributes: ['event_id', 'status'],
+      where: { user_id: req.user.id },
+      raw: true
+    });
+    const registeredIds = Array.from(new Set(registrations.map(registration => registration.event_id)));
+
+    const whereClauses = [];
+    if (registeredIds.length) {
+      whereClauses.push({ id: { [Op.in]: registeredIds } });
+    }
+    whereClauses.push(publicVisibilityClause);
+
+    const events = await Event.findAll({
+      where: whereClauses.length === 1 ? whereClauses[0] : { [Op.or]: whereClauses },
+      order: [
+        ['start_date', 'ASC'],
+        ['created_at', 'DESC']
+      ],
+      include: [
+        {
+          model: EventRegistration,
+          as: 'registrations',
+          attributes: ['id', 'status'],
+          where: { user_id: req.user.id },
+          required: false
+        }
+      ]
+    });
+
+    // Obtener información de equipos del usuario para todos los eventos
+    const eventIds = events.map(event => event.id);
+    const teamMemberships = eventIds.length > 0 ? await TeamMember.findAll({
+      where: { user_id: req.user.id },
+      include: [
+        {
+          model: Team,
+          as: 'team',
+          attributes: ['id', 'name', 'event_id'],
+          where: { event_id: { [Op.in]: eventIds } },
+          required: true
+        }
+      ],
+      attributes: ['id', 'team_id', 'role']
+    }) : [];
+
+    // Crear un mapa de event_id -> team
+    const teamByEventId = new Map();
+    teamMemberships.forEach(membership => {
+      const team = membership.team;
+      if (team) {
+        teamByEventId.set(team.event_id, {
+          id: team.id,
+          name: team.name,
+          role: membership.role
+        });
+      }
+    });
+
+    const payload = events.map(eventInstance => {
+      const eventJson = eventInstance.toJSON();
+      const registrationsForUser = Array.isArray(eventJson.registrations) ? eventJson.registrations : [];
+      const firstRegistration = registrationsForUser[0] ?? null;
+      delete eventJson.registrations;
+      const teamInfo = teamByEventId.get(eventInstance.id);
+      return {
+        ...eventJson,
+        is_registered: Boolean(firstRegistration),
+        registration_status: firstRegistration?.status ?? null,
+        has_team: Boolean(teamInfo),
+        team_id: teamInfo?.id ?? null,
+        team_name: teamInfo?.name ?? null,
+        team_role: teamInfo?.role ?? null
+      };
+    });
+
+    res.json({ success: true, data: payload });
   }
 
   static async create(req, res) {
@@ -143,7 +279,36 @@ export class EventsController {
           }
         });
       }
-      res.json({ success: true, data: event });
+
+      // Resolver marcadores de assets en HTML
+      const eventJson = event.toJSON();
+      if (eventJson.description_html) {
+        eventJson.description_html = await resolveAssetMarkers(
+          eventJson.description_html,
+          event.id,
+          req.tenant.id
+        );
+      }
+
+      // Resolver marcadores en intro_html de fases
+      if (Array.isArray(eventJson.phases)) {
+        for (const phase of eventJson.phases) {
+          if (phase.intro_html) {
+            phase.intro_html = await resolveAssetMarkers(phase.intro_html, event.id, req.tenant.id);
+          }
+        }
+      }
+
+      // Resolver marcadores en intro_html de tareas
+      if (Array.isArray(eventJson.tasks)) {
+        for (const task of eventJson.tasks) {
+          if (task.intro_html) {
+            task.intro_html = await resolveAssetMarkers(task.intro_html, event.id, req.tenant.id);
+          }
+        }
+      }
+
+      res.json({ success: true, data: eventJson });
     } catch (error) {
       next(error);
     }
@@ -198,6 +363,7 @@ export class EventsController {
         event_id: event.id,
         order_index: req.body.order_index ?? count + 1
       };
+      payload.intro_html = toHtmlOrNull(req.body.intro_html);
       payload.start_date = toDateOrNull(payload.start_date);
       payload.end_date = toDateOrNull(payload.end_date);
 
@@ -244,6 +410,9 @@ export class EventsController {
       }
 
       const payload = { ...req.body };
+      if (Object.prototype.hasOwnProperty.call(payload, 'intro_html')) {
+        payload.intro_html = toHtmlOrNull(payload.intro_html);
+      }
       if (Object.prototype.hasOwnProperty.call(payload, 'start_date')) {
         payload.start_date = toDateOrNull(payload.start_date);
       }
@@ -342,13 +511,16 @@ export class EventsController {
         }
       }
 
-      const task = await Task.create({
+      const taskPayload = {
         ...req.body,
         event_id: event.id,
         phase_id: phase.id,
         phase_rubric_id: phaseRubricId,
         allowed_mime_types: Array.isArray(req.body.allowed_mime_types) ? req.body.allowed_mime_types : null
-      });
+      };
+      taskPayload.intro_html = toHtmlOrNull(req.body.intro_html);
+
+      const task = await Task.create(taskPayload);
 
       res.status(201).json({ success: true, data: task });
     } catch (error) {
@@ -368,6 +540,9 @@ export class EventsController {
       }
 
       let updates = { ...req.body };
+      if (Object.prototype.hasOwnProperty.call(req.body, 'intro_html')) {
+        updates.intro_html = toHtmlOrNull(req.body.intro_html);
+      }
 
       if (Object.prototype.hasOwnProperty.call(req.body, 'phase_rubric_id')) {
         if (req.body.phase_rubric_id === null) {

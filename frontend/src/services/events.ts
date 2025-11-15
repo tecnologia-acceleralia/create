@@ -1,9 +1,11 @@
 import { apiClient } from './api';
+import type { RegistrationSchema } from './public';
 
 export type Event = {
   id: number;
   name: string;
   description?: string;
+  description_html?: string | null;
   start_date: string;
   end_date: string;
   min_team_size: number;
@@ -14,12 +16,20 @@ export type Event = {
   allow_open_registration: boolean;
   publish_start_at?: string | null;
   publish_end_at?: string | null;
+  registration_schema?: RegistrationSchema | null;
+  is_registered?: boolean;
+  registration_status?: string | null;
+  has_team?: boolean;
+  team_id?: number | null;
+  team_name?: string | null;
+  team_role?: 'captain' | 'member' | 'evaluator' | null;
 };
 
 export type Phase = {
   id: number;
   name: string;
   description?: string;
+  intro_html?: string | null;
   order_index: number;
   is_elimination: boolean;
   start_date?: string;
@@ -32,6 +42,8 @@ export type Task = {
   id: number;
   title: string;
   description?: string;
+  intro_html?: string | null;
+  order_index?: number | null;
   delivery_type: string;
   is_required: boolean;
   due_date?: string;
@@ -41,6 +53,7 @@ export type Task = {
   max_files?: number;
   max_file_size_mb?: number | null;
   allowed_mime_types?: string[] | null;
+  created_at?: string;
 };
 
 export type RubricCriterion = {
@@ -116,6 +129,11 @@ export async function deleteTask(eventId: number, taskId: number) {
   await apiClient.delete(`/events/${eventId}/tasks/${taskId}`);
 }
 
+export async function getEventTasks(eventId: number) {
+  const response = await apiClient.get(`/events/${eventId}/tasks`);
+  return response.data.data as Task[];
+}
+
 export type RubricPayload = {
   name: string;
   description?: string;
@@ -148,5 +166,103 @@ export async function updateRubric(eventId: number, phaseId: number, rubricId: n
 
 export async function deleteRubric(eventId: number, phaseId: number, rubricId: number) {
   await apiClient.delete(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`);
+}
+
+export type TeamMemberTracking = {
+  id: number;
+  userId: number;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  role: string;
+};
+
+export type TeamDeliverableTracking = {
+  taskId: number;
+  taskTitle: string;
+  required: boolean;
+  delivered: boolean;
+  submittedAt: string | null;
+  submissionId: number | null;
+};
+
+export type TeamTracking = {
+  id: number;
+  name: string;
+  description?: string | null;
+  status: string;
+  eventId: number;
+  project:
+    | {
+        id: number;
+        name: string;
+        summary?: string | null;
+        status: string;
+        problem?: string | null;
+        solution?: string | null;
+        repository_url?: string | null;
+        pitch_url?: string | null;
+      }
+    | null;
+  members: TeamMemberTracking[];
+  deliverables: TeamDeliverableTracking[];
+};
+
+export type UserTracking = {
+  id: number;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  lastLoginAt: string | null;
+  grade: string | null;
+  registrationAnswers: Record<string, unknown> | null;
+  team:
+    | {
+        id: number;
+        name: string | null;
+        role: string | null;
+      }
+    | null;
+  roles: Array<{
+    id: number;
+    name: string;
+    scope: string;
+  }>;
+};
+
+export type GradeSummaryEntry = {
+  grade: string;
+  withTeam: number;
+  withoutTeam: number;
+  total: number;
+};
+
+export type EventTrackingOverview = {
+  event: {
+    id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+    registration_schema?: RegistrationSchema | null;
+  };
+  tasks: Array<{
+    id: number;
+    title: string;
+    is_required: boolean;
+  }>;
+  teams: TeamTracking[];
+  users: UserTracking[];
+  unassignedUsers: UserTracking[];
+  gradeSummary: GradeSummaryEntry[];
+  totals: {
+    registrations: number;
+    teams: number;
+    tasks: number;
+  };
+};
+
+export async function getEventTrackingOverview(eventId: number) {
+  const response = await apiClient.get(`/events/${eventId}/tracking/overview`);
+  return response.data.data as EventTrackingOverview;
 }
 

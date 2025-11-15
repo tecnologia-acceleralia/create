@@ -7,6 +7,7 @@ import { useTenantPath } from '@/hooks/useTenantPath';
 import { Spinner } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getEvents, getEventDetail, type Event, type Task } from '@/services/events';
 import { EventCard } from '@/components/events/EventCard';
 import { useExpandableEventTasks } from '@/hooks/useExpandableEventTasks';
@@ -20,30 +21,17 @@ function ParticipantDashboardPage() {
     return { tasks: (detail.tasks ?? []) as Task[] };
   });
 
-  const visibleEvents = useMemo(() => {
+  const { registeredEvents, tenantEvents } = useMemo(() => {
     if (!events) {
-      return [];
+      return { registeredEvents: [] as Event[], tenantEvents: [] as Event[] };
     }
 
-    const now = new Date();
-    return events.filter(event => {
-      if (!event.is_public) {
-        return false;
-      }
+    const registered = events.filter(event => Boolean(event.is_registered));
 
-      const publishStart = event.publish_start_at ? new Date(event.publish_start_at) : null;
-      const publishEnd = event.publish_end_at ? new Date(event.publish_end_at) : null;
-
-      if (publishStart && publishStart > now) {
-        return false;
-      }
-
-      if (publishEnd && publishEnd < now) {
-        return false;
-      }
-
-      return true;
-    });
+    return {
+      registeredEvents: registered,
+      tenantEvents: events
+    };
   }, [events]);
 
   if (isLoading) {
@@ -60,51 +48,108 @@ function ParticipantDashboardPage() {
         </Button>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
-        {visibleEvents.map(event => {
-          const tasks = tasksByEvent[event.id] ?? [];
-          return (
-            <EventCard
-              key={event.id}
-              event={event}
-              to={tenantPath(`events/${event.id}`)}
-              showStatus={false}
-              actions={
-                <>
-                  <Button asChild>
-                    <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{t('teams.title')}</Link>
-                  </Button>
-                  <Button variant="outline" onClick={() => toggle(event.id)}>
-                    {isExpanded(event.id) ? t('submissions.list') : t('events.tasksTitle')}
-                  </Button>
-                </>
-              }
-            >
-              {expandedEventId === event.id ? (
-                <div className="space-y-2">
-                  {tasks.length ? (
-                    tasks.map(task => (
-                      <div key={task.id} className="rounded-md border border-border/60 p-3">
-                        <p className="font-medium">{task.title}</p>
-                        <p className="text-xs text-muted-foreground">{task.description}</p>
-                        <Button asChild size="sm" variant="secondary" className="mt-2">
-                          <Link to={tenantPath(`dashboard/events/${event.id}/tasks/${task.id}`)}>
-                            {t('submissions.register')}
-                          </Link>
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground">{t('events.noTasks')}</p>
-                  )}
-                </div>
-              ) : null}
-            </EventCard>
-          );
-        })}
-        {visibleEvents.length === 0 ? (
-          <p className="text-sm text-muted-foreground md:col-span-2">{t('events.noPublicEvents')}</p>
-        ) : null}
+      <div className="grid gap-8 md:grid-cols-2 md:items-start">
+        <section aria-label={t('dashboard.registeredEvents')} className="flex flex-col">
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader>
+              <CardTitle>{t('dashboard.registeredEvents')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {registeredEvents.map(event => {
+                  const tasks = tasksByEvent[event.id] ?? [];
+                  const hasTeam = Boolean(event.has_team);
+                  return (
+                    <EventCard
+                      key={event.id}
+                      event={event}
+                      to={tenantPath(`dashboard/events/${event.id}/view`)}
+                      showStatus={false}
+                      actions={
+                        <>
+                          {hasTeam ? (
+                            <Button asChild>
+                              <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{t('teams.title')}</Link>
+                            </Button>
+                          ) : (
+                            <>
+                              <Button asChild variant="outline">
+                                <Link to={tenantPath(`dashboard/events/${event.id}/team#projects-list`)}>
+                                  {t('teams.viewTeams')}
+                                </Link>
+                              </Button>
+                              <Button asChild>
+                                <Link to={tenantPath(`dashboard/events/${event.id}/team#projects-create`)}>
+                                  {t('teams.createTeam')}
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                          {hasTeam && (
+                            <Button variant="outline" onClick={() => void toggle(event.id)}>
+                              {isExpanded(event.id) ? t('submissions.list') : t('events.tasksTitle')}
+                            </Button>
+                          )}
+                        </>
+                      }
+                    >
+                      {expandedEventId === event.id && hasTeam ? (
+                        <div className="space-y-2">
+                          {tasks.length ? (
+                            tasks.map(task => (
+                              <div key={task.id} className="rounded-md border border-border/60 p-3">
+                                <p className="font-medium">{task.title}</p>
+                                <p className="text-xs text-muted-foreground">{task.description}</p>
+                                <Button asChild size="sm" variant="secondary" className="mt-2">
+                                  <Link to={tenantPath(`dashboard/events/${event.id}/tasks/${task.id}`)}>
+                                    {t('submissions.register')}
+                                  </Link>
+                                </Button>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-muted-foreground">{t('events.noTasks')}</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </EventCard>
+                  );
+                })}
+                {registeredEvents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t('events.noRegisteredEvents')}</p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section aria-label={t('dashboard.tenantEvents')} className="flex flex-col">
+          <Card className="border-border/70 shadow-sm">
+            <CardHeader>
+              <CardTitle>{t('dashboard.tenantEvents')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4">
+                {tenantEvents.map(event => (
+                  <EventCard
+                    key={event.id}
+                    event={event}
+                    to={tenantPath(`events/${event.id}`)}
+                    showStatus={false}
+                    actions={
+                      <Button asChild variant="outline">
+                        <Link to={tenantPath(`events/${event.id}`)}>{t('events.viewDetails')}</Link>
+                      </Button>
+                    }
+                  />
+                ))}
+                {tenantEvents.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">{t('events.empty')}</p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </DashboardLayout>
   );

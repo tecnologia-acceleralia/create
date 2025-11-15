@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
@@ -61,26 +61,27 @@ function LandingPage() {
         aria-hidden="true"
       />
       <div className="relative z-10 space-y-12 pb-12">
-      <PublicHero
-        title={heroTitle}
-        subtitle={heroSubtitle}
-        logoUrl={branding.logoUrl}
-        logoAlt={t('navigation.brand', { defaultValue: 'Create' })}
-      />
+        <PublicHero
+          title={heroTitle}
+          subtitle={heroSubtitle}
+          logoUrl={branding.logoUrl}
+          logoAlt={t('navigation.brand', { defaultValue: 'Create' })}
+          actions={null}
+        />
 
-      <PublicEventsSection
-        title={t('events.title')}
-        events={publishedEvents}
+        <PublicEventsSection
+          title={t('events.title')}
+          events={publishedEvents}
           emptyMessage={<p className="text-sm text-[color:var(--landing-muted)]">{t('landing.noEvents')}</p>}
-        renderEvent={event => (
-          <EventCard
-            key={event.id}
-            event={event}
-            to={tenantSlug ? tenantPath(`events/${event.id}`) : undefined}
-            showVideo
-          />
-        )}
-      />
+          renderEvent={event => (
+            <EventCard
+              key={event.id}
+              event={event}
+              to={tenantSlug ? tenantPath(`events/${event.id}`) : undefined}
+              showVideo
+            />
+          )}
+        />
       </div>
     </div>
   );

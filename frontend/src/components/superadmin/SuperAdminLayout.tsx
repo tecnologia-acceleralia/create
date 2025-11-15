@@ -6,7 +6,7 @@ import { cn } from '@/utils/cn';
 import { useSuperAdminSession } from '@/context/SuperAdminContext';
 
 type SuperAdminLayoutProps = {
-  children: ReactNode;
+  readonly children: ReactNode;
 };
 
 const NAV_ITEMS: Array<{ to: string; key: 'dashboard' | 'tenants' | 'users' }> = [
@@ -30,7 +30,9 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
       <nav className="flex flex-wrap gap-2 border-b border-border/70 pb-3">
         {NAV_ITEMS.map(item => {
           const isActive =
-            location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+            item.key === 'dashboard'
+              ? location.pathname === item.to || location.pathname === `${item.to}/`
+              : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
           return (
             <Link
               key={item.key}

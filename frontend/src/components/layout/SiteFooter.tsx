@@ -143,7 +143,7 @@ export function SiteFooter() {
             <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{t('footer.resources')}</h3>
             <ul className="mt-4 space-y-2 text-sm text-[color:var(--footer-muted)]">
               <li>
-                <a href="mailto:support@acceleralia.com" className="transition-colors hover:text-[color:var(--footer-fg)]">
+                <a href="mailto:support+create@acceleralia.com" className="transition-colors hover:text-[color:var(--footer-fg)]">
                   {t('footer.support')}
                 </a>
               </li>

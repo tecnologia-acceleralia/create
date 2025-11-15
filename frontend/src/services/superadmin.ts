@@ -59,6 +59,8 @@ const superAdminClient = axios.create({
 });
 
 let currentToken: string | null = null;
+type UnauthorizedHandler = () => void;
+const unauthorizedHandlers = new Set<UnauthorizedHandler>();
 
 superAdminClient.interceptors.request.use(config => {
   if (currentToken) {
@@ -72,8 +74,33 @@ superAdminClient.interceptors.request.use(config => {
   return config;
 });
 
+superAdminClient.interceptors.response.use(
+  response => response,
+  error => {
+    if (error?.response?.status === 401) {
+      unauthorizedHandlers.forEach(handler => {
+        try {
+          handler();
+        } catch (callbackError) {
+          if (import.meta.env.DEV) {
+            console.warn('Error al manejar 401 en superAdminClient', callbackError);
+          }
+        }
+      });
+    }
+    return Promise.reject(error);
+  }
+);
+
 export function setSuperAdminAuthToken(token: string | null) {
   currentToken = token;
+}
+
+export function registerSuperAdminUnauthorizedHandler(handler: UnauthorizedHandler) {
+  unauthorizedHandlers.add(handler);
+  return () => {
+    unauthorizedHandlers.delete(handler);
+  };
 }
 
 type ApiResponse<T> = {
@@ -237,6 +264,9 @@ export async function getSuperAdminOverview() {
   return response.data.data;
 }
 
+export const TENANT_ROLE_SCOPES = ['tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'] as const;
+export type TenantRoleScope = (typeof TENANT_ROLE_SCOPES)[number];
+
 function normalizeTenantFilters(filters?: SuperAdminTenantFilters) {
   if (!filters) {
     return undefined;
@@ -283,6 +313,11 @@ export type SuperAdminUserTenantMembership = {
     status: SuperAdminTenant['status'];
     plan_type: SuperAdminTenant['plan_type'];
   } | null;
+  assignedRoles?: {
+    id: number;
+    name: string;
+    scope: TenantRoleScope;
+  }[];
 };
 
 export type SuperAdminUser = {
@@ -293,9 +328,12 @@ export type SuperAdminUser = {
   language: string;
   status: 'active' | 'inactive' | 'invited';
   is_super_admin: boolean;
+  isSuperAdmin?: boolean;
   profile_image_url: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  createdAt?: string;
+  updated_at?: string;
+  updatedAt?: string;
   tenantMemberships: SuperAdminUserTenantMembership[];
 };
 
@@ -355,6 +393,7 @@ type CreateSuperAdminUserPayload = {
   password?: string;
   profile_image_url?: string | null;
   tenantIds?: number[];
+  tenantRoles?: Record<number, TenantRoleScope[]>;
 };
 
 export async function createSuperAdminUser(payload: CreateSuperAdminUserPayload) {

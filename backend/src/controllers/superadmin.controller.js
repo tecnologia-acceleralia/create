@@ -21,6 +21,8 @@ const DEFAULT_ROLES = [
   { name: 'Capitán de equipo', scope: 'team_captain' }
 ];
 
+const TENANT_ROLE_SCOPES = ['tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'];
+
 const DEFAULT_TENANT_PRIMARY = '#0ea5e9';
 const DEFAULT_TENANT_SECONDARY = '#1f2937';
 const DEFAULT_TENANT_ACCENT = '#f97316';
@@ -139,6 +141,141 @@ function coerceNullableInteger(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function normalizeTenantRolesPayload(rawPayload) {
+  if (!rawPayload) {
+    return {};
+  }
+
+  const entries = [];
+
+  if (Array.isArray(rawPayload)) {
+    for (const entry of rawPayload) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      const candidate = entry.tenantId ?? entry.tenant_id ?? entry.tenant ?? entry.id ?? entry.tenantID;
+      const tenantId = Number.parseInt(candidate, 10);
+      if (Number.isNaN(tenantId)) {
+        continue;
+      }
+      const rawScopes = Array.isArray(entry.roleScopes ?? entry.scopes ?? entry.roles)
+        ? entry.roleScopes ?? entry.scopes ?? entry.roles
+        : [];
+      entries.push({ tenantId, roleScopes: rawScopes });
+    }
+  } else if (typeof rawPayload === 'object') {
+    for (const [tenantIdKey, value] of Object.entries(rawPayload)) {
+      const tenantId = Number.parseInt(tenantIdKey, 10);
+      if (Number.isNaN(tenantId)) {
+        continue;
+      }
+      const rawScopes = Array.isArray(value) ? value : [];
+      entries.push({ tenantId, roleScopes: rawScopes });
+    }
+  }
+
+  return entries.reduce((accumulator, entry) => {
+    const scopes = Array.from(
+      new Set(
+        entry.roleScopes
+          .map(scope => (typeof scope === 'string' ? scope.trim() : ''))
+          .filter(scope => TENANT_ROLE_SCOPES.includes(scope))
+      )
+    );
+    accumulator[entry.tenantId] = scopes;
+    return accumulator;
+  }, {});
+}
+
+async function syncUserTenantRoles({ membershipId, tenantId, desiredScopes, Role, UserTenantRole }) {
+  const normalizedScopes = Array.from(
+    new Set(
+      (desiredScopes ?? [])
+        .map(scope => (typeof scope === 'string' ? scope.trim() : ''))
+        .filter(scope => TENANT_ROLE_SCOPES.includes(scope))
+    )
+  );
+
+  const existingAssignments = await UserTenantRole.findAll({
+    where: { user_tenant_id: membershipId },
+    attributes: ['id', 'role_id'],
+    skipTenant: true
+  });
+
+  if (normalizedScopes.length === 0) {
+    if (existingAssignments.length > 0) {
+      await UserTenantRole.destroy({
+        where: { id: existingAssignments.map(assignment => assignment.id) },
+        skipTenant: true
+      });
+    }
+    return;
+  }
+
+  const resolvedRoleIds = [];
+
+  for (const scope of normalizedScopes) {
+    let roleInstance = await Role.findOne({
+      where: { tenant_id: tenantId, scope },
+      attributes: ['id', 'scope'],
+      skipTenant: true
+    });
+
+    if (!roleInstance) {
+      const defaultRole = DEFAULT_ROLES.find(candidate => candidate.scope === scope);
+      if (defaultRole) {
+        [roleInstance] = await Role.findOrCreate({
+          where: { tenant_id: tenantId, scope },
+          defaults: {
+            tenant_id: tenantId,
+            name: defaultRole.name,
+            scope: defaultRole.scope
+          },
+          skipTenant: true
+        });
+      }
+    }
+
+    if (roleInstance) {
+      resolvedRoleIds.push(roleInstance.id);
+    } else {
+      logger.warn('No se encontró el rol solicitado para el tenant', {
+        tenantId,
+        scope
+      });
+    }
+  }
+
+  const existingRoleIds = existingAssignments.map(assignment => assignment.role_id);
+  const roleIdsToAdd = resolvedRoleIds.filter(roleId => !existingRoleIds.includes(roleId));
+  const assignmentIdsToRemove = existingAssignments
+    .filter(assignment => !resolvedRoleIds.includes(assignment.role_id))
+    .map(assignment => assignment.id);
+
+  if (assignmentIdsToRemove.length > 0) {
+    await UserTenantRole.destroy({
+      where: { id: assignmentIdsToRemove },
+      skipTenant: true
+    });
+  }
+
+  if (roleIdsToAdd.length > 0) {
+    await Promise.all(
+      roleIdsToAdd.map(roleId =>
+        UserTenantRole.create(
+          {
+            tenant_id: tenantId,
+            user_tenant_id: membershipId,
+            role_id: roleId
+          },
+          { skipTenant: true }
+        )
+      )
+    );
+  }
+}
+
+
 function coerceNullableString(value) {
   if (value === null || value === undefined) {
     return null;
@@ -188,7 +325,14 @@ function formatUserResponse(userInstance) {
             status: membership.tenant.status,
             plan_type: membership.tenant.plan_type
           }
-        : null
+        : null,
+      assignedRoles: Array.isArray(membership.assignedRoles)
+        ? membership.assignedRoles.map(role => ({
+            id: role.id,
+            name: role.name,
+            scope: role.scope
+          }))
+        : []
     }))
   };
 }
@@ -616,7 +760,7 @@ export class SuperAdminController {
   }
 
   static async listUsers(req, res) {
-    const { User, UserTenant, Tenant } = getModels();
+    const { User, UserTenant, Tenant, Role } = getModels();
     const {
       page: pageParam,
       pageSize: pageSizeParam,
@@ -702,10 +846,18 @@ export class SuperAdminController {
               {
                 model: Tenant,
                 as: 'tenant',
-                attributes: ['id', 'name', 'slug', 'status', 'plan_type']
+                attributes: ['id', 'name', 'slug', 'status', 'plan_type'],
+                required: false
+              },
+              {
+                model: Role,
+                as: 'assignedRoles',
+                attributes: ['id', 'name', 'scope'],
+                through: { attributes: [] },
+                required: false,
+                skipTenant: true
               }
             ],
-            separate: true,
             skipTenant: true
           }
         ]
@@ -739,7 +891,7 @@ export class SuperAdminController {
   }
 
   static async createUser(req, res) {
-    const { User, UserTenant, Tenant } = getModels();
+    const { User, UserTenant, Tenant, Role, UserTenantRole } = getModels();
     const payload = req.body;
 
     try {
@@ -762,26 +914,53 @@ export class SuperAdminController {
         profile_image_url: coerceNullableString(payload.profile_image_url)
       });
 
+      const tenantRolesMap = normalizeTenantRolesPayload(payload.tenantRoles);
       const tenantIds = Array.isArray(payload.tenantIds)
         ? payload.tenantIds.map(id => Number.parseInt(id, 10)).filter(id => !Number.isNaN(id))
         : [];
+      const tenantIdsFromRoles = Object.keys(tenantRolesMap)
+        .map(key => Number.parseInt(key, 10))
+        .filter(value => !Number.isNaN(value));
+      const requestedTenantIds = Array.from(new Set([...tenantIds, ...tenantIdsFromRoles]));
 
-      if (tenantIds.length > 0) {
+      const membershipByTenantId = {};
+
+      if (requestedTenantIds.length > 0) {
         const tenants = await Tenant.findAll({
-          where: { id: { [Op.in]: tenantIds } },
+          where: { id: { [Op.in]: requestedTenantIds } },
           attributes: ['id']
         });
         const validTenantIds = tenants.map(tenant => tenant.id);
 
-        await Promise.all(
-          validTenantIds.map(id =>
-            UserTenant.findOrCreate({
+        const createdMemberships = await Promise.all(
+          validTenantIds.map(async id => {
+            const [membership] = await UserTenant.findOrCreate({
               where: { user_id: user.id, tenant_id: id },
               defaults: { status: 'active' },
               skipTenant: true
-            })
-          )
+            });
+            membershipByTenantId[id] = membership;
+            return membership;
+          })
         );
+
+        for (const membership of createdMemberships) {
+          if (!membership) {
+            continue;
+          }
+          const membershipTenantId = Number.parseInt(membership.tenant_id, 10);
+          if (Number.isNaN(membershipTenantId)) {
+            continue;
+          }
+          const desiredScopes = tenantRolesMap[membershipTenantId] ?? [];
+          await syncUserTenantRoles({
+            membershipId: membership.id,
+            tenantId: membershipTenantId,
+            desiredScopes,
+            Role,
+            UserTenantRole
+          });
+        }
       }
 
       const createdUser = await User.findByPk(user.id, {
@@ -794,10 +973,18 @@ export class SuperAdminController {
               {
                 model: Tenant,
                 as: 'tenant',
-                attributes: ['id', 'name', 'slug', 'status', 'plan_type']
+                attributes: ['id', 'name', 'slug', 'status', 'plan_type'],
+                required: false
+              },
+              {
+                model: Role,
+                as: 'assignedRoles',
+                attributes: ['id', 'name', 'scope'],
+                through: { attributes: [] },
+                required: false,
+                skipTenant: true
               }
             ],
-            separate: true,
             skipTenant: true
           }
         ]
@@ -817,7 +1004,7 @@ export class SuperAdminController {
   }
 
   static async updateUser(req, res) {
-    const { User, UserTenant, Tenant } = getModels();
+    const { User, UserTenant, Tenant, Role, UserTenantRole } = getModels();
     const { userId } = req.params;
     const payload = req.body;
 
@@ -856,6 +1043,8 @@ export class SuperAdminController {
       }
 
       await user.update(updates);
+
+      const tenantRolesMap = normalizeTenantRolesPayload(payload.tenantRoles);
 
       if (Array.isArray(payload.tenantIds)) {
         const desiredTenantIds = payload.tenantIds
@@ -900,6 +1089,61 @@ export class SuperAdminController {
         }
       }
 
+      const tenantRolesEntries = Object.entries(tenantRolesMap);
+
+      if (tenantRolesEntries.length > 0) {
+        const currentMemberships = await UserTenant.findAll({
+          where: { user_id: user.id },
+          attributes: ['id', 'tenant_id'],
+          skipTenant: true
+        });
+
+        const membershipByTenantId = currentMemberships.reduce((accumulator, membership) => {
+          accumulator[membership.tenant_id] = membership;
+          return accumulator;
+        }, {});
+
+        for (const [tenantIdKey, scopes] of tenantRolesEntries) {
+          const tenantId = Number.parseInt(tenantIdKey, 10);
+          if (Number.isNaN(tenantId)) {
+            continue;
+          }
+
+          let membership = membershipByTenantId[tenantId];
+
+          if (!membership) {
+            const tenantExists = await Tenant.findByPk(tenantId, {
+              attributes: ['id'],
+              skipTenant: true
+            });
+
+            if (!tenantExists) {
+              logger.warn('No se pudo crear una membresía para asignar roles', { userId: user.id, tenantId });
+              continue;
+            }
+
+            membership = await UserTenant.create(
+              {
+                user_id: user.id,
+                tenant_id: tenantId,
+                status: 'active'
+              },
+              { skipTenant: true }
+            );
+
+            membershipByTenantId[tenantId] = membership;
+          }
+
+          await syncUserTenantRoles({
+            membershipId: membership.id,
+            tenantId,
+            desiredScopes: scopes,
+            Role,
+            UserTenantRole
+          });
+        }
+      }
+
       const updatedUser = await User.findByPk(user.id, {
         include: [
           {
@@ -910,10 +1154,18 @@ export class SuperAdminController {
               {
                 model: Tenant,
                 as: 'tenant',
-                attributes: ['id', 'name', 'slug', 'status', 'plan_type']
+                attributes: ['id', 'name', 'slug', 'status', 'plan_type'],
+                required: false
+              },
+              {
+                model: Role,
+                as: 'assignedRoles',
+                attributes: ['id', 'name', 'scope'],
+                through: { attributes: [] },
+                required: false,
+                skipTenant: true
               }
             ],
-            separate: true,
             skipTenant: true
           }
         ]

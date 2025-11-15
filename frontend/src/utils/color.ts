@@ -96,7 +96,7 @@ function relativeLuminance({ r, g, b }: RgbColor) {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
-function pickContrastColor(base: string) {
+export function pickContrastColor(base: string) {
   const rgb = hexToRgb(base);
   if (!rgb) {
     return LIGHT_REFERENCE;

@@ -7,6 +7,7 @@ import {
   S3Client
 } from '@aws-sdk/client-s3';
 import { logger } from '../utils/logger.js';
+import { normalizeFileName } from '../utils/s3-utils.js';
 
 const IMAGE_EXTENSION_BY_MIME = {
   'image/png': 'png',
@@ -93,6 +94,10 @@ function buildTenantPrefix(slug) {
   return `tenants/${slug}/`;
 }
 
+function buildTenantPrefixById(tenantId) {
+  return `tenants/${tenantId}/`;
+}
+
 function buildLogoKey(slug, extension) {
   const safeExtension = extension || 'png';
   return `${buildTenantPrefix(slug)}branding/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
@@ -101,6 +106,14 @@ function buildLogoKey(slug, extension) {
 function buildSubmissionFileKey(slug, submissionId, fileName) {
   const normalizedName = fileName?.replace?.(/[^\w.\-]+/g, '_') ?? 'file.bin';
   return `${buildTenantPrefix(slug)}submissions/${submissionId}/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
+}
+
+function buildEventAssetKey(tenantId, eventId, fileName) {
+  // Normalizar el nombre eliminando acentos y caracteres especiales
+  const normalizedName = normalizeFileName(fileName);
+  // Estructura: tenants/{tenantId}/events/{eventId}/assets/{timestamp}-{uuid}-{filename}
+  // Usa tenant_id en lugar de slug para evitar problemas si el slug cambia
+  return `${buildTenantPrefixById(tenantId)}events/${eventId}/assets/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
 }
 
 function extractKeyFromUrl(url, settings) {
@@ -307,6 +320,18 @@ export function validateSpacesConfiguration() {
   }
 }
 
+/**
+ * Obtiene el cliente y configuración de S3 para uso en seeders
+ * @returns {{ client: S3Client; settings: object } | null}
+ */
+export function getS3ClientAndSettings() {
+  try {
+    return ensureClient();
+  } catch (error) {
+    return null;
+  }
+}
+
 export async function probeSpacesConnection() {
   const { client, settings } = ensureClient();
 
@@ -320,6 +345,37 @@ export async function probeSpacesConnection() {
   return {
     endpoint: settings.endpoint,
     bucket: settings.bucket
+  };
+}
+
+/**
+ * Sube un archivo de evento a DigitalOcean Spaces.
+ * @param {{ tenantId: number; eventId: number; fileName: string; buffer: Buffer; contentType: string }} options
+ * @returns {Promise<{ url: string; key: string }>}
+ */
+export async function uploadEventAsset({ tenantId, eventId, fileName, buffer, contentType }) {
+  const { client, settings } = ensureClient();
+  const objectKey = buildEventAssetKey(tenantId, eventId, fileName);
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: settings.bucket,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: contentType,
+      ACL: 'public-read',
+      CacheControl: 'public, max-age=31536000, immutable'
+    })
+  );
+
+  const baseUrl = settings.publicBaseUrl;
+  if (!baseUrl) {
+    throw new Error('No se pudo determinar la URL pública para el archivo subido');
+  }
+
+  return {
+    key: objectKey,
+    url: `${baseUrl}/${objectKey}`
   };
 }
 

@@ -77,10 +77,11 @@ async function run() {
         pending.forEach(name => console.log(`  ✖ ${name}`));
         break;
       }
-      case 'seed:master':
+      case 'seed:master': {
         await masterSeeder.up();
         logger.info('Seeders master aplicados');
         break;
+      }
       case 'seed:test':
         await testSeeder.up();
         logger.info('Seeders test aplicados');

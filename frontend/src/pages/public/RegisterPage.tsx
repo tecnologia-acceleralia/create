@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -7,32 +7,88 @@ import { isAxiosError } from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
 import { PageContainer, Spinner } from '@/components/common';
+import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/form';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { getPublicEvents } from '@/services/public';
+import { getPublicEvents, type RegistrationSchemaField, type RegistrationSchema } from '@/services/public';
 import { registerUser } from '@/services/auth';
 import { useAuth } from '@/context/AuthContext';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
-const schema = z
+const baseSchema = z
   .object({
     firstName: z.string().trim().min(1).max(150),
     lastName: z.string().trim().min(1).max(150),
     email: z.string().email(),
     password: z.string().min(8),
-    confirmPassword: z.string().min(8)
+    confirmPassword: z.string().min(8),
+    grade: z.string().optional()
   })
   .refine(values => values.password === values.confirmPassword, {
     message: 'register.passwordMismatch',
     path: ['confirmPassword']
   });
 
-type FormValues = z.infer<typeof schema>;
+type BaseFormValues = z.infer<typeof baseSchema>;
+type FormValues = BaseFormValues & Record<string, string | undefined>;
+
+type GradeOption = {
+  value: string;
+  label: string;
+};
+
+function resolveSchemaLabel(
+  label: Record<string, string> | string | undefined,
+  language: string,
+  fallback: string
+): string {
+  if (!label) {
+    return fallback;
+  }
+
+  if (typeof label === 'string') {
+    return label;
+  }
+
+  const normalized = language?.split('-')[0]?.toLowerCase();
+  if (normalized && label[normalized]) {
+    return label[normalized] ?? fallback;
+  }
+
+  return label.es ?? label.en ?? label.ca ?? fallback;
+}
+
+function getFieldLabel(
+  field: RegistrationSchemaField,
+  language: string,
+  fallback: string
+): string {
+  if (!field.label) {
+    return fallback;
+  }
+  if (typeof field.label === 'string') {
+    return field.label;
+  }
+  const normalized = language?.split('-')[0]?.toLowerCase();
+  if (normalized && field.label[normalized]) {
+    return field.label[normalized] ?? fallback;
+  }
+  return field.label.es ?? field.label.en ?? field.label.ca ?? fallback;
+}
+
+function normalizeAdditionalFields(fields: RegistrationSchemaField[] = []): RegistrationSchemaField[] {
+  return fields.map((field, index) => ({
+    ...field,
+    id: field.id?.trim() ?? `custom_field_${index + 1}`
+  }));
+}
 
 function isEventOpen(event: PublicEvent | null) {
   if (!event) {
@@ -55,13 +111,61 @@ export default function RegisterPage() {
   const [loadError, setLoadError] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
+  const additionalFieldsRef = useRef<RegistrationSchemaField[]>([]);
+  const gradeConfigRef = useRef<{ required: boolean; options: string[] }>({
+    required: false,
+    options: []
+  });
+
+  const schema = useMemo(
+    () =>
+      baseSchema.superRefine((values, ctx) => {
+        const gradeValue =
+          typeof values.grade === 'string' ? values.grade.trim() : '';
+        const { required, options } = gradeConfigRef.current;
+
+        if (required && !gradeValue) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['grade'],
+            message: 'register.gradeRequired'
+          });
+        } else if (gradeValue && options.length && !options.includes(gradeValue)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['grade'],
+            message: 'register.gradeInvalid'
+          });
+        }
+
+        additionalFieldsRef.current.forEach(field => {
+          if (!field.required) {
+            return;
+          }
+          const rawValue = (values as Record<string, unknown>)[field.id ?? ''];
+          if (typeof rawValue !== 'string' || !rawValue.trim()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [field.id ?? ''],
+              message: 'register.dynamicFieldRequired'
+            });
+          }
+        });
+      }),
+    []
+  );
+
   const eventIdParam = searchParams.get('eventId');
   const numericEventId = eventIdParam ? Number(eventIdParam) : null;
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting }
+    formState: { errors, isSubmitting },
+    getValues,
+    reset,
+    watch,
+    setValue
   } = useForm<FormValues>({
     resolver: zodResolver(schema)
   });
@@ -113,17 +217,83 @@ export default function RegisterPage() {
     return events.find(event => event.id === numericEventId) ?? null;
   }, [events, numericEventId]);
 
+  const registrationSchema = selectedEvent?.registration_schema ?? null;
+
+  const gradeOptions: GradeOption[] = useMemo(() => {
+    const rawOptions = registrationSchema?.grade?.options ?? [];
+    return rawOptions
+      .map(option => {
+        if (!option?.value) {
+          return null;
+        }
+        return {
+          value: option.value,
+          label: resolveSchemaLabel(option.label, i18n.language ?? 'es', option.value)
+        };
+      })
+      .filter((option): option is GradeOption => Boolean(option));
+  }, [registrationSchema, i18n.language]);
+
+  const additionalFields = useMemo(() => normalizeAdditionalFields(registrationSchema?.additionalFields), [registrationSchema]);
+
+  useEffect(() => {
+    additionalFieldsRef.current = additionalFields;
+    gradeConfigRef.current = {
+      required: Boolean(registrationSchema?.grade?.required),
+      options: gradeOptions.map(option => option.value)
+    };
+
+    const currentValues = getValues();
+    const nextValues: FormValues = {
+      firstName: currentValues.firstName ?? '',
+      lastName: currentValues.lastName ?? '',
+      email: currentValues.email ?? '',
+      password: currentValues.password ?? '',
+      confirmPassword: currentValues.confirmPassword ?? '',
+      grade: ''
+    };
+
+    additionalFields.forEach(field => {
+      nextValues[field.id] = '';
+    });
+
+    reset(nextValues, {
+      keepDirtyValues: false,
+      keepErrors: false,
+      keepTouched: false
+    });
+  }, [additionalFields, gradeOptions, registrationSchema, getValues, reset]);
+
   const onSubmit = async (values: FormValues) => {
     try {
       setSubmissionError(null);
       const language = i18n.language?.split('-')[0]?.toLowerCase();
+      const answersPayload: Record<string, string> = {};
+      const gradeValue = typeof values.grade === 'string' ? values.grade.trim() : '';
+
+      if (gradeValue) {
+        answersPayload.grade = gradeValue;
+      }
+
+      additionalFields.forEach(field => {
+        const value = values[field.id];
+        if (typeof value !== 'string') {
+          return;
+        }
+        const trimmedValue = value.trim();
+        if (trimmedValue) {
+          answersPayload[field.id] = trimmedValue;
+        }
+      });
       const response = await registerUser({
         first_name: values.firstName.trim(),
         last_name: values.lastName.trim(),
         email: values.email.toLowerCase(),
         password: values.password,
         language: language === 'es' || language === 'en' || language === 'ca' ? language : 'es',
-        event_id: selectedEvent?.id ?? undefined
+        event_id: selectedEvent?.id ?? undefined,
+        grade: gradeValue || undefined,
+        registration_answers: Object.keys(answersPayload).length ? answersPayload : undefined
       });
 
       const payload = response.data?.data;
@@ -238,6 +408,93 @@ export default function RegisterPage() {
             </FormField>
 
             <FormField
+              label={
+                registrationSchema?.grade?.label
+                  ? resolveSchemaLabel(registrationSchema.grade.label, i18n.language ?? 'es', t('register.gradeLabel'))
+                  : t('register.gradeLabel')
+              }
+              htmlFor="grade"
+              error={
+                errors.grade ? t(errors.grade.message ?? '', { defaultValue: errors.grade.message }) : undefined
+              }
+            required={Boolean(registrationSchema?.grade?.required)}
+            >
+              {gradeOptions.length ? (
+                <Select id="grade" defaultValue="" {...register('grade')}>
+                  <option value="" disabled>
+                    {t('register.gradePlaceholder')}
+                  </option>
+                  {gradeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                    {option.label}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  id="grade"
+                  placeholder={t('register.gradePlaceholder')}
+                {...register('grade')}
+                />
+              )}
+            </FormField>
+
+            {additionalFields.length ? (
+              <div className="space-y-4">
+                {additionalFields.map(field => {
+                  const fieldLabel = getFieldLabel(field, i18n.language ?? 'es', field.id);
+                  const errorMessage = errors[field.id]?.message
+                    ? t(errors[field.id]?.message ?? '', { defaultValue: errors[field.id]?.message })
+                    : undefined;
+
+                  const selectOptions =
+                    field.type === 'select'
+                      ? (field.options ?? [])
+                          .map(option => {
+                            if (!option?.value) {
+                              return null;
+                            }
+                            return {
+                              value: option.value,
+                              label: resolveSchemaLabel(option.label, i18n.language ?? 'es', option.value)
+                            };
+                          })
+                          .filter(
+                            (option): option is { value: string; label: string } => Boolean(option)
+                          )
+                      : [];
+
+                  return (
+                    <FormField
+                      key={field.id}
+                      label={fieldLabel}
+                      htmlFor={field.id}
+                      error={errorMessage}
+                      required={Boolean(field.required)}
+                    >
+                      {field.type === 'textarea' ? (
+                        <Textarea id={field.id} {...register(field.id)} />
+                      ) : field.type === 'select' && selectOptions.length ? (
+                        <Select id={field.id} defaultValue="" {...register(field.id)}>
+                          <option value="" disabled>
+                            {t('register.selectPlaceholder')}
+                          </option>
+                          {selectOptions.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Input id={field.id} {...register(field.id)} />
+                      )}
+                    </FormField>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <FormField
               label={t('register.password')}
               htmlFor="password"
               description={t('register.passwordHelper')}
@@ -248,7 +505,22 @@ export default function RegisterPage() {
               }
               required
             >
-              <Input id="password" type="password" autoComplete="new-password" {...register('password')} />
+              <div className="flex gap-2">
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="new-password"
+                  className="flex-1"
+                  {...register('password')}
+                />
+                <PasswordGeneratorButton
+                  onGenerate={password => {
+                    setValue('password', password, { shouldValidate: true });
+                    setValue('confirmPassword', password, { shouldValidate: true });
+                  }}
+                  aria-label={t('register.generatePassword')}
+                />
+              </div>
             </FormField>
 
             <FormField

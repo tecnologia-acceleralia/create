@@ -94,11 +94,13 @@ export class PublicController {
         'id',
         'name',
         'description',
+        'description_html',
         'start_date',
         'end_date',
         'status',
         'video_url',
-        'allow_open_registration'
+        'allow_open_registration',
+        'registration_schema'
       ]
     });
 
@@ -225,7 +227,7 @@ static async listPhases(req, res) {
         ['order_index', 'ASC'],
         ['name', 'ASC']
       ],
-      attributes: ['id', 'name', 'order_index', 'event_id', 'view_start_date', 'view_end_date']
+      attributes: ['id', 'name', 'description', 'order_index', 'event_id', 'view_start_date', 'view_end_date']
     });
 
     const payload = phases.map(phase => {
@@ -237,6 +239,7 @@ static async listPhases(req, res) {
       return {
         id: phase.id,
         name: phase.name,
+        description: phase.description ?? null,
         orderIndex: phase.order_index,
         eventId: phase.event_id,
         eventName: phase.event?.name ?? null,

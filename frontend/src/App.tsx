@@ -1,19 +1,24 @@
 ﻿import { Suspense, useEffect } from 'react';
 import { useRoutes, Navigate, Outlet, useParams, useNavigate, useLocation } from 'react-router';
-import { useAuth } from '@/context/AuthContext';
 import { Spinner } from '@/components/common';
 import { Toaster } from 'sonner';
 import { useTenant } from '@/context/TenantContext';
 import { SiteLayout } from '@/components/layout/SiteLayout';
+import { ProtectedRoute } from '@/components/auth';
+import { useAuth } from '@/context/AuthContext';
 
 import LandingPage from '@/pages/public/LandingPage';
 import LoginPage from '@/pages/public/LoginPage';
 import PublicEventsHubPage from '@/pages/public/PublicEventsHubPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import EventsListPage from '@/pages/admin/events/EventsListPage';
-import EventDetailPage from '@/pages/admin/events/EventDetailPage';
+import EventDetailAdminPage from '@/pages/admin/events/EventDetailAdminPage';
+import EventTrackingPage from '@/pages/admin/events/EventTrackingPage';
 import TeamDashboardPage from '@/pages/participant/TeamDashboardPage';
 import ParticipantDashboardPage from '@/pages/participant/ParticipantDashboardPage';
+import EventDetailParticipantPage from '@/pages/participant/EventDetailParticipantPage';
+import EventHomePage from '@/pages/participant/EventHomePage';
+import PhaseZeroPage from '@/pages/participant/PhaseZeroPage';
 import EvaluatorDashboardPage from '@/pages/evaluator/EvaluatorDashboardPage';
 import TaskSubmissionPage from '@/pages/participant/TaskSubmissionPage';
 import NotificationsPage from '@/pages/common/NotificationsPage';
@@ -64,9 +69,7 @@ function TenantLayout() {
 }
 
 function AppRoutes() {
-  const { user } = useAuth();
   const { tenantSlug } = useTenant();
-  const loginPath = tenantSlug ? `/${tenantSlug}/login` : '/superadmin';
 
   return useRoutes([
     {
@@ -80,31 +83,91 @@ function AppRoutes() {
         { path: 'events/:eventId', element: <EventLandingPage /> },
         {
           path: 'dashboard',
-          element: user ? <DashboardRouter /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute>
+              <DashboardRouter />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/profile',
-          element: user ? <ProfilePage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/events',
-          element: user ? <EventsListPage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer']}>
+              <EventsListPage />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/events/:eventId',
-          element: user ? <EventDetailPage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer']}>
+              <EventDetailAdminPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/home',
+          element: (
+            <ProtectedRoute>
+              <EventHomePage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/view',
+          element: (
+            <ProtectedRoute>
+              <EventDetailParticipantPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/phase-zero',
+          element: (
+            <ProtectedRoute>
+              <PhaseZeroPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/tracking',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
+              <EventTrackingPage />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/events/:eventId/team',
-          element: user ? <TeamDashboardPage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute requiredScopes={['participant', 'tenant_admin', 'organizer']}>
+              <TeamDashboardPage />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/events/:eventId/tasks/:taskId',
-          element: user ? <TaskSubmissionPage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute requiredScopes={['participant', 'tenant_admin', 'organizer', 'evaluator']}>
+              <TaskSubmissionPage />
+            </ProtectedRoute>
+          )
         },
         {
           path: 'dashboard/notifications',
-          element: user ? <NotificationsPage /> : <Navigate to={loginPath} replace />
+          element: (
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          )
         }
       ]
     },

@@ -107,17 +107,6 @@ function Update-DockerDependencies {
     }
 }
 
-function Ensure-DockerDependencies {
-    param(
-        [string]$ServiceName,
-        [string]$VolumeName,
-        [string]$LockFilePath,
-        [string]$HashFileName,
-        [string[]]$InstallCommandArgs
-    )
-
-    Update-DockerDependencies @PSBoundParameters
-}
 
 function Invoke-Cli {
     param(
@@ -395,6 +384,35 @@ function Invoke-SeedersIfPending {
     }
 }
 
+function Get-GeneratedPasswords {
+    try {
+        $rawOutput = Invoke-CliOutput "docker" @("compose", "exec", "-T", "backend", "node", "src/scripts/show-passwords.js")
+        if (-not $rawOutput) {
+            return $null
+        }
+
+        $lines = @()
+        if ($rawOutput -is [System.Array]) {
+            $lines = $rawOutput
+        } elseif ($rawOutput) {
+            $lines = @($rawOutput)
+        }
+
+        $jsonContent = $lines -join "`n"
+        if (-not $jsonContent -or $jsonContent.Trim() -eq '{}') {
+            return $null
+        }
+
+        try {
+            return $jsonContent | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            return $null
+        }
+    } catch {
+        return $null
+    }
+}
+
 function Write-EnvironmentSummary {
     Write-Host ""
     Write-Host "=================================================="
@@ -404,22 +422,96 @@ function Write-EnvironmentSummary {
     Write-Host "Login tenant:  http://localhost:3100/demo/login"
     Write-Host "Backend API:   http://localhost:5100/api"
     Write-Host ""
-    Write-Host "Credenciales de demo (tenant 'demo'):"
-    Write-Host "  - Admin:      admin@demo.com      / Password123!"
-    Write-Host "  - Evaluador:  evaluator@demo.com  / Evaluator123!"
-    Write-Host "  - Capitan:    captain@demo.com    / Participant123!"
-    Write-Host "  - Participante: participant@demo.com / Participant123!"
-    Write-Host ""
-    Write-Host "Superadmin global:"
-    Write-Host "  - Acceso:     http://localhost:3100/superadmin"
-    Write-Host "  - Email:      superadmin@create.dev"
-    Write-Host "  - Password:   SuperAdmin2025!"
-    Write-Host ""
-    Write-Host "Tenant UIC:"
-    Write-Host "  - Frontend:   http://localhost:3100/uic"
-    Write-Host "  - Admin:      admin@uic.cat / UICAdmin2025!"
-    Write-Host "  - Admin eval: mgraells@uic.es / UICAdminEval2025!"
-    Write-Host "  - Evaluadores: agironza@uic.es, marisam@uic.es, margemi@uic.es, fdyck@uic.es, nnogales@uic.es (clave UICEvaluador2025!)"
+    
+    $passwords = Get-GeneratedPasswords
+    
+    if ($passwords) {
+        Write-Host "Credenciales:"
+        Write-Host ""
+        
+        # Superadmin
+        $superAdmin = $passwords.PSObject.Properties | Where-Object { $_.Name -eq 'superadmin@create.dev' }
+        if ($superAdmin) {
+            Write-Host "Superadmin global:"
+            Write-Host "  - Acceso:     http://localhost:3100/superadmin"
+            Write-Host "  - Email:      superadmin@create.dev"
+            Write-Host "  - Password:   $($superAdmin.Value.password)"
+            Write-Host ""
+        }
+        
+        # Demo tenant
+        $demoUsers = $passwords.PSObject.Properties | Where-Object { 
+            $_.Name -like '*@demo.com' 
+        }
+        if ($demoUsers) {
+            Write-Host "Credenciales de demo (tenant 'demo'):"
+            foreach ($user in $demoUsers) {
+                $role = if ($user.Value.role) { " ($($user.Value.role))" } else { "" }
+                Write-Host "  - $($user.Name)$role / $($user.Value.password)"
+            }
+            Write-Host ""
+        }
+        
+        # UIC tenant
+        $uicUsers = $passwords.PSObject.Properties | Where-Object { 
+            $_.Name -like '*@uic.*' 
+        }
+        if ($uicUsers) {
+            Write-Host "Tenant UIC:"
+            Write-Host "  - Frontend:   http://localhost:3100/uic"
+            foreach ($user in $uicUsers) {
+                $role = if ($user.Value.role) { " ($($user.Value.role))" } else { "" }
+                Write-Host "  - $($user.Name)$role / $($user.Value.password)"
+            }
+            Write-Host ""
+        }
+    } else {
+        Write-Host "Credenciales de demo (tenant 'demo'):"
+        Write-Host "  - Admin:      admin@demo.com      / k|Y]:Jl:k,9*"
+        Write-Host "  - Evaluador:  evaluator@demo.com  / (u3I}ti1]V(r"
+        Write-Host "  - Capitan:    captain@demo.com    / 0v3y!pFQZl.q"
+        Write-Host "  - Participante: participant@demo.com / 0v3y!pFQZl.q"
+        Write-Host "  - Usuarios de prueba (5 proyectos):"
+        Write-Host "    - usuario1@demo.com (Capitan Proyecto 1) / dEm!pAsS1@demo"
+        Write-Host "    - usuario2@demo.com (Participante Proyecto 1) / dEm!pAsS2@demo"
+        Write-Host "    - usuario3@demo.com (Capitan Proyecto 2) / dEm!pAsS3@demo"
+        Write-Host "    - usuario4@demo.com (Participante Proyecto 2) / dEm!pAsS4@demo"
+        Write-Host "    - usuario5@demo.com (Capitan Proyecto 3) / dEm!pAsS5@demo"
+        Write-Host "    - usuario6@demo.com (Participante Proyecto 3) / dEm!pAsS6@demo"
+        Write-Host "    - usuario7@demo.com (Capitan Proyecto 4) / dEm!pAsS7@demo"
+        Write-Host "    - usuario8@demo.com (Participante Proyecto 4) / dEm!pAsS8@demo"
+        Write-Host "    - usuario9@demo.com (Capitan Proyecto 5) / dEm!pAsS9@demo"
+        Write-Host "    - usuario10@demo.com (Participante Proyecto 5) / dEm!pAsS10@demo"
+        Write-Host ""
+        Write-Host "Superadmin global:"
+        Write-Host "  - Acceso:     http://localhost:3100/superadmin"
+        Write-Host "  - Email:      superadmin@create.dev"
+        Write-Host "  - Password:   !CpUgGeV=50W"
+        Write-Host ""
+        Write-Host "Tenant UIC:"
+        Write-Host "  - Frontend:   http://localhost:3100/uic"
+        Write-Host "  - Admin:      admin@uic.cat / UdS*r2ZD5?;O"
+        Write-Host "  - Admin eval: mgraells@uic.es / Ll4=u2D$S0>s"
+        Write-Host "  - Evaluadores:"
+        Write-Host "    - agironza@uic.es / fJ(wvc7OrMOw99"
+        Write-Host "    - marisam@uic.es / fJ(wvc7OrMOw5a"
+        Write-Host "    - margemi@uic.es / fJ(wvc7OrMOw9r"
+        Write-Host "    - fdyck@uic.es / fJ(wvc7OrMOw8f"
+        Write-Host "    - nnogales@uic.es / fJ(wvc7OrMOw7o"
+        Write-Host "  - Usuarios de prueba (5 proyectos):"
+        Write-Host "    - usuario1@uic.es (Capitan Proyecto 1) / uIc!pAsS1@uic"
+        Write-Host "    - usuario2@uic.es (Participante Proyecto 1) / uIc!pAsS2@uic"
+        Write-Host "    - usuario3@uic.es (Capitan Proyecto 2) / uIc!pAsS3@uic"
+        Write-Host "    - usuario4@uic.es (Participante Proyecto 2) / uIc!pAsS4@uic"
+        Write-Host "    - usuario5@uic.es (Capitan Proyecto 3) / uIc!pAsS5@uic"
+        Write-Host "    - usuario6@uic.es (Participante Proyecto 3) / uIc!pAsS6@uic"
+        Write-Host "    - usuario7@uic.es (Capitan Proyecto 4) / uIc!pAsS7@uic"
+        Write-Host "    - usuario8@uic.es (Participante Proyecto 4) / uIc!pAsS8@uic"
+        Write-Host "    - usuario9@uic.es (Capitan Proyecto 5) / uIc!pAsS9@uic"
+        Write-Host "    - usuario10@uic.es (Participante Proyecto 5) / uIc!pAsS10@uic"
+        Write-Host ""
+    }
+    
     Write-Host "=================================================="
 }
 
@@ -631,8 +723,8 @@ try {
         Write-Info "Fresh mode selected"
         Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
         Remove-ProjectDockerResources -ProjectName $projectName
-        Ensure-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
-        Ensure-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
+        Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
+        Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
         Invoke-Cli "docker" @("compose", "up", "--build", "-d")
         Initialize-Database -EnvValues $envValues
         Invoke-Migrations

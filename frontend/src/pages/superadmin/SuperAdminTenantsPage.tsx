@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { Filter, LineChart, Pencil, Plus, RotateCcw, Trash2, Users } from 'lucide-react';
 import {
   createTenantSuperAdmin,
   deleteTenantSuperAdmin,
@@ -13,6 +13,7 @@ import {
   type SuperAdminTenant,
   type TenantsListResponse
 } from '@/services/superadmin';
+import { getAllPublicEvents } from '@/services/public';
 import { SuperAdminToolbar } from '@/components/superadmin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,17 +29,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FormField, FormGrid } from '@/components/form';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatDateValue } from '@/utils/date';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Spinner } from '@/components/common';
 import { cn } from '@/utils/cn';
 import { fileToBase64 } from '@/utils/files';
@@ -140,6 +137,11 @@ type TenantModalState = {
   open: boolean;
 };
 
+type TrackingEventOption = {
+  id: number;
+  name: string;
+};
+
 const INITIAL_MODAL_STATE: TenantModalState = {
   mode: 'create',
   tenant: null,
@@ -156,8 +158,28 @@ function SuperAdminTenantsPage() {
   const [filters, setFilters] = useState<TenantFilters>(DEFAULT_FILTERS);
   const [pendingDelete, setPendingDelete] = useState<SuperAdminTenant | null>(null);
   const [modalState, setModalState] = useState<TenantModalState>(INITIAL_MODAL_STATE);
+  const [trackingTenant, setTrackingTenant] = useState<SuperAdminTenant | null>(null);
+  const [trackingEventId, setTrackingEventId] = useState('');
 
-  const tenantsQuery = useQuery({
+  const trackingEventsQuery = useQuery<TrackingEventOption[]>({
+    queryKey: ['superadmin', 'tenant-events', trackingTenant?.slug],
+    queryFn: async () => {
+      if (!trackingTenant?.slug) {
+        return [];
+      }
+      const events = await getAllPublicEvents();
+      return events
+        .filter(event => event.tenant?.slug === trackingTenant.slug)
+        .map<TrackingEventOption>(event => ({
+          id: event.id,
+          name: event.name
+        }));
+    },
+    enabled: Boolean(trackingTenant?.slug),
+    staleTime: 60_000
+  });
+
+  const tenantsQuery = useQuery<TenantsListResponse>({
     queryKey: ['superadmin', 'tenants', filters],
     queryFn: () =>
       listSuperAdminTenants({
@@ -169,7 +191,8 @@ function SuperAdminTenantsPage() {
         sortField: 'created_at',
         sortOrder: 'desc'
       }),
-    keepPreviousData: true
+    placeholderData: previousData => previousData,
+    staleTime: 30_000
   });
 
   const createTenantMutation = useMutation({
@@ -205,6 +228,13 @@ function SuperAdminTenantsPage() {
 
   const tenantsData: TenantsListResponse | undefined = tenantsQuery.data;
   const totalPages = tenantsData?.meta.totalPages ?? 0;
+  useEffect(() => {
+    if (trackingEventsQuery.isError) {
+      toast.error(t('superadmin.tenants.trackingEventsError'));
+    }
+  }, [trackingEventsQuery.isError, t]);
+
+  const trackingEvents: TrackingEventOption[] = trackingEventsQuery.data ?? [];
 
   const handleApplyFilters = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -237,6 +267,11 @@ function SuperAdminTenantsPage() {
     setModalState(prev => ({ ...prev, open: false }));
   };
 
+  const closeTrackingDialog = () => {
+    setTrackingTenant(null);
+    setTrackingEventId('');
+  };
+
   const handleModalSubmit = async (payload: TenantModalSubmitPayload) => {
     if (payload.type === 'create') {
       await createTenantMutation.mutateAsync(payload.body);
@@ -247,6 +282,26 @@ function SuperAdminTenantsPage() {
       });
     }
     closeModal();
+  };
+
+  const handleOpenTrackingDialog = (tenant: SuperAdminTenant) => {
+    setTrackingTenant(tenant);
+    setTrackingEventId('');
+  };
+
+  const handleTrackingSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!trackingTenant) {
+      return;
+    }
+    const eventId = trackingEventId.trim();
+    if (!eventId) {
+      toast.error(t('superadmin.tenants.trackingMissingEvent'));
+      return;
+    }
+    const tenantSlug = trackingTenant.slug;
+    closeTrackingDialog();
+    navigate(`/${tenantSlug}/dashboard/events/${eventId}/tracking`);
   };
 
   const isLoading = tenantsQuery.isLoading || createTenantMutation.isPending || updateTenantMutation.isPending;
@@ -293,11 +348,24 @@ function SuperAdminTenantsPage() {
               }
               end={
                 <>
-                  <Button type="submit" variant="outline">
-                    {t('superadmin.tenants.applyFilters')}
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    size="icon"
+                    aria-label={t('superadmin.tenants.applyFilters')}
+                    title={t('superadmin.tenants.applyFilters')}
+                  >
+                    <Filter className="h-4 w-4" aria-hidden />
                   </Button>
-                  <Button type="button" variant="ghost" onClick={handleResetFilters}>
-                    {t('superadmin.tenants.resetFilters')}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleResetFilters}
+                    aria-label={t('superadmin.tenants.resetFilters')}
+                    title={t('superadmin.tenants.resetFilters')}
+                  >
+                    <RotateCcw className="h-4 w-4" aria-hidden />
                   </Button>
                 </>
               }
@@ -346,38 +414,45 @@ function SuperAdminTenantsPage() {
                       </TableCell>
                       <TableCell>{t(`superadmin.tenantPlan.${tenant.plan_type}`)}</TableCell>
                       <TableCell>{tenant.user_count}</TableCell>
-                      <TableCell>
-                        {new Date(tenant.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="space-x-2 text-right">
+                      <TableCell>{formatDateValue(tenant.created_at) ?? t('common.notAvailable')}</TableCell>
+                      <TableCell className="flex items-center justify-end gap-2">
                         <Button
                           type="button"
                           variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/superadmin/users?tenantId=${tenant.id}`)}
+                          size="icon"
+                          aria-label={t('superadmin.tenants.openTracking')}
+                          onClick={() => handleOpenTrackingDialog(tenant)}
                         >
-                          <Users className="mr-1 h-4 w-4" aria-hidden />
-                          {t('superadmin.tenants.manageUsers')}
+                          <LineChart className="h-4 w-4" aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => navigate(`/superadmin/users?tenantId=${tenant.id}`)}
+                          aria-label={t('superadmin.tenants.manageUsers')}
+                        >
+                          <Users className="h-4 w-4" aria-hidden />
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
-                          size="sm"
+                          size="icon"
+                          aria-label={t('common.edit')}
                           onClick={() => openEditModal(tenant)}
                         >
-                          <Pencil className="mr-1 h-4 w-4" aria-hidden />
-                          {t('common.edit')}
+                          <Pencil className="h-4 w-4" aria-hidden />
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
                               type="button"
                               variant="destructive"
-                              size="sm"
+                              size="icon"
+                              aria-label={t('common.remove')}
                               onClick={() => setPendingDelete(tenant)}
                             >
-                              <Trash2 className="mr-1 h-4 w-4" aria-hidden />
-                              {t('common.remove')}
+                              <Trash2 className="h-4 w-4" aria-hidden />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -447,6 +522,57 @@ function SuperAdminTenantsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(trackingTenant)} onOpenChange={openState => (!openState ? closeTrackingDialog() : null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('superadmin.tenants.trackingDialogTitle')}</DialogTitle>
+            <DialogDescription>{t('superadmin.tenants.trackingDialogDescription')}</DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleTrackingSubmit}>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="tracking-tenant">
+                {t('superadmin.tenants.trackingDialogTenant')}
+              </label>
+              <Input id="tracking-tenant" value={trackingTenant?.slug ?? ''} readOnly />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground" htmlFor="tracking-event">
+                {t('superadmin.tenants.trackingDialogEvent')}
+              </label>
+              <Select
+                id="tracking-event"
+                value={trackingEventId}
+                onChange={event => setTrackingEventId(event.target.value)}
+                disabled={trackingEventsQuery.isLoading || trackingEvents.length === 0}
+              >
+                <option value="">
+                  {trackingEventsQuery.isLoading
+                    ? t('common.loading')
+                    : t('superadmin.tenants.trackingDialogEventPlaceholder')}
+                </option>
+                {trackingEvents.map(eventOption => (
+                  <option key={eventOption.id} value={String(eventOption.id)}>
+                    {eventOption.name}
+                  </option>
+                ))}
+              </Select>
+              {trackingEventsQuery.isLoading ? (
+                <p className="text-xs text-muted-foreground">{t('superadmin.tenants.trackingDialogLoading')}</p>
+              ) : null}
+              {!trackingEventsQuery.isLoading && trackingEvents.length === 0 ? (
+                <p className="text-xs text-muted-foreground">{t('superadmin.tenants.trackingDialogEmpty')}</p>
+              ) : null}
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={closeTrackingDialog}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit">{t('superadmin.tenants.trackingDialogSubmit')}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <TenantModal
         mode={modalState.mode}
@@ -681,7 +807,7 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
 
   return (
     <Dialog open={open} onOpenChange={openState => (!openState ? handleClose() : null)}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto">
+      <DialogContent className="h-[80vh] w-full max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {mode === 'create'
@@ -690,212 +816,204 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
           </DialogTitle>
         </DialogHeader>
 
-        <form
-          className="space-y-6"
-          onSubmit={form.handleSubmit(submitForm)}
-        >
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.general')}
-            </h3>
-            <FormGrid columns={2}>
-              <FormField label={t('superadmin.tenants.fields.slug')} required>
-                <Input
-                  {...form.register('slug')}
-                  disabled={mode === 'edit'}
-                  className={cn(form.formState.errors.slug && 'border-destructive')}
-                />
-                {form.formState.errors.slug ? (
-                  <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>
-                ) : null}
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.name')} required>
-                <Input
-                  {...form.register('name')}
-                  className={cn(form.formState.errors.name && 'border-destructive')}
-                />
-                {form.formState.errors.name ? (
-                  <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
-                ) : null}
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.subdomain')}>
-                <Input {...form.register('subdomain')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.customDomain')}>
-                <Input {...form.register('custom_domain')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.plan')} required>
-                <Select {...form.register('plan_type')}>
-                  {TENANT_PLANS.map(plan => (
-                    <option key={plan} value={plan}>
-                      {t(`superadmin.tenantPlan.${plan}`)}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.status')} required>
-                <Select {...form.register('status')}>
-                  {TENANT_STATUS.map(status => (
-                    <option key={status} value={status}>
-                      {t(`superadmin.tenantStatus.${status}`)}
-                    </option>
-                  ))}
-                </Select>
-              </FormField>
-            </FormGrid>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.branding')}
-            </h3>
-            <FormGrid columns={3}>
-              <FormField label={t('superadmin.tenants.fields.primaryColor')}>
-                <Input type="color" {...form.register('primary_color')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.secondaryColor')}>
-                <Input type="color" {...form.register('secondary_color')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.accentColor')}>
-                <Input type="color" {...form.register('accent_color')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.logoUrl')}>
-                <Input {...form.register('logo_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.logoUpload')}>
-                <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleFileChange} />
-                {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
-              </FormField>
-              {mode === 'edit' && tenant?.logo_url ? (
-                <FormField label={t('superadmin.tenants.fields.currentLogo')}>
-                  <div className="flex flex-col gap-2">
-                    <img
-                      src={tenant.logo_url}
-                      alt=""
-                      className="h-16 w-auto rounded border border-border bg-white p-2"
-                    />
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={removeLogo}
-                        onChange={event => setRemoveLogo(event.target.checked)}
-                      />
-                      {t('superadmin.tenants.removeLogo')}
-                    </label>
-                  </div>
-                </FormField>
+        <form className="flex h-full flex-col overflow-hidden" onSubmit={form.handleSubmit(submitForm)}>
+          <Tabs defaultValue="general" className="flex h-full flex-col space-y-6">
+            <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
+              <TabsTrigger value="general">{t('superadmin.tenants.sections.general')}</TabsTrigger>
+              <TabsTrigger value="branding">{t('superadmin.tenants.sections.branding')}</TabsTrigger>
+              <TabsTrigger value="limits">{t('superadmin.tenants.sections.limits')}</TabsTrigger>
+              <TabsTrigger value="dates">{t('superadmin.tenants.sections.dates')}</TabsTrigger>
+              <TabsTrigger value="links">{t('superadmin.tenants.sections.links')}</TabsTrigger>
+              <TabsTrigger value="content">{t('superadmin.tenants.sections.content')}</TabsTrigger>
+              {mode === 'create' ? (
+                <TabsTrigger value="admin">{t('superadmin.tenants.sections.admin')}</TabsTrigger>
               ) : null}
-            </FormGrid>
-          </section>
+            </TabsList>
 
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.limits')}
-            </h3>
-            <FormGrid columns={3}>
-              <FormField label={t('superadmin.tenants.fields.maxEvaluators')}>
-                <Input type="number" min={0} {...form.register('max_evaluators')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.maxParticipants')}>
-                <Input type="number" min={0} {...form.register('max_participants')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.maxAppointments')}>
-                <Input type="number" min={0} {...form.register('max_appointments_per_month')} />
-              </FormField>
-            </FormGrid>
-          </section>
+            <div className="flex-1 overflow-y-auto">
+              <TabsContent value="general" className="mt-0 space-y-6">
+                <FormGrid columns={2}>
+                  <FormField label={t('superadmin.tenants.fields.slug')} required>
+                    <Input
+                      {...form.register('slug')}
+                      disabled={mode === 'edit'}
+                      className={cn(form.formState.errors.slug && 'border-destructive')}
+                    />
+                    {form.formState.errors.slug ? (
+                      <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>
+                    ) : null}
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.name')} required>
+                    <Input
+                      {...form.register('name')}
+                      className={cn(form.formState.errors.name && 'border-destructive')}
+                    />
+                    {form.formState.errors.name ? (
+                      <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+                    ) : null}
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.subdomain')}>
+                    <Input {...form.register('subdomain')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.customDomain')}>
+                    <Input {...form.register('custom_domain')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.plan')} required>
+                    <Select {...form.register('plan_type')}>
+                      {TENANT_PLANS.map(plan => (
+                        <option key={plan} value={plan}>
+                          {t(`superadmin.tenantPlan.${plan}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.status')} required>
+                    <Select {...form.register('status')}>
+                      {TENANT_STATUS.map(status => (
+                        <option key={status} value={status}>
+                          {t(`superadmin.tenantStatus.${status}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </FormGrid>
+              </TabsContent>
 
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.dates')}
-            </h3>
-            <FormGrid columns={2}>
-              <FormField label={t('superadmin.tenants.fields.startDate')}>
-                <Input type="date" {...form.register('start_date')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.endDate')}>
-                <Input type="date" {...form.register('end_date')} />
-              </FormField>
-            </FormGrid>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.links')}
-            </h3>
-            <FormGrid columns={2}>
-              <FormField label={t('superadmin.tenants.fields.website')}>
-                <Input {...form.register('website_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.facebook')}>
-                <Input {...form.register('facebook_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.instagram')}>
-                <Input {...form.register('instagram_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.linkedin')}>
-                <Input {...form.register('linkedin_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.twitter')}>
-                <Input {...form.register('twitter_url')} />
-              </FormField>
-              <FormField label={t('superadmin.tenants.fields.youtube')}>
-                <Input {...form.register('youtube_url')} />
-              </FormField>
-            </FormGrid>
-          </section>
-
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-              {t('superadmin.tenants.sections.content')}
-            </h3>
-            <FormField label={t('superadmin.tenants.fields.heroContent')}>
-              <textarea
-                rows={4}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                {...form.register('hero_content')}
-              />
-            </FormField>
-            <FormField label={t('superadmin.tenants.fields.tenantCss')}>
-              <textarea
-                rows={4}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                {...form.register('tenant_css')}
-              />
-            </FormField>
-          </section>
-
-          {mode === 'create' ? (
-            <section className="space-y-4">
-              <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-                {t('superadmin.tenants.sections.admin')}
-              </h3>
-              <FormGrid columns={2}>
-                <FormField label={t('superadmin.tenants.fields.adminEmail')} required>
-                  <Input
-                    type="email"
-                    {...form.register('admin_email')}
-                    className={cn(form.formState.errors.admin_email && 'border-destructive')}
-                  />
-                  {form.formState.errors.admin_email ? (
-                    <p className="text-xs text-destructive">{form.formState.errors.admin_email.message}</p>
+              <TabsContent value="branding" className="mt-0 space-y-6">
+                <FormGrid columns={3}>
+                  <FormField label={t('superadmin.tenants.fields.primaryColor')}>
+                    <Input type="color" {...form.register('primary_color')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.secondaryColor')}>
+                    <Input type="color" {...form.register('secondary_color')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.accentColor')}>
+                    <Input type="color" {...form.register('accent_color')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.logoUrl')}>
+                    <Input {...form.register('logo_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.logoUpload')}>
+                    <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleFileChange} />
+                    {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
+                  </FormField>
+                  {mode === 'edit' && tenant?.logo_url ? (
+                    <FormField label={t('superadmin.tenants.fields.currentLogo')}>
+                      <div className="flex flex-col gap-2">
+                        <img
+                          src={tenant.logo_url}
+                          alt=""
+                          className="h-16 w-auto rounded border border-border bg-white p-2"
+                        />
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={removeLogo}
+                            onChange={event => setRemoveLogo(event.target.checked)}
+                          />
+                          {t('superadmin.tenants.removeLogo')}
+                        </label>
+                      </div>
+                    </FormField>
                   ) : null}
+                </FormGrid>
+              </TabsContent>
+
+              <TabsContent value="limits" className="mt-0 space-y-6">
+                <FormGrid columns={3}>
+                  <FormField label={t('superadmin.tenants.fields.maxEvaluators')}>
+                    <Input type="number" min={0} {...form.register('max_evaluators')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.maxParticipants')}>
+                    <Input type="number" min={0} {...form.register('max_participants')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.maxAppointments')}>
+                    <Input type="number" min={0} {...form.register('max_appointments_per_month')} />
+                  </FormField>
+                </FormGrid>
+              </TabsContent>
+
+              <TabsContent value="dates" className="mt-0 space-y-6">
+                <FormGrid columns={2}>
+                  <FormField label={t('superadmin.tenants.fields.startDate')}>
+                    <Input type="date" {...form.register('start_date')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.endDate')}>
+                    <Input type="date" {...form.register('end_date')} />
+                  </FormField>
+                </FormGrid>
+              </TabsContent>
+
+              <TabsContent value="links" className="mt-0 space-y-6">
+                <FormGrid columns={2}>
+                  <FormField label={t('superadmin.tenants.fields.website')}>
+                    <Input {...form.register('website_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.facebook')}>
+                    <Input {...form.register('facebook_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.instagram')}>
+                    <Input {...form.register('instagram_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.linkedin')}>
+                    <Input {...form.register('linkedin_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.twitter')}>
+                    <Input {...form.register('twitter_url')} />
+                  </FormField>
+                  <FormField label={t('superadmin.tenants.fields.youtube')}>
+                    <Input {...form.register('youtube_url')} />
+                  </FormField>
+                </FormGrid>
+              </TabsContent>
+
+              <TabsContent value="content" className="mt-0 space-y-4">
+                <FormField label={t('superadmin.tenants.fields.heroContent')}>
+                  <textarea
+                    rows={4}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    {...form.register('hero_content')}
+                  />
                 </FormField>
-                <FormField label={t('superadmin.tenants.fields.adminLanguage')}>
-                  <Input {...form.register('admin_language')} />
+                <FormField label={t('superadmin.tenants.fields.tenantCss')}>
+                  <textarea
+                    rows={4}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                    {...form.register('tenant_css')}
+                  />
                 </FormField>
-                <FormField label={t('superadmin.tenants.fields.adminFirstName')}>
-                  <Input {...form.register('admin_first_name')} />
-                </FormField>
-                <FormField label={t('superadmin.tenants.fields.adminLastName')}>
-                  <Input {...form.register('admin_last_name')} />
-                </FormField>
-                <FormField label={t('superadmin.tenants.fields.adminPassword')}>
-                  <Input type="password" {...form.register('admin_password')} />
-                </FormField>
-              </FormGrid>
-            </section>
-          ) : null}
+              </TabsContent>
+
+              {mode === 'create' ? (
+                <TabsContent value="admin" className="mt-0 space-y-6">
+                  <FormGrid columns={2}>
+                    <FormField label={t('superadmin.tenants.fields.adminEmail')} required>
+                      <Input
+                        type="email"
+                        {...form.register('admin_email')}
+                        className={cn(form.formState.errors.admin_email && 'border-destructive')}
+                      />
+                      {form.formState.errors.admin_email ? (
+                        <p className="text-xs text-destructive">{form.formState.errors.admin_email.message}</p>
+                      ) : null}
+                    </FormField>
+                    <FormField label={t('superadmin.tenants.fields.adminLanguage')}>
+                      <Input {...form.register('admin_language')} />
+                    </FormField>
+                    <FormField label={t('superadmin.tenants.fields.adminFirstName')}>
+                      <Input {...form.register('admin_first_name')} />
+                    </FormField>
+                    <FormField label={t('superadmin.tenants.fields.adminLastName')}>
+                      <Input {...form.register('admin_last_name')} />
+                    </FormField>
+                    <FormField label={t('superadmin.tenants.fields.adminPassword')}>
+                      <Input type="password" {...form.register('admin_password')} />
+                    </FormField>
+                  </FormGrid>
+                </TabsContent>
+              ) : null}
+            </div>
+          </Tabs>
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={handleClose}>

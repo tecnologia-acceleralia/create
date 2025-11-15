@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRouter } from './v1/auth.routes.js';
+import { usersRouter } from './v1/users.routes.js';
 import { tenantsRouter } from './v1/tenants.routes.js';
 import { eventsRouter } from './v1/events.routes.js';
 import { teamsRouter } from './v1/teams.routes.js';
@@ -20,6 +21,7 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/auth', authRouter);
+router.use('/users', usersRouter);
 router.use('/tenants', tenantsRouter);
 router.use('/events', eventsRouter);
 router.use('/teams', teamsRouter);

@@ -26,6 +26,10 @@ export function EventModel(sequelize) {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      description_html: {
+        type: DataTypes.TEXT,
+        allowNull: true
+      },
       start_date: {
         type: DataTypes.DATE,
         allowNull: false
@@ -62,12 +66,20 @@ export function EventModel(sequelize) {
         allowNull: false,
         defaultValue: true
       },
+      registration_schema: {
+        type: DataTypes.JSON,
+        allowNull: true
+      },
       publish_start_at: {
         type: DataTypes.DATE,
         allowNull: true
       },
       publish_end_at: {
         type: DataTypes.DATE,
+        allowNull: true
+      },
+      registration_schema: {
+        type: DataTypes.JSON,
         allowNull: true
       }
     },

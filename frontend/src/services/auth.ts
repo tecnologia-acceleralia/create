@@ -22,6 +22,8 @@ type RegisterPayload = {
   password: string;
   language?: 'es' | 'en' | 'ca';
   event_id?: number;
+  grade?: string;
+  registration_answers?: Record<string, unknown> | null;
 };
 
 export async function requestPasswordResetCode(payload: PasswordResetRequestPayload) {
@@ -38,5 +40,20 @@ export async function confirmPasswordReset(payload: PasswordResetConfirmPayload)
 
 export async function registerUser(payload: RegisterPayload) {
   return apiClient.post('/auth/register', payload);
+}
+
+export type UpdateProfilePayload = {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  language?: 'es' | 'en' | 'ca';
+  avatar_url?: string | null;
+  profile_image_url?: string | null;
+  grade?: string | null;
+};
+
+export async function updateProfile(payload: UpdateProfilePayload) {
+  const response = await apiClient.patch<{ success: boolean; data: { user: unknown } }>('/users/me', payload);
+  return response.data;
 }
 

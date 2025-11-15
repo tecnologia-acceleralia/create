@@ -47,7 +47,7 @@ function serializeMembership(membership) {
 export class AuthController {
   static async register(req, res) {
     const models = getModels();
-    const { User, Event, Role, UserTenant, UserTenantRole, Tenant } = models;
+    const { User, Event, Role, UserTenant, UserTenantRole, Tenant, EventRegistration } = models;
     const transaction = await User.sequelize.transaction();
     try {
       const tenant = req.tenant;
@@ -64,12 +64,22 @@ export class AuthController {
         email: rawEmail,
         password,
         language,
-        event_id: eventId
+        event_id: eventId,
+        grade: rawGrade,
+        registration_answers: rawRegistrationAnswers
       } = req.body;
 
       const firstName = rawFirstName.trim();
       const lastName = rawLastName.trim();
       const email = rawEmail.toLowerCase();
+      const registrationAnswers =
+        rawRegistrationAnswers && typeof rawRegistrationAnswers === 'object' && !Array.isArray(rawRegistrationAnswers)
+          ? rawRegistrationAnswers
+          : {};
+      const gradeFromBody =
+        typeof rawGrade === 'string' && rawGrade.trim().length ? rawGrade.trim() : null;
+      let resolvedGrade = gradeFromBody;
+      const parsedAnswers = {};
 
       const now = new Date();
       const baseEventFilters = {
@@ -94,6 +104,7 @@ export class AuthController {
       };
 
       let registrationEvent = null;
+      let registrationSchema = null;
       if (eventId) {
         registrationEvent = await Event.findOne({
           where: {
@@ -109,6 +120,139 @@ export class AuthController {
             .status(403)
             .json({ success: false, message: AUTH_MESSAGES.REGISTRATION_DISABLED });
         }
+
+        registrationSchema =
+          registrationEvent.registration_schema && typeof registrationEvent.registration_schema === 'object'
+            ? registrationEvent.registration_schema
+            : null;
+
+        const gradeFieldConfig =
+          registrationSchema && typeof registrationSchema.grade === 'object'
+            ? registrationSchema.grade
+            : null;
+
+        const additionalFieldDefinitions = Array.isArray(registrationSchema?.additionalFields)
+          ? registrationSchema.additionalFields.filter(field => field && typeof field === 'object')
+          : [];
+
+        if (gradeFieldConfig) {
+          const gradeFromAnswers =
+            typeof registrationAnswers.grade === 'string' && registrationAnswers.grade.trim().length
+              ? registrationAnswers.grade.trim()
+              : null;
+
+          if (!resolvedGrade && gradeFromAnswers) {
+            resolvedGrade = gradeFromAnswers;
+          }
+
+          const allowedGradeValues = Array.isArray(gradeFieldConfig.options)
+            ? gradeFieldConfig.options
+                .map(option => {
+                  if (typeof option === 'string') {
+                    return option;
+                  }
+                  if (option && typeof option === 'object' && typeof option.value === 'string') {
+                    return option.value;
+                  }
+                  return null;
+                })
+                .filter(Boolean)
+            : [];
+
+          if (gradeFieldConfig.required && !resolvedGrade) {
+            await transaction.rollback();
+            return res
+              .status(400)
+              .json({ success: false, message: 'Debes seleccionar un grado para completar el registro' });
+          }
+
+          if (resolvedGrade && allowedGradeValues.length && !allowedGradeValues.includes(resolvedGrade)) {
+            await transaction.rollback();
+            return res.status(400).json({
+              success: false,
+              message: 'El grado seleccionado no es válido para este evento'
+            });
+          }
+
+          if (resolvedGrade) {
+            parsedAnswers.grade = resolvedGrade;
+          }
+        }
+
+        for (const field of additionalFieldDefinitions) {
+          const fieldId =
+            typeof field.id === 'string' && field.id.trim().length ? field.id.trim() : null;
+
+          if (!fieldId) {
+            continue;
+          }
+
+          const rawAnswer = registrationAnswers[fieldId];
+          const hasAnswer =
+            rawAnswer !== undefined &&
+            rawAnswer !== null &&
+            !(typeof rawAnswer === 'string' && rawAnswer.trim().length === 0);
+
+          if (field.required && !hasAnswer) {
+            await transaction.rollback();
+            return res.status(400).json({
+              success: false,
+              message: `Falta completar el campo requerido: ${field.label ?? fieldId}`
+            });
+          }
+
+          if (!hasAnswer) {
+            continue;
+          }
+
+          if (field.type === 'select') {
+            if (typeof rawAnswer !== 'string' || rawAnswer.trim().length === 0) {
+              await transaction.rollback();
+              return res.status(400).json({
+                success: false,
+                message: `El valor seleccionado para ${field.label ?? fieldId} no es válido`
+              });
+            }
+
+            const allowedValues = Array.isArray(field.options)
+              ? field.options
+                  .map(option => {
+                    if (typeof option === 'string') {
+                      return option;
+                    }
+                    if (option && typeof option === 'object' && typeof option.value === 'string') {
+                      return option.value;
+                    }
+                    return null;
+                  })
+                  .filter(Boolean)
+              : [];
+
+            const trimmedValue = rawAnswer.trim();
+
+            if (allowedValues.length && !allowedValues.includes(trimmedValue)) {
+              await transaction.rollback();
+              return res.status(400).json({
+                success: false,
+                message: `El valor seleccionado para ${field.label ?? fieldId} no es válido`
+              });
+            }
+
+            parsedAnswers[fieldId] = trimmedValue;
+          } else {
+            const normalizedValue =
+              typeof rawAnswer === 'string' ? rawAnswer.trim() : String(rawAnswer);
+            parsedAnswers[fieldId] = normalizedValue;
+          }
+        }
+
+        const gradeIsRequired = Boolean(gradeFieldConfig?.required);
+        if (gradeIsRequired && !resolvedGrade) {
+          await transaction.rollback();
+          return res
+            .status(400)
+            .json({ success: false, message: 'Debes seleccionar un grado para completar el registro' });
+        }
       } else {
         const existingOpenRegistration = await Event.findOne({
           where: baseEventFilters,
@@ -121,6 +265,10 @@ export class AuthController {
             .status(403)
             .json({ success: false, message: AUTH_MESSAGES.REGISTRATION_DISABLED });
         }
+      }
+
+      if (resolvedGrade && registrationEvent && parsedAnswers.grade === undefined) {
+        parsedAnswers.grade = resolvedGrade;
       }
 
       const existingUser = await User.findOne({
@@ -144,7 +292,9 @@ export class AuthController {
           last_name: lastName,
           language: language?.toLowerCase() ?? 'es',
           status: 'active',
-          is_super_admin: false
+          is_super_admin: false,
+          grade: resolvedGrade ?? null,
+          last_login_at: new Date()
         },
         { transaction }
       );
@@ -172,6 +322,22 @@ export class AuthController {
             tenant_id: tenant.id,
             user_tenant_id: membership.id,
             role_id: participantRole.id
+          },
+          { transaction }
+        );
+      }
+
+      const registrationPayload =
+        Object.keys(parsedAnswers).length > 0 ? parsedAnswers : null;
+
+      if (registrationEvent) {
+        await EventRegistration.create(
+          {
+            tenant_id: tenant.id,
+            event_id: registrationEvent.id,
+            user_id: newUser.id,
+            grade: resolvedGrade ?? null,
+            answers: registrationPayload
           },
           { transaction }
         );
@@ -214,6 +380,8 @@ export class AuthController {
             membershipInstance.status === 'active'
         ) ?? null;
 
+      await newUser.update({ last_login_at: new Date() }, { transaction: null });
+
       const tokens = AuthService.generateTokens({
         user: freshUser,
         tenant,
@@ -231,7 +399,9 @@ export class AuthController {
           activeMembership: serializeMembership(activeMembership),
           metadata: registrationEvent
             ? {
-                registered_event_id: registrationEvent.id
+                registered_event_id: registrationEvent.id,
+                grade: resolvedGrade ?? null,
+                registration_answers: registrationPayload
               }
             : null
         }
@@ -283,6 +453,17 @@ export class AuthController {
           message: AUTH_MESSAGES.USER_INACTIVE
         });
       }
+
+      try {
+        await user.update({ last_login_at: new Date() });
+      } catch (updateError) {
+        logger.warn('No se pudo registrar el último acceso del usuario', {
+          userId: user.id,
+          error: updateError.message
+        });
+      }
+
+      await user.update({ last_login_at: new Date() });
 
       const tokens = AuthService.generateTokens({
         user,
@@ -363,6 +544,149 @@ export class AuthController {
     } catch (error) {
       logger.error(AUTH_MESSAGES.SUPERADMIN_LOGIN_ERROR, { error: error.message });
       return res.status(500).json({ success: false, message: AUTH_MESSAGES.LOGIN_ERROR });
+    }
+  }
+
+  static async updateProfile(req, res) {
+    try {
+      const { user } = req.auth;
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+      }
+
+      const models = getModels();
+      const { User } = models;
+
+      const {
+        first_name: rawFirstName,
+        last_name: rawLastName,
+        email: rawEmail,
+        language,
+        avatar_url: rawAvatarUrl,
+        profile_image_url: rawProfileImageUrl,
+        grade: rawGrade
+      } = req.body;
+
+      const updateData = {};
+
+      if (rawFirstName !== undefined) {
+        updateData.first_name = String(rawFirstName).trim();
+        if (updateData.first_name.length === 0 || updateData.first_name.length > 150) {
+          return res.status(400).json({
+            success: false,
+            message: 'El nombre debe tener entre 1 y 150 caracteres'
+          });
+        }
+      }
+
+      if (rawLastName !== undefined) {
+        updateData.last_name = String(rawLastName).trim();
+        if (updateData.last_name.length === 0 || updateData.last_name.length > 150) {
+          return res.status(400).json({
+            success: false,
+            message: 'El apellido debe tener entre 1 y 150 caracteres'
+          });
+        }
+      }
+
+      if (rawEmail !== undefined) {
+        const email = String(rawEmail).toLowerCase().trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return res.status(400).json({
+            success: false,
+            message: 'El formato del email no es válido'
+          });
+        }
+
+        // Verificar que el email no esté en uso por otro usuario
+        const existingUser = await User.findOne({
+          where: {
+            email,
+            id: { [Op.ne]: user.id }
+          }
+        });
+
+        if (existingUser) {
+          return res.status(400).json({
+            success: false,
+            message: 'Este email ya está en uso por otro usuario'
+          });
+        }
+
+        updateData.email = email;
+      }
+
+      if (language !== undefined) {
+        const validLanguages = ['es', 'en', 'ca'];
+        if (!validLanguages.includes(String(language))) {
+          return res.status(400).json({
+            success: false,
+            message: 'Idioma no válido. Debe ser: es, en o ca'
+          });
+        }
+        updateData.language = String(language);
+      }
+
+      if (rawAvatarUrl !== undefined) {
+        const avatarUrl = String(rawAvatarUrl).trim();
+        if (avatarUrl.length > 500) {
+          return res.status(400).json({
+            success: false,
+            message: 'La URL del avatar no puede exceder 500 caracteres'
+          });
+        }
+        updateData.avatar_url = avatarUrl || null;
+      }
+
+      if (rawProfileImageUrl !== undefined) {
+        const profileImageUrl = String(rawProfileImageUrl).trim();
+        if (profileImageUrl.length > 500) {
+          return res.status(400).json({
+            success: false,
+            message: 'La URL de la imagen de perfil no puede exceder 500 caracteres'
+          });
+        }
+        updateData.profile_image_url = profileImageUrl || null;
+      }
+
+      if (rawGrade !== undefined) {
+        const grade = String(rawGrade).trim();
+        if (grade.length > 255) {
+          return res.status(400).json({
+            success: false,
+            message: 'El grado no puede exceder 255 caracteres'
+          });
+        }
+        updateData.grade = grade || null;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'No se proporcionaron campos para actualizar'
+        });
+      }
+
+      await user.update(updateData);
+      await user.reload();
+
+      logger.info('Perfil de usuario actualizado', {
+        userId: user.id,
+        updatedFields: Object.keys(updateData)
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          user: user.toSafeJSON()
+        }
+      });
+    } catch (error) {
+      logger.error('Error al actualizar perfil', { error: error.message, stack: error.stack });
+      return res.status(500).json({
+        success: false,
+        message: 'Error al actualizar el perfil'
+      });
     }
   }
 }

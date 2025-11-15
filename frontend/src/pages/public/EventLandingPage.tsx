@@ -8,6 +8,8 @@ import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { getPublicEvents } from '@/services/public';
 import { PublicHero } from '@/components/public';
+import { useAuth } from '@/context/AuthContext';
+import { formatDateRange } from '@/utils/date';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
@@ -52,24 +54,26 @@ function getEmbedUrl(raw?: string | null) {
   return raw;
 }
 
-function formatDate(locale: string, raw: string) {
-  return new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric'
-  }).format(new Date(raw));
-}
-
 function EventLandingPage() {
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const { tenantSlug: tenantSlugFromParams, eventId } = useParams<{ tenantSlug?: string; eventId?: string }>();
   const { t, i18n } = useTranslation();
+  const { user, activeMembership, isSuperAdmin, loading: authLoading } = useAuth();
   const [eventDetail, setEventDetail] = useState<PublicEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const effectiveTenantSlug = tenantSlug ?? tenantSlugFromParams ?? null;
+  const canAccessTenant = useMemo(() => {
+    if (!effectiveTenantSlug || !user) {
+      return false;
+    }
+    if (isSuperAdmin) {
+      return true;
+    }
+    return activeMembership?.tenant?.slug === effectiveTenantSlug;
+  }, [activeMembership?.tenant?.slug, effectiveTenantSlug, isSuperAdmin, user]);
 
   useEffect(() => {
     if (!effectiveTenantSlug || !eventId) {
@@ -113,7 +117,14 @@ function EventLandingPage() {
     if (!eventDetail) {
       return null;
     }
-    return `${formatDate(locale, eventDetail.start_date)} — ${formatDate(locale, eventDetail.end_date)}`;
+
+    return (
+      formatDateRange(locale, eventDetail.start_date, eventDetail.end_date, {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      }) ?? null
+    );
   }, [eventDetail, locale]);
 
   if (!effectiveTenantSlug) {
@@ -169,36 +180,54 @@ function EventLandingPage() {
         subtitle={eventDetail.description}
         actions={
           isRegistrationOpen ? (
-            <>
+            authLoading ? null : canAccessTenant ? (
               <Button size="lg" asChild>
-                <Link
-                  to={{
-                    pathname: tenantSlug
-                      ? tenantPath('register')
-                      : tenantSlugFromParams
-                      ? `/${tenantSlugFromParams}/register`
-                      : '/register',
-                    search: `?eventId=${eventDetail.id}`
-                  }}
-                >
-                  {t('eventLanding.registerCta')}
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
                 <Link
                   to={
                     tenantSlug
-                      ? tenantPath('login')
+                      ? tenantPath(`dashboard/events/${eventDetail.id}`)
                       : tenantSlugFromParams
-                      ? `/${tenantSlugFromParams}/login`
-                      : '/login'
+                      ? `/${tenantSlugFromParams}/dashboard/events/${eventDetail.id}`
+                      : `/dashboard/events/${eventDetail.id}`
                   }
-                  state={{ intent: 'login', eventId: eventDetail.id }}
                 >
-                  {t('eventLanding.loginCta')}
+                  {t('landing.accessCta')}
                 </Link>
               </Button>
-            </>
+            ) : (
+              <>
+                <Button size="lg" asChild>
+                  <Link
+                    to={{
+                      pathname: tenantSlug
+                        ? tenantPath('register')
+                        : tenantSlugFromParams
+                        ? `/${tenantSlugFromParams}/register`
+                        : '/register',
+                      search: `?eventId=${eventDetail.id}`
+                    }}
+                  >
+                    {t('eventLanding.registerCta')}
+                  </Link>
+                </Button>
+                {!user ? (
+                  <Button size="lg" variant="outline" asChild>
+                    <Link
+                      to={
+                        tenantSlug
+                          ? tenantPath('login')
+                          : tenantSlugFromParams
+                          ? `/${tenantSlugFromParams}/login`
+                          : '/login'
+                      }
+                      state={{ intent: 'login', eventId: eventDetail.id }}
+                    >
+                      {t('eventLanding.loginCta')}
+                    </Link>
+                  </Button>
+                ) : null}
+              </>
+            )
           ) : (
             <p className="rounded-full border border-border/70 bg-card/60 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t('eventLanding.registrationClosed')}
@@ -217,6 +246,14 @@ function EventLandingPage() {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
           />
+        </div>
+      ) : null}
+
+      {eventDetail.description_html ? (
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
+            <div dangerouslySetInnerHTML={{ __html: eventDetail.description_html }} />
+          </div>
         </div>
       ) : null}
     </PageContainer>

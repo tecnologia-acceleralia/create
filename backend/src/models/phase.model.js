@@ -26,6 +26,10 @@ export function PhaseModel(sequelize) {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      intro_html: {
+        type: DataTypes.TEXT('long'),
+        allowNull: true
+      },
       start_date: {
         type: DataTypes.DATE,
         allowNull: true

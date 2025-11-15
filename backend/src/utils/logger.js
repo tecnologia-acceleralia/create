@@ -112,7 +112,19 @@ export const authLogger = {
  */
 export const generalLogger = {
   info: (message, data = null) => {
-    const logMessage = `[GENERAL-INFO] ${message}${data ? ` | Data: ${JSON.stringify(data, null, 2)}` : ''}`;
+    // Manejar caso donde message es un objeto
+    let messageStr = message;
+    let dataObj = data;
+    
+    if (message && typeof message === 'object' && !(message instanceof Error)) {
+      // Si message es un objeto, tratarlo como data
+      dataObj = message;
+      messageStr = 'Log entry';
+    } else {
+      messageStr = String(message || '');
+    }
+    
+    const logMessage = `[GENERAL-INFO] ${messageStr}${dataObj ? ` | Data: ${JSON.stringify(dataObj, null, 2)}` : ''}`;
     console.log(logMessage);
     writeToFile(logFiles.general, logMessage);
   },
@@ -150,10 +162,63 @@ export const generalLogger = {
 };
 
 export const logger = {
-  info: (...args) => generalLogger.info(...args),
-  error: (...args) => generalLogger.error(...args),
-  warn: (...args) => generalLogger.warn(...args),
-  debug: (...args) => generalLogger.debug(...args)
+  info: (...args) => {
+    // Manejar diferentes formas de llamar al logger
+    if (args.length === 0) {
+      generalLogger.info('Log entry');
+    } else if (args.length === 1) {
+      // Si solo hay un argumento, verificar si es string u objeto
+      if (typeof args[0] === 'string') {
+        generalLogger.info(args[0]);
+      } else {
+        generalLogger.info('Log entry', args[0]);
+      }
+    } else {
+      // Múltiples argumentos: primero es mensaje, resto son data
+      generalLogger.info(args[0], args.length > 1 ? args.slice(1) : null);
+    }
+  },
+  error: (...args) => {
+    if (args.length === 0) {
+      generalLogger.error('Error entry');
+    } else if (args.length === 1) {
+      if (typeof args[0] === 'string') {
+        generalLogger.error(args[0]);
+      } else if (args[0] instanceof Error) {
+        generalLogger.error('Error occurred', args[0]);
+      } else {
+        generalLogger.error('Error entry', args[0]);
+      }
+    } else {
+      generalLogger.error(args[0], args[1]);
+    }
+  },
+  warn: (...args) => {
+    if (args.length === 0) {
+      generalLogger.warn('Warning entry');
+    } else if (args.length === 1) {
+      if (typeof args[0] === 'string') {
+        generalLogger.warn(args[0]);
+      } else {
+        generalLogger.warn('Warning entry', args[0]);
+      }
+    } else {
+      generalLogger.warn(args[0], args.length > 1 ? args.slice(1) : null);
+    }
+  },
+  debug: (...args) => {
+    if (args.length === 0) {
+      generalLogger.debug('Debug entry');
+    } else if (args.length === 1) {
+      if (typeof args[0] === 'string') {
+        generalLogger.debug(args[0]);
+      } else {
+        generalLogger.debug('Debug entry', args[0]);
+      }
+    } else {
+      generalLogger.debug(args[0], args.length > 1 ? args.slice(1) : null);
+    }
+  }
 };
 
 /**

@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 
 const SUPER_ADMIN_EMAIL = 'superadmin@create.dev';
-const SUPER_ADMIN_PASSWORD = 'SuperAdmin2025!';
+const SUPER_ADMIN_PASSWORD = '!CpUgGeV=50W';
 
 export async function up(queryInterface) {
   const now = new Date();

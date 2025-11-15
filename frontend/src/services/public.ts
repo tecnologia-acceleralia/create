@@ -7,40 +7,68 @@ export async function getPublicBranding(slug: string) {
   return response.data;
 }
 
+export type RegistrationSchemaOption = {
+  value: string;
+  label?: Record<string, string> | string;
+};
+
+export type RegistrationSchemaField = {
+  id: string;
+  type: 'text' | 'textarea' | 'select';
+  label?: Record<string, string> | string;
+  required?: boolean;
+  options?: RegistrationSchemaOption[];
+};
+
+export type RegistrationSchema = {
+  grade?: {
+    label?: Record<string, string> | string;
+    required?: boolean;
+    options?: RegistrationSchemaOption[];
+  } | null;
+  additionalFields?: RegistrationSchemaField[];
+};
+
+export type PublicEventSummary = {
+  id: number;
+  name: string;
+  description: string;
+  description_html?: string | null;
+  start_date: string;
+  end_date: string;
+  status: string;
+  video_url?: string | null;
+  allow_open_registration: boolean;
+  registration_schema?: RegistrationSchema | null;
+};
+
 export async function getPublicEvents(slug: string) {
   const response = await axios.get(`${PUBLIC_BASE_URL}/events`, { params: { slug } });
-  return response.data.data as Array<{
+  return response.data.data as PublicEventSummary[];
+}
+
+export type PublicEventWithTenant = {
+  id: number;
+  name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  status: string;
+  video_url?: string | null;
+  allow_open_registration: boolean;
+  tenant: {
     id: number;
     name: string;
-    description: string;
-    start_date: string;
-    end_date: string;
-    status: string;
-    video_url?: string | null;
-    allow_open_registration: boolean;
-  }>;
-}
+    slug: string;
+    logo_url: string | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+  } | null;
+};
 
 export async function getAllPublicEvents() {
   const response = await axios.get(`${PUBLIC_BASE_URL}/events/all`);
-  return response.data.data as Array<{
-    id: number;
-    name: string;
-    description: string;
-    start_date: string;
-    end_date: string;
-    status: string;
-    video_url?: string | null;
-    allow_open_registration: boolean;
-    tenant: {
-      id: number;
-      name: string;
-      slug: string;
-      logo_url: string | null;
-      primary_color: string | null;
-      secondary_color: string | null;
-    } | null;
-  }>;
+  return response.data.data as PublicEventWithTenant[];
 }
 
 

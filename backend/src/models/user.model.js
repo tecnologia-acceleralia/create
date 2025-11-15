@@ -33,10 +33,14 @@ export function UserModel(sequelize) {
         type: DataTypes.STRING(500),
         allowNull: true
       },
-    profile_image_url: {
-      type: DataTypes.STRING(500),
-      allowNull: true
-    },
+      profile_image_url: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      grade: {
+        type: DataTypes.STRING(255),
+        allowNull: true
+      },
       language: {
         type: DataTypes.STRING(10),
         defaultValue: 'es'
@@ -44,11 +48,15 @@ export function UserModel(sequelize) {
       status: {
         type: DataTypes.ENUM('active', 'inactive', 'invited'),
         defaultValue: 'active'
-    },
-    is_super_admin: {
-      type: DataTypes.BOOLEAN,
-      allowNull: false,
-      defaultValue: false
+      },
+      last_login_at: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
+      is_super_admin: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
       }
     },
     {

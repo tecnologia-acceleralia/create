@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { apiClient, setAuthToken, clearSession } from '@/services/api';
+import { apiClient, setAuthToken, clearSession, registerUnauthorizedHandler } from '@/services/api';
 import { useTenant } from './TenantContext';
 
 type MembershipRole = {
@@ -217,6 +217,17 @@ export function AuthProvider({ children }: Props) {
     clearSession();
     localStorage.removeItem(STORAGE_KEY);
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = registerUnauthorizedHandler(() => {
+      logout();
+      if (typeof window !== 'undefined') {
+        const loginPath = tenantSlug ? `/${tenantSlug}/login` : '/';
+        window.location.replace(loginPath);
+      }
+    });
+    return unsubscribe;
+  }, [logout, tenantSlug]);
 
   const value = useMemo(
     () => ({

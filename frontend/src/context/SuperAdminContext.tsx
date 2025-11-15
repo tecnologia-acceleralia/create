@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { superAdminLogin, setSuperAdminAuthToken } from '@/services/superadmin';
+import { superAdminLogin, setSuperAdminAuthToken, registerSuperAdminUnauthorizedHandler } from '@/services/superadmin';
 
 const SUPERADMIN_AUTH_KEY = 'create.superadmin.auth';
 
@@ -100,14 +100,24 @@ export function SuperAdminProvider({ children }: Props) {
     }
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setSuperAdminAuthToken(null);
     setTokens(null);
     setUser(null);
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(SUPERADMIN_AUTH_KEY);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = registerSuperAdminUnauthorizedHandler(() => {
+      logout();
+      if (typeof window !== 'undefined') {
+        window.location.replace('/superadmin');
+      }
+    });
+    return unsubscribe;
+  }, [logout]);
 
   const value = useMemo(
     () => ({

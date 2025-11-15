@@ -30,6 +30,10 @@ export function TaskModel(sequelize) {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      intro_html: {
+        type: DataTypes.TEXT('long'),
+        allowNull: true
+      },
       delivery_type: {
         type: DataTypes.ENUM('text', 'file', 'url', 'video', 'audio', 'zip'),
         defaultValue: 'file'
@@ -45,6 +49,11 @@ export function TaskModel(sequelize) {
       status: {
         type: DataTypes.ENUM('draft', 'active', 'closed'),
         defaultValue: 'draft'
+      },
+      order_index: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        defaultValue: 1
       },
       phase_rubric_id: {
         type: DataTypes.INTEGER.UNSIGNED,

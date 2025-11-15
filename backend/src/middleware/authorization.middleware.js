@@ -6,8 +6,17 @@ export function authorizeRoles(...allowedRoles) {
     }
 
     const roleScopes = req.auth?.roleScopes ?? req.user?.roleScopes ?? [];
+    const membership = req.auth?.membership ?? null;
+
     if (!roleScopes.length) {
-      return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+      if (
+        membership &&
+        membership.status === 'active' &&
+        (allowedRoles.includes('participant') || allowedRoles.includes('team_captain'))
+      ) {
+        return next();
+      }
+      return res.status(403).json({ success: false, message: 'Acceso no autorizado' });
     }
 
     const hasRole = roleScopes.some(scope => allowedRoles.includes(scope));

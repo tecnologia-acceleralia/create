@@ -14,7 +14,9 @@ authRouter.post(
     body('email').isEmail().normalizeEmail(),
     body('password').isString().isLength({ min: 8 }),
     body('language').optional().isString().isIn(['es', 'en', 'ca']),
-    body('event_id').optional().isInt({ min: 1 })
+    body('event_id').optional().isInt({ min: 1 }),
+    body('grade').optional().isString().trim().isLength({ min: 1, max: 255 }),
+    body('registration_answers').optional().isObject()
   ],
   validateRequest,
   (req, res, next) => AuthController.register(req, res, next)

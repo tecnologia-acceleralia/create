@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { PageContainer } from '@/components/common';
@@ -23,11 +23,17 @@ type FormValues = z.infer<typeof schema>;
 
 function LoginPage() {
   const { t } = useTranslation();
-  const { login } = useAuth();
+  const { login, user, activeMembership, loading } = useAuth();
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
   const { branding, tenantSlug } = useTenant();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && user && activeMembership) {
+      navigate(tenantPath('dashboard'), { replace: true });
+    }
+  }, [loading, user, activeMembership, navigate, tenantPath]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema)

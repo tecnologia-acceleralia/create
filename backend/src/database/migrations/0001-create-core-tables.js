@@ -70,7 +70,7 @@ export async function up(queryInterface, Sequelize) {
       comment: 'Contenido del hero por idioma'
     },
     plan_type: {
-      type: Sequelize.ENUM('free', 'basic', 'professional', 'enterprise'),
+      type: Sequelize.ENUM('free', 'professional'),
       defaultValue: 'free'
     },
     max_evaluators: {
@@ -165,9 +165,16 @@ export async function up(queryInterface, Sequelize) {
     profile_image_url: {
       type: Sequelize.STRING(500)
     },
+    grade: {
+      type: Sequelize.STRING(255)
+    },
     status: {
       type: Sequelize.ENUM('active', 'inactive', 'invited'),
       defaultValue: 'active'
+    },
+    last_login_at: {
+      type: Sequelize.DATE,
+      allowNull: true
     },
     is_super_admin: {
       type: Sequelize.BOOLEAN,
@@ -308,6 +315,11 @@ export async function up(queryInterface, Sequelize) {
     description: {
       type: Sequelize.TEXT
     },
+    description_html: {
+      type: Sequelize.TEXT,
+      allowNull: true,
+      comment: 'HTML content for event description displayed in the home page'
+    },
     start_date: {
       type: Sequelize.DATE,
       allowNull: false
@@ -340,6 +352,11 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.BOOLEAN,
       allowNull: false,
       defaultValue: true
+    },
+    registration_schema: {
+      type: Sequelize.JSON,
+      allowNull: true,
+      comment: 'Schema definition for registration additional fields (grade, custom fields, etc.)'
     },
     publish_start_at: {
       type: Sequelize.DATE
@@ -387,6 +404,10 @@ export async function up(queryInterface, Sequelize) {
     },
     description: {
       type: Sequelize.TEXT
+    },
+    intro_html: {
+      type: Sequelize.TEXT('long'),
+      allowNull: true
     },
     start_date: {
       type: Sequelize.DATE
@@ -765,6 +786,10 @@ export async function up(queryInterface, Sequelize) {
     description: {
       type: Sequelize.TEXT
     },
+    intro_html: {
+      type: Sequelize.TEXT('long'),
+      allowNull: true
+    },
     delivery_type: {
       type: Sequelize.ENUM('text', 'file', 'url', 'video', 'audio', 'zip'),
       defaultValue: 'file'
@@ -779,6 +804,11 @@ export async function up(queryInterface, Sequelize) {
     status: {
       type: Sequelize.ENUM('draft', 'active', 'closed'),
       defaultValue: 'draft'
+    },
+    order_index: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      defaultValue: 1
     },
     max_files: {
       type: Sequelize.INTEGER.UNSIGNED,
@@ -799,6 +829,70 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.DATE,
       defaultValue: Sequelize.NOW
     }
+  });
+
+  await queryInterface.createTable('event_registrations', {
+    id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      autoIncrement: true,
+      primaryKey: true
+    },
+    tenant_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'tenants',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    event_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'events',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    user_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    grade: {
+      type: Sequelize.STRING(255),
+      allowNull: true
+    },
+    answers: {
+      type: Sequelize.JSON,
+      allowNull: true
+    },
+    status: {
+      type: Sequelize.STRING(20),
+      allowNull: false,
+      defaultValue: 'registered'
+    },
+    created_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+    }
+  });
+
+  await queryInterface.addConstraint('event_registrations', {
+    type: 'unique',
+    fields: ['event_id', 'user_id'],
+    name: 'uniq_event_registration_user'
   });
 
   await queryInterface.createTable('submissions', {
@@ -1031,6 +1125,12 @@ export async function up(queryInterface, Sequelize) {
   await queryInterface.addIndex('projects', ['tenant_id', 'event_id']);
   await queryInterface.addIndex('submissions', ['tenant_id', 'task_id']);
   await queryInterface.addIndex('evaluations', ['tenant_id', 'submission_id']);
+  await queryInterface.addIndex('event_registrations', ['tenant_id', 'event_id'], {
+    name: 'event_registrations_tenant_event_idx'
+  });
+  await queryInterface.addIndex('event_registrations', ['tenant_id', 'grade'], {
+    name: 'event_registrations_tenant_grade_idx'
+  });
   await queryInterface.addIndex('notifications', ['tenant_id', 'user_id']);
 }
 
@@ -1047,12 +1147,16 @@ export async function down(queryInterface) {
   await queryInterface.removeIndex('phases', ['tenant_id', 'event_id', 'order_index']);
   await queryInterface.removeIndex('phases', ['tenant_id', 'view_start_date', 'view_end_date']);
   await queryInterface.removeIndex('events', ['tenant_id', 'start_date']);
+  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_grade_idx');
+  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_event_idx');
   await queryInterface.removeIndex('users', ['tenant_id', 'email']);
 
   await queryInterface.dropTable('notifications');
   await queryInterface.dropTable('evaluations');
   await queryInterface.dropTable('submission_files');
   await queryInterface.dropTable('submissions');
+  await queryInterface.removeConstraint('event_registrations', 'uniq_event_registration_user');
+  await queryInterface.dropTable('event_registrations');
   await queryInterface.dropTable('tasks');
   await queryInterface.dropTable('projects');
   await queryInterface.dropTable('team_members');

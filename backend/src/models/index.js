@@ -8,6 +8,7 @@ import { TeamModel } from './team.model.js';
 import { TeamMemberModel } from './team-member.model.js';
 import { ProjectModel } from './project.model.js';
 import { SubmissionModel } from './submission.model.js';
+import { EventRegistrationModel } from './event-registration.model.js';
 import { EvaluationModel } from './evaluation.model.js';
 import { NotificationModel } from './notification.model.js';
 import { PhaseRubricModel } from './phase-rubric.model.js';
@@ -16,6 +17,7 @@ import { SubmissionFileModel } from './submission-file.model.js';
 import { UserTenantModel } from './user-tenant.model.js';
 import { UserTenantRoleModel } from './user-tenant-role.model.js';
 import { PasswordResetTokenModel } from './password-reset-token.model.js';
+import { EventAssetModel } from './event-asset.model.js';
 
 const models = {};
 
@@ -30,6 +32,7 @@ export function initModels(sequelize) {
   models.TeamMember = TeamMemberModel(sequelize);
   models.Project = ProjectModel(sequelize);
   models.Submission = SubmissionModel(sequelize);
+  models.EventRegistration = EventRegistrationModel(sequelize);
   models.Evaluation = EvaluationModel(sequelize);
   models.Notification = NotificationModel(sequelize);
   models.PhaseRubric = PhaseRubricModel(sequelize);
@@ -38,6 +41,7 @@ export function initModels(sequelize) {
   models.UserTenant = UserTenantModel(sequelize);
   models.UserTenantRole = UserTenantRoleModel(sequelize);
   models.PasswordResetToken = PasswordResetTokenModel(sequelize);
+  models.EventAsset = EventAssetModel(sequelize);
 
   models.Role.belongsTo(models.Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
   models.Tenant.hasMany(models.Role, { foreignKey: 'tenant_id', as: 'roles' });
@@ -128,6 +132,13 @@ export function initModels(sequelize) {
   models.Project.belongsTo(models.Event, { foreignKey: 'event_id', as: 'event' });
   models.Event.hasMany(models.Project, { foreignKey: 'event_id', as: 'projects' });
 
+  models.Event.hasMany(models.EventRegistration, { foreignKey: 'event_id', as: 'registrations' });
+  models.EventRegistration.belongsTo(models.Event, { foreignKey: 'event_id', as: 'event' });
+  models.EventRegistration.belongsTo(models.User, { foreignKey: 'user_id', as: 'user' });
+  models.User.hasMany(models.EventRegistration, { foreignKey: 'user_id', as: 'eventRegistrations' });
+  models.EventRegistration.belongsTo(models.Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
+  models.Tenant.hasMany(models.EventRegistration, { foreignKey: 'tenant_id', as: 'eventRegistrations' });
+
   models.Submission.belongsTo(models.Event, { foreignKey: 'event_id', as: 'event' });
   models.Event.hasMany(models.Submission, { foreignKey: 'event_id', as: 'submissions' });
 
@@ -156,6 +167,15 @@ export function initModels(sequelize) {
   models.User.hasMany(models.PasswordResetToken, { foreignKey: 'user_id', as: 'passwordResetTokens' });
   models.PasswordResetToken.belongsTo(models.Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
   models.Tenant.hasMany(models.PasswordResetToken, { foreignKey: 'tenant_id', as: 'passwordResetTokens' });
+
+  models.EventAsset.belongsTo(models.Tenant, { foreignKey: 'tenant_id', as: 'tenant' });
+  models.Tenant.hasMany(models.EventAsset, { foreignKey: 'tenant_id', as: 'eventAssets' });
+
+  models.EventAsset.belongsTo(models.Event, { foreignKey: 'event_id', as: 'event' });
+  models.Event.hasMany(models.EventAsset, { foreignKey: 'event_id', as: 'assets' });
+
+  models.EventAsset.belongsTo(models.User, { foreignKey: 'uploaded_by', as: 'uploader' });
+  models.User.hasMany(models.EventAsset, { foreignKey: 'uploaded_by', as: 'uploadedAssets' });
 
   return models;
 }

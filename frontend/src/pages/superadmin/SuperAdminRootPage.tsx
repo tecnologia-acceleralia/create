@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Navigate, useRoutes } from 'react-router';
+import { Navigate, useLocation, useRoutes } from 'react-router';
 import { useSuperAdminSession } from '@/context/SuperAdminContext';
 import { Spinner, PageContainer } from '@/components/common';
 import { SuperAdminLayout, SuperAdminLoginCard } from '@/components/superadmin';
@@ -24,12 +24,16 @@ function SuperAdminAppRoutes() {
 
 function SuperAdminRootPage() {
   const { user, tokens, loading } = useSuperAdminSession();
+  const location = useLocation();
 
   if (loading) {
     return <Spinner fullHeight />;
   }
 
   if (!user || !tokens?.token) {
+    if (location.pathname !== '/superadmin') {
+      return <Navigate to="/superadmin" replace />;
+    }
     return (
       <PageContainer className="flex justify-center">
         <SuperAdminLoginCard />

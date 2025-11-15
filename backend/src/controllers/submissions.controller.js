@@ -175,7 +175,10 @@ export class SubmissionsController {
       if (!isReviewer(req)) {
         const membership = await findMembership(req.user.id, task.event_id);
         if (!membership) {
-          return res.status(403).json({ success: false, message: 'No autorizado' });
+          // Participantes sin equipo no deberían ver entregas ajenas,
+          // pero devolver 403 rompía la UI del participante.
+          // Retornamos lista vacía para mantener la experiencia coherente.
+          return res.json({ success: true, data: [] });
         }
         whereClause = { ...whereClause, team_id: membership.team.id };
       }

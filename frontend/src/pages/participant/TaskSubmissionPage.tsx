@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField, FormGrid } from '@/components/form';
-import { getEventDetail } from '@/services/events';
+import { getEventDetail, type Phase } from '@/services/events';
 import {
   createSubmission,
   getSubmissions,
@@ -159,6 +159,17 @@ function TaskSubmissionPage() {
   }, [numericTaskId, numericEventId]);
 
   const task = eventDetail?.tasks?.find(tk => tk.id === numericTaskId);
+  const phase = eventDetail?.phases?.find(ph => ph.id === task?.phase_id) as Phase | undefined;
+  const layoutSubtitle = useMemo(() => {
+    const parts: string[] = [];
+    if (phase?.name) {
+      parts.push(phase.name);
+    }
+    if (task?.description) {
+      parts.push(task.description);
+    }
+    return parts.join(' · ');
+  }, [phase?.name, task?.description]);
   const taskConstraints = useMemo(() => {
     if (!task) {
       return {
@@ -230,164 +241,200 @@ function TaskSubmissionPage() {
   };
 
   return (
-    <DashboardLayout title={task.title} subtitle={task.description ?? ''}>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('submissions.register')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField label={t('submissions.description')} htmlFor="submission-content">
-              <Textarea id="submission-content" rows={4} {...form.register('content')} />
-            </FormField>
-            <FormField
-              label={t('submissions.attachments')}
-              htmlFor="submission-file"
-              description={t('submissions.filesHelper', {
-                count: taskConstraints.maxFiles,
-                maxSize: taskConstraints.maxFileSizeMb ?? t('submissions.unlimited'),
-                types: taskConstraints.allowedMimeTypes.length
-                  ? taskConstraints.allowedMimeTypes.join(', ')
-                  : t('submissions.anyMime')
-              })}
-            >
-              <>
-                <Input
-                  id="submission-file"
-                  type="file"
-                  multiple={taskConstraints.maxFiles > 1}
-                  onChange={handleFileChange}
-                  accept={taskConstraints.allowedMimeTypes.length ? taskConstraints.allowedMimeTypes.join(',') : undefined}
-                />
-                {files.length ? (
-                  <ul className="mt-2 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
-                    {files.map((file, index) => (
-                      <li key={file.name + index} className="flex items-center justify-between gap-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{file.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || t('submissions.unknownType')}
-                          </span>
-                        </div>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFile(index)}>
-                          {t('common.remove')}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </>
-            </FormField>
-            <FormField label={t('submissions.type')}>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" value="draft" {...form.register('status')} /> {t('submissions.draft')}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" value="final" {...form.register('status')} /> {t('submissions.final')}
-                </label>
-              </div>
-            </FormField>
-            <Button type="submit" disabled={createSubmissionMutation.isLoading}>
-              {createSubmissionMutation.isLoading ? t('common.loading') : t('submissions.submit')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+    <DashboardLayout title={task.title} subtitle={layoutSubtitle}>
+      <div className="space-y-6">
+        {phase?.intro_html ? (
+          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-5">
+            <p className="mb-2 text-sm font-semibold text-muted-foreground">
+              {t('events.phaseContentTitle', { name: phase.name })}
+            </p>
+            <div dangerouslySetInnerHTML={{ __html: phase.intro_html }} />
+          </div>
+        ) : null}
+        {task.intro_html ? (
+          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-5">
+            <p className="mb-2 text-sm font-semibold text-muted-foreground">{t('events.activityContentTitle')}</p>
+            <div dangerouslySetInnerHTML={{ __html: task.intro_html }} />
+          </div>
+        ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('submissions.list')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {submissions?.length ? submissions.map(submission => (
-            <div key={submission.id} className="rounded-md border border-border p-4">
-              <div className="flex flex-col gap-1 text-sm">
-                <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
-                {submission.content ? <span>{submission.content}</span> : null}
-                {submission.files?.length ? (
-                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    {submission.files.map(file => (
-                      <li key={file.id}>
-                        <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
-                          {file.original_name}
-                        </a>{' '}
-                        · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB · {file.mime_type}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={() => handleViewEvaluations(submission)}>
-                  {t('submissions.viewEvaluations')}
-                </Button>
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('submissions.register')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField label={t('submissions.description')} htmlFor="submission-content">
+                <Textarea id="submission-content" rows={4} {...form.register('content')} />
+              </FormField>
+              <FormField
+                label={t('submissions.attachments')}
+                htmlFor="submission-file"
+                description={t('submissions.filesHelper', {
+                  count: taskConstraints.maxFiles,
+                  maxSize: taskConstraints.maxFileSizeMb ?? t('submissions.unlimited'),
+                  types: taskConstraints.allowedMimeTypes.length
+                    ? taskConstraints.allowedMimeTypes.join(', ')
+                    : t('submissions.anyMime')
+                })}
+              >
+                <>
+                  <Input
+                    id="submission-file"
+                    type="file"
+                    multiple={taskConstraints.maxFiles > 1}
+                    onChange={handleFileChange}
+                    accept={taskConstraints.allowedMimeTypes.length ? taskConstraints.allowedMimeTypes.join(',') : undefined}
+                  />
+                  {files.length ? (
+                    <ul className="mt-2 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
+                      {files.map((file, index) => (
+                        <li key={file.name + index} className="flex items-center justify-between gap-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{file.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || t('submissions.unknownType')}
+                            </span>
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFile(index)}>
+                            {t('common.remove')}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              </FormField>
+              <FormField label={t('submissions.type')}>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="radio" value="draft" {...form.register('status')} /> {t('submissions.draft')}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="radio" value="final" {...form.register('status')} /> {t('submissions.final')}
+                  </label>
+                </div>
+              </FormField>
+              <Button type="submit" disabled={createSubmissionMutation.isLoading}>
+                {createSubmissionMutation.isLoading ? t('common.loading') : t('submissions.submit')}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-              {selectedSubmission?.id === submission.id ? (
-                <div className="mt-3 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
-                  {evaluations[submission.id]?.length ? (
-                    evaluations[submission.id].map(evaluation => (
-                      <div key={evaluation.id}>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{t('submissions.score')}: {evaluation.score ?? 'N/A'}</p>
-                          <span className={cn('rounded-full px-2 py-0.5 text-xs', evaluation.source === 'ai_assisted' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
-                            {evaluation.source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
-                          </span>
-                        </div>
-                        <p>{evaluation.comment}</p>
-                        <p className="text-xs text-muted-foreground">{t('submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}</p>
-                        {evaluation.metadata?.criteria?.length ? (
-                          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                            {evaluation.metadata.criteria.map((criterion, idx) => (
-                              <li key={`${evaluation.id}-criterion-${idx}`}>
-                                {t('evaluations.criteriaScore', {
-                                  index: idx + 1,
-                                  score: criterion.score ?? 'N/A'
-                                })}: {criterion.feedback}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground">{t('submissions.noEvaluations')}</p>
-                  )}
-                  {isReviewer ? (
-                    <form
-                      className="mt-3 space-y-3"
-                      onSubmit={evaluationForm.handleSubmit(values => evaluationMutation.mutate(values))}
-                    >
-                      <FormGrid columns={2}>
-                        <FormField label={t('evaluations.score')} htmlFor="evaluation-score">
-                          <Input
-                            id="evaluation-score"
-                            type="number"
-                            step="0.1"
-                            {...evaluationForm.register('score', { valueAsNumber: true })}
-                          />
-                        </FormField>
-                        <FormField className="md:col-span-2" label={t('evaluations.comment')} htmlFor="evaluation-comment">
-                          <Textarea id="evaluation-comment" rows={3} {...evaluationForm.register('comment')} />
-                        </FormField>
-                      </FormGrid>
-                      <div className="flex flex-wrap gap-3 pt-1">
-                        <Button type="button" size="sm" variant="secondary" disabled={aiEvaluationMutation.isLoading} onClick={() => aiEvaluationMutation.mutate()}>
-                          {aiEvaluationMutation.isLoading ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
-                        </Button>
-                        <Button type="submit" size="sm" disabled={evaluationMutation.isLoading}>
-                          {evaluationMutation.isLoading ? t('common.loading') : t('evaluations.submit')}
-                        </Button>
-                      </div>
-                    </form>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('submissions.list')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {submissions?.length ? submissions.map(submission => (
+              <div key={submission.id} className="rounded-md border border-border p-4">
+                <div className="flex flex-col gap-1 text-sm">
+                  <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
+                  {submission.content ? <span>{submission.content}</span> : null}
+                  {submission.files?.length ? (
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {submission.files.map(file => (
+                        <li key={file.id}>
+                          <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
+                            {file.original_name}
+                          </a>{' '}
+                          · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB · {file.mime_type}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-          )) : <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>}
-        </CardContent>
-      </Card>
+                <div className="mt-3 flex items-center gap-3">
+                  <Button variant="outline" size="sm" onClick={() => handleViewEvaluations(submission)}>
+                    {t('submissions.viewEvaluations')}
+                  </Button>
+                </div>
+
+                {selectedSubmission?.id === submission.id ? (
+                  <div className="mt-3 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
+                    {evaluations[submission.id]?.length ? (
+                      evaluations[submission.id].map(evaluation => (
+                        <div key={evaluation.id}>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">
+                              {t('submissions.score')}: {evaluation.score ?? 'N/A'}
+                            </p>
+                            <span
+                              className={cn(
+                                'rounded-full px-2 py-0.5 text-xs',
+                                evaluation.source === 'ai_assisted'
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'bg-muted text-muted-foreground'
+                              )}
+                            >
+                              {evaluation.source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                            </span>
+                          </div>
+                          <p>{evaluation.comment}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {t('submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
+                          </p>
+                          {evaluation.metadata?.criteria?.length ? (
+                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              {evaluation.metadata.criteria.map((criterion, idx) => (
+                                <li key={`${evaluation.id}-criterion-${idx}`}>
+                                  {t('evaluations.criteriaScore', {
+                                    index: idx + 1,
+                                    score: criterion.score ?? 'N/A'
+                                  })}: {criterion.feedback}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground">{t('submissions.noEvaluations')}</p>
+                    )}
+                    {isReviewer ? (
+                      <form
+                        className="mt-3 space-y-3"
+                        onSubmit={evaluationForm.handleSubmit(values => evaluationMutation.mutate(values))}
+                      >
+                        <FormGrid columns={2}>
+                          <FormField label={t('evaluations.score')} htmlFor="evaluation-score">
+                            <Input
+                              id="evaluation-score"
+                              type="number"
+                              step="0.1"
+                              {...evaluationForm.register('score', { valueAsNumber: true })}
+                            />
+                          </FormField>
+                          <FormField className="md:col-span-2" label={t('evaluations.comment')} htmlFor="evaluation-comment">
+                            <Textarea id="evaluation-comment" rows={3} {...evaluationForm.register('comment')} />
+                          </FormField>
+                        </FormGrid>
+                        <div className="flex flex-wrap gap-3 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            disabled={aiEvaluationMutation.isLoading}
+                            onClick={() => aiEvaluationMutation.mutate()}
+                          >
+                            {aiEvaluationMutation.isLoading ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
+                          </Button>
+                          <Button type="submit" size="sm" disabled={evaluationMutation.isLoading}>
+                            {evaluationMutation.isLoading ? t('common.loading') : t('evaluations.submit')}
+                          </Button>
+                        </div>
+                      </form>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            )) : (
+              <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 }

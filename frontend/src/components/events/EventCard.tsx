@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/utils/cn';
+import { formatDate, formatDateRange } from '@/utils/date';
 
 type EventLike =
   | {
@@ -84,23 +85,6 @@ function resolveVideoUrl(raw?: string | null) {
   return raw;
 }
 
-function formatDate(locale: string, rawDate: string) {
-  const formatter = new Intl.DateTimeFormat(locale, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-
-  return formatter.format(new Date(rawDate));
-}
-
-function formatDateRange(locale: string, startRaw: string, endRaw: string) {
-  const start = formatDate(locale, startRaw);
-  const end = formatDate(locale, endRaw);
-
-  return `${start} — ${end}`;
-}
-
 function normalizeEvent(event: EventLike) {
   if ('start_date' in event) {
     return {
@@ -149,12 +133,20 @@ export function EventCard({ event, to, className, actions, children, showVideo =
 
   const videoSrc = useMemo(() => (showVideo ? resolveVideoUrl(normalized.videoUrl) : null), [showVideo, normalized.videoUrl]);
 
+  const titleContent = hasActions && to ? (
+    <Link to={to} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tenant-primary)] focus-visible:ring-offset-2 rounded">
+      {normalized.name}
+    </Link>
+  ) : (
+    normalized.name
+  );
+
   const content = (
     <>
       <CardHeader className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-lg font-semibold text-[color:var(--tenant-secondary)]">
-            {normalized.name}
+            {titleContent}
           </CardTitle>
           {statusLabel && showStatus ? (
             <span className="rounded-full bg-[color:var(--tenant-primary)]/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--tenant-primary)]">
@@ -163,7 +155,7 @@ export function EventCard({ event, to, className, actions, children, showVideo =
           ) : null}
         </div>
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {formatDateRange(locale, normalized.startDate, normalized.endDate)}
+          {formatDateRange(locale, normalized.startDate, normalized.endDate) ?? '—'}
         </p>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
@@ -184,8 +176,8 @@ export function EventCard({ event, to, className, actions, children, showVideo =
             {publishWindowAvailable ? (
               <span className="text-muted-foreground">
                 {t('events.publishWindow', {
-                  start: formatDate(locale, normalized.publishStartAt!),
-                  end: formatDate(locale, normalized.publishEndAt!)
+                  start: formatDate(locale, normalized.publishStartAt ?? null),
+                  end: formatDate(locale, normalized.publishEndAt ?? null)
                 })}
               </span>
             ) : null}
@@ -210,7 +202,8 @@ export function EventCard({ event, to, className, actions, children, showVideo =
     </>
   );
 
-  if (to) {
+  // When there are actions, don't make the entire card clickable to avoid nested <a> tags
+  if (to && !hasActions) {
     return (
       <Card
         asChild

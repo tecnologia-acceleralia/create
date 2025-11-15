@@ -29,6 +29,7 @@ export type Team = {
     solution?: string;
     repository_url?: string;
     pitch_url?: string;
+    logo_url?: string;
   } | null;
 };
 
@@ -65,5 +66,10 @@ export async function removeTeamMember(teamId: number, userId: number) {
 
 export async function setCaptain(teamId: number, userId: number) {
   await apiClient.patch(`/teams/${teamId}/captain`, { user_id: userId });
+}
+
+export async function getTeamsByEvent(eventId: number) {
+  const response = await apiClient.get(`/teams/events/${eventId}`);
+  return response.data.data as Team[];
 }
 
