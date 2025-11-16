@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { Plus, Minus } from 'lucide-react';
 
 import { Spinner } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
@@ -24,13 +25,15 @@ import {
   type Submission,
   type Evaluation
 } from '@/services/submissions';
+import { getMyTeams } from '@/services/teams';
 import { useAuth } from '@/context/AuthContext';
 import { fileToBase64 } from '@/utils/files';
+import { formatDateRange } from '@/utils/date';
 import { cn } from '@/utils/cn';
 
 const submissionSchema = z.object({
   content: z.string().optional(),
-  status: z.enum(['draft', 'final']).default('final')
+  status: z.enum(['draft', 'final'])
 });
 
 type SubmissionFormValues = z.infer<typeof submissionSchema>;
@@ -47,9 +50,11 @@ function TaskSubmissionPage() {
   const numericTaskId = Number(taskId);
   const numericEventId = Number(eventId);
   const { t, i18n } = useTranslation();
+  const locale = i18n.language ?? 'es';
   const queryClient = useQueryClient();
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [isPhaseContextExpanded, setIsPhaseContextExpanded] = useState(false);
   const { user, activeMembership, isSuperAdmin } = useAuth();
   const roleScopes = useMemo(
     () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
@@ -68,6 +73,24 @@ function TaskSubmissionPage() {
     queryFn: () => getSubmissions(numericTaskId),
     enabled: Number.isInteger(numericTaskId)
   });
+
+  const { data: myTeams, isLoading: teamsLoading } = useQuery({
+    queryKey: ['myTeams'],
+    queryFn: getMyTeams,
+    enabled: !isReviewer
+  });
+
+  const isTeamCaptain = useMemo(() => {
+    if (isReviewer) {
+      return true; // Los revisores pueden ver
+    }
+    if (!myTeams || !numericEventId) {
+      return false;
+    }
+    return myTeams.some(
+      membership => membership.team.event_id === numericEventId && membership.role === 'captain'
+    );
+  }, [myTeams, numericEventId, isReviewer]);
 
   const [evaluations, setEvaluations] = useState<Record<number, Evaluation[]>>({});
 
@@ -102,7 +125,21 @@ function TaskSubmissionPage() {
       setFiles([]);
       void queryClient.invalidateQueries({ queryKey: ['submissions', numericTaskId] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: (error: unknown) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { status?: number; data?: { message?: string } } }).response === 'object'
+      ) {
+        const response = (error as { response: { status?: number; data?: { message?: string } } }).response;
+        if (response.status === 403 && response.data?.message?.includes('capitán')) {
+          toast.error(t('submissions.onlyCaptainCanSubmit'));
+          return;
+        }
+      }
+      toast.error(t('common.error'));
+    }
   });
 
   const handleViewEvaluations = async (submission: Submission) => {
@@ -139,14 +176,22 @@ function TaskSubmissionPage() {
         setEvaluations(prev => ({ ...prev, [selectedSubmission.id]: evals }));
       }
     },
-    onError: error => {
-      if (error?.response?.status === 409) {
-        toast.error(t('evaluations.missingRubric'));
-        return;
-      }
-      if (error?.response?.status === 500) {
-        toast.error(t('evaluations.aiServiceUnavailable'));
-        return;
+    onError: (error: unknown) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { status?: number } }).response === 'object'
+      ) {
+        const response = (error as { response: { status?: number } }).response;
+        if (response.status === 409) {
+          toast.error(t('evaluations.missingRubric'));
+          return;
+        }
+        if (response.status === 500) {
+          toast.error(t('evaluations.aiServiceUnavailable'));
+          return;
+        }
       }
       toast.error(t('common.error'));
     }
@@ -185,7 +230,7 @@ function TaskSubmissionPage() {
     };
   }, [task]);
 
-  if (eventLoading || submissionsLoading) {
+  if (eventLoading || submissionsLoading || teamsLoading) {
     return <Spinner fullHeight />;
   }
 
@@ -244,26 +289,64 @@ function TaskSubmissionPage() {
     <DashboardLayout title={task.title} subtitle={layoutSubtitle}>
       <div className="space-y-6">
         {phase?.intro_html ? (
-          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-5">
-            <p className="mb-2 text-sm font-semibold text-muted-foreground">
-              {t('events.phaseContentTitle', { name: phase.name })}
-            </p>
-            <div dangerouslySetInnerHTML={{ __html: phase.intro_html }} />
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 flex-1">
+                <button
+                  onClick={() => setIsPhaseContextExpanded(!isPhaseContextExpanded)}
+                  className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
+                  aria-label={isPhaseContextExpanded ? t('common.collapse') : t('common.expand')}
+                >
+                  {isPhaseContextExpanded ? (
+                    <Minus className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">
+                    Fase
+                  </p>
+                  <p className="text-base font-semibold text-foreground">{phase.name}</p>
+                  {(phase.start_date || phase.end_date) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatDateRange(locale, phase.start_date ?? null, phase.end_date ?? null) ?? t('events.taskPeriodNotSet')}
+                    </p>
+                  )}
+                  {isPhaseContextExpanded && (
+                    <div
+                      className="prose prose-sm max-w-none mt-3"
+                      dangerouslySetInnerHTML={{ __html: phase.intro_html }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         ) : null}
         {task.intro_html ? (
           <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-5">
-            <p className="mb-2 text-sm font-semibold text-muted-foreground">{t('events.activityContentTitle')}</p>
+            <p className="mb-2 text-sm font-semibold text-muted-foreground">Actividad</p>
             <div dangerouslySetInnerHTML={{ __html: task.intro_html }} />
           </div>
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('submissions.register')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {!isTeamCaptain && !isReviewer ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('submissions.register')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{t('submissions.notTeamCaptain')}</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('submissions.register')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField label={t('submissions.description')} htmlFor="submission-content">
                 <Textarea id="submission-content" rows={4} {...form.register('content')} />
               </FormField>
@@ -315,12 +398,13 @@ function TaskSubmissionPage() {
                   </label>
                 </div>
               </FormField>
-              <Button type="submit" disabled={createSubmissionMutation.isLoading}>
-                {createSubmissionMutation.isLoading ? t('common.loading') : t('submissions.submit')}
+              <Button type="submit" disabled={createSubmissionMutation.isPending}>
+                {createSubmissionMutation.isPending ? t('common.loading') : t('submissions.submit')}
               </Button>
             </form>
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -414,14 +498,14 @@ function TaskSubmissionPage() {
                           <Button
                             type="button"
                             size="sm"
-                            variant="secondary"
-                            disabled={aiEvaluationMutation.isLoading}
+                            variant="outline"
+                            disabled={aiEvaluationMutation.isPending}
                             onClick={() => aiEvaluationMutation.mutate()}
                           >
-                            {aiEvaluationMutation.isLoading ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
+                            {aiEvaluationMutation.isPending ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
                           </Button>
-                          <Button type="submit" size="sm" disabled={evaluationMutation.isLoading}>
-                            {evaluationMutation.isLoading ? t('common.loading') : t('evaluations.submit')}
+                          <Button type="submit" size="sm" disabled={evaluationMutation.isPending}>
+                            {evaluationMutation.isPending ? t('common.loading') : t('evaluations.submit')}
                           </Button>
                         </div>
                       </form>

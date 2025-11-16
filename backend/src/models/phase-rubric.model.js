@@ -20,7 +20,12 @@ export function PhaseRubricModel(sequelize) {
       },
       phase_id: {
         type: DataTypes.INTEGER.UNSIGNED,
-        allowNull: false
+        allowNull: true
+      },
+      rubric_scope: {
+        type: DataTypes.ENUM('phase', 'project'),
+        allowNull: false,
+        defaultValue: 'phase'
       },
       name: {
         type: DataTypes.STRING(255),

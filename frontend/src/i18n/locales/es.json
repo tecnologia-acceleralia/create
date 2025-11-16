@@ -204,6 +204,14 @@
     "rubricWeightLabel": "Peso {{weight}}",
     "rubricMaxScoreLabel": "Máx. {{score}}",
     "noRubricsPhase": "Aún no hay rúbricas configuradas para esta fase.",
+    "rubricScope": "Alcance de la rúbrica",
+    "rubricScopePhase": "Fase",
+    "rubricScopeProject": "Proyecto completo",
+    "projectRubrics": "Rúbricas de proyecto",
+    "phaseRubrics": "Rúbricas por fase",
+    "noProjectRubrics": "Aún no hay rúbricas de proyecto configuradas.",
+    "rubricPhaseRequired": "Las rúbricas de fase requieren seleccionar una fase",
+    "rubricProjectNoPhase": "Las rúbricas de proyecto no deben tener fase asignada",
     "taskMaxFiles": "Máximo de archivos",
     "taskMaxFileSize": "Tamaño máximo (MB)",
     "taskAllowedMimes": "Tipos MIME permitidos (separados por comas)",
@@ -432,7 +440,9 @@
     "filesNotAllowed": "Esta tarea no permite subir archivos.",
     "maxFilesReached": "Alcanzaste el máximo de {{count}} archivos permitidos.",
     "fileTooLarge": "{{name}} supera el tamaño máximo de {{size}} MB.",
-    "fileTypeNotAllowed": "{{name}} tiene un tipo de archivo no permitido."
+    "fileTypeNotAllowed": "{{name}} tiene un tipo de archivo no permitido.",
+    "onlyCaptainCanSubmit": "Solo el capitán del equipo puede hacer entregas.",
+    "notTeamCaptain": "No eres capitán de un equipo en este evento. Solo los capitanes pueden registrar entregas."
   },
   "evaluations": {
     "add": "Añadir evaluación",
@@ -499,7 +509,10 @@
     "gradeRequired": "Selecciona tu carrera",
     "gradeInvalid": "Selecciona una opción válida",
     "dynamicFieldRequired": "Este campo es obligatorio",
-    "selectPlaceholder": "Selecciona una opción"
+    "selectPlaceholder": "Selecciona una opción",
+    "acceptPrivacyPolicy": "Acepto la ",
+    "privacyPolicy": "Política de Privacidad",
+    "privacyPolicyRequired": "Debes aceptar la Política de Privacidad para continuar"
   },
   "publicHub": {
     "title": "Explora eventos abiertos en CREATE",
@@ -772,5 +785,248 @@
       "inactive": "Inactivo",
       "invited": "Invitado"
     }
+  },
+  "cookies": {
+    "title": "Política de Cookies",
+    "subtitle": "Información sobre el uso de cookies y tecnologías similares",
+    "intro": "En Acceleralia SL (en adelante, el \"Responsable\"), utilizamos cookies y tecnologías similares para mejorar su experiencia en nuestra plataforma CREATE. Esta Política de Cookies explica qué son las cookies, qué tipos utilizamos y cómo puede gestionarlas.",
+    "whatAre": {
+      "title": "1. ¿Qué son las cookies?",
+      "content": "Las cookies son pequeños archivos de texto que se almacenan en su dispositivo (ordenador, tablet o móvil) cuando visita un sitio web. En nuestro caso, utilizamos principalmente el almacenamiento local del navegador para guardar información necesaria para el funcionamiento de la plataforma."
+    },
+    "types": {
+      "title": "2. Tipos de cookies que utilizamos",
+      "intro": "Utilizamos exclusivamente cookies técnicas necesarias para el funcionamiento de la plataforma. Estas cookies son esenciales para que pueda acceder y utilizar los servicios que ofrecemos.",
+      "auth": {
+        "title": "Cookies de Autenticación y Sesión",
+        "purpose": "Propósito:",
+        "purposeContent": "Estas cookies son necesarias para mantener su sesión activa y permitirle acceder a las áreas privadas de la plataforma. Almacenan información de identificación de sesión de forma segura.",
+        "duration": "Duración:",
+        "durationContent": "Persistente hasta que cierre sesión o expire la sesión de forma automática por seguridad.",
+        "type": "Tipo:",
+        "typeContent": "Técnica necesaria"
+      },
+      "preferences": {
+        "title": "Cookies de Preferencias y Configuración",
+        "purpose": "Propósito:",
+        "purposeContent": "Estas cookies almacenan información sobre sus preferencias y configuraciones de la plataforma, como la personalización visual y las preferencias de idioma, para mejorar su experiencia de usuario.",
+        "duration": "Duración:",
+        "durationContent": "Temporal, se renueva periódicamente para mantener la información actualizada.",
+        "type": "Tipo:",
+        "typeContent": "Técnica necesaria"
+      }
+    },
+    "thirdParty": {
+      "title": "3. Cookies de terceros",
+      "content": "Actualmente, nuestra plataforma no utiliza cookies de terceros para seguimiento, análisis o publicidad. Los servicios externos que utilizamos para funcionalidades específicas no instalan cookies en su dispositivo."
+    },
+    "management": {
+      "title": "4. Gestión de cookies",
+      "content": "Puede gestionar o eliminar las cookies almacenadas en su navegador a través de la configuración del mismo. A continuación, le indicamos cómo hacerlo en los navegadores más comunes:",
+      "chrome": "Configuración → Privacidad y seguridad → Cookies y otros datos de sitios → Ver todas las cookies y datos de sitios",
+      "firefox": "Opciones → Privacidad y seguridad → Cookies y datos del sitio → Gestionar datos",
+      "edge": "Configuración → Cookies y permisos de sitio → Cookies y datos de sitio → Ver todas las cookies y datos de sitio",
+      "safari": "Preferencias → Privacidad → Gestionar datos de sitios web",
+      "warning": "Importante:",
+      "warningContent": "Si elimina las cookies de autenticación, deberá iniciar sesión nuevamente en la plataforma. La eliminación de las cookies de preferencias solo afectará a la personalización de su experiencia."
+    },
+    "consent": {
+      "title": "5. Consentimiento",
+      "content": "Al utilizar nuestra plataforma, usted acepta el uso de cookies técnicas necesarias para el funcionamiento del servicio. Estas cookies no requieren consentimiento previo según la normativa europea (Directiva ePrivacy y RGPD), ya que son estrictamente necesarias para la prestación del servicio solicitado."
+    },
+    "updates": {
+      "title": "6. Actualizaciones de esta política",
+      "content": "Nos reservamos el derecho de actualizar esta Política de Cookies en cualquier momento. Le recomendamos que revise esta página periódicamente para estar informado sobre cualquier cambio. La fecha de la última actualización se indica al final de esta política."
+    },
+    "contact": {
+      "title": "7. Contacto",
+      "content": "Si tiene alguna pregunta sobre nuestra Política de Cookies, puede contactarnos en:",
+      "email": "Correo electrónico:"
+    },
+    "lastUpdate": "Fecha de la última actualización:"
+  },
+  "privacy": {
+    "title": "Política de Privacidad",
+    "subtitle": "Información sobre el tratamiento de datos personales",
+    "intro": "En Acceleralia SL (en adelante, el \"Responsable\"), estamos comprometidos con la protección de los datos personales de nuestros usuarios. Esta Política de Privacidad describe cómo recogemos, utilizamos y tratamos su información personal en el marco de la prestación de nuestro servicio SaaS.",
+    "controller": {
+      "title": "1. Identidad del Responsable del Tratamiento",
+      "company": "Razón Social:",
+      "nif": "NIF:",
+      "address": "Domicilio Social:",
+      "email": "Correo Electrónico de Contacto:"
+    },
+    "purposes": {
+      "title": "2. Fines del Tratamiento y Base de Legitimación",
+      "intro": "Los datos que nos facilita se tratan con las siguientes finalidades y bajo las bases legales indicadas en el Art. 6 del RGPD:",
+      "purpose1": "Finalidad:",
+      "purpose1Content": "Gestión del registro de usuario y la prestación del servicio SaaS (acceso, mantenimiento de la cuenta y uso de las funcionalidades, como la edición de proyectos e ideas para concursos).",
+      "legalBasis1": "Base Legal:",
+      "legalBasis1Content": "Ejecución del contrato (Art. 6.1.b RGPD).",
+      "purpose2": "Finalidad:",
+      "purpose2Content": "Envío de comunicaciones relacionadas con el servicio, actualizaciones técnicas o de seguridad.",
+      "legalBasis2": "Base Legal:",
+      "legalBasis2Content": "Interés legítimo (Art. 6.1.f RGPD), necesario para el correcto funcionamiento del servicio contratado.",
+      "purpose3": "Finalidad:",
+      "purpose3Content": "Cumplimiento de obligaciones legales y fiscales aplicables al Responsable.",
+      "legalBasis3": "Base Legal:",
+      "legalBasis3Content": "Cumplimiento de una obligación legal (Art. 6.1.c RGPD).",
+      "purpose4": "Finalidad (si aplica):",
+      "purpose4Content": "Envío de comunicaciones comerciales o boletines informativos sobre nuestros servicios (solo si se marca una casilla de consentimiento específica).",
+      "legalBasis4": "Base Legal:",
+      "legalBasis4Content": "Consentimiento del interesado (Art. 6.1.a RGPD)."
+    },
+    "categories": {
+      "title": "3. Categorías de Datos Personales",
+      "intro": "Los datos recogidos directamente del usuario incluyen:",
+      "identifying": "Datos Identificativos:",
+      "identifyingContent": "Nombre, dirección de correo electrónico.",
+      "credentials": "Códigos y Claves:",
+      "credentialsContent": "Contraseñas (almacenadas de forma encriptada/hash).",
+      "connection": "Datos de Conexión:",
+      "connectionContent": "Dirección IP, datos de uso de la plataforma (logs).",
+      "note": "Nota sobre el contenido de los proyectos:",
+      "noteContent": "Respecto a los datos que el Cliente introduce en la plataforma (proyectos, ideas de concurso, etc.), Acceleralia SL actúa como Encargado del Tratamiento. El Cliente es el Responsable del Tratamiento de esos datos, y debe tener su propia política de privacidad. Acceleralia SL únicamente trata esa información siguiendo las instrucciones del Cliente, según el contrato de servicios o el Acuerdo de Encargado del Tratamiento firmado con el Cliente."
+    },
+    "recipients": {
+      "title": "4. Destinatarios y Encargados del Tratamiento",
+      "processors": "Encargados del Tratamiento:",
+      "processorsContent": "Podemos compartir sus datos con proveedores que nos prestan servicios necesarios para la ejecución del servicio (ej. alojamiento web, servicios de comunicación, seguridad), actuando estos como encargados del tratamiento y bajo un contrato que exige el cumplimiento del RGPD. (Ejem: Alojamiento en Digital Ocean, Europa).",
+      "legal": "Obligación Legal:",
+      "legalContent": "Sus datos podrán ser cedidos a terceros en los casos en que exista una obligación legal, como a la Administración Tributaria.",
+      "transfers": "Transferencias Internacionales de Datos:",
+      "transfersContent": "Todos los datos personales se procesan y almacenan dentro del Espacio Económico Europeo (EEE). No se realizan transferencias de datos personales fuera del EEE."
+    },
+    "retention": {
+      "title": "5. Plazos de Conservación",
+      "content": "Sus datos personales se conservarán mientras mantenga la condición de usuario registrado en la plataforma. Una vez solicite la baja, se bloquearán y se conservarán durante el plazo legalmente exigible (generalmente 6 años por normativa fiscal o mercantil), tras el cual serán eliminados de forma segura."
+    },
+    "rights": {
+      "title": "6. Ejercicio de Derechos (Derechos ARSOPP)",
+      "intro": "Usted tiene derecho a obtener confirmación sobre si en Acceleralia SL estamos tratando datos personales que le conciernan, y a ejercer los siguientes derechos:",
+      "access": "Acceso:",
+      "accessContent": "Conocer qué datos personales suyos estamos tratando.",
+      "rectification": "Rectificación:",
+      "rectificationContent": "Solicitar la modificación de datos inexactos o incompletos.",
+      "deletion": "Supresión (Derecho al Olvido):",
+      "deletionContent": "Solicitar la eliminación de los datos cuando, entre otros motivos, ya no sean necesarios para los fines que fueron recogidos.",
+      "opposition": "Oposición:",
+      "oppositionContent": "Oponerse a que tratemos sus datos para determinadas finalidades.",
+      "limitation": "Limitación:",
+      "limitationContent": "Solicitar la limitación del tratamiento.",
+      "portability": "Portabilidad:",
+      "portabilityContent": "Recibir los datos personales en un formato estructurado, de uso común y lectura mecánica, y a transmitirlos a otro responsable.",
+      "exercise": "Puede ejercer estos derechos enviando una solicitud a la dirección de correo electrónico",
+      "exerciseContent": "adjuntando copia de su DNI o documento identificativo equivalente.",
+      "withdrawal": "Tiene derecho a retirar el consentimiento en cualquier momento. La retirada del consentimiento no afectará a la licitud del tratamiento basada en el consentimiento previo a su retirada."
+    },
+    "authority": {
+      "title": "7. Derecho a Reclamar ante la Autoridad de Control",
+      "content": "Si considera que Acceleralia SL no ha tramitado correctamente sus derechos o que se ha vulnerado la normativa de protección de datos, puede presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD), a través de su sede electrónica (",
+      "content2": "o en la dirección de la calle Jorge Juan, 6, 28001 Madrid."
+    },
+    "security": {
+      "title": "8. Medidas de Seguridad",
+      "content": "Acceleralia SL implementa medidas técnicas y organizativas apropiadas para proteger sus datos personales contra el acceso no autorizado, la pérdida, destrucción o alteración accidental. Estas medidas incluyen el cifrado de datos sensibles, controles de acceso, sistemas de respaldo y monitoreo continuo de la seguridad."
+    },
+    "updates": {
+      "title": "9. Actualizaciones de esta Política",
+      "content": "Nos reservamos el derecho de actualizar esta Política de Privacidad en cualquier momento para reflejar cambios en nuestras prácticas o en la legislación aplicable. Le recomendamos que revise esta página periódicamente. La fecha de la última actualización se indica al final de esta política."
+    },
+    "contact": {
+      "title": "10. Contacto",
+      "content": "Si tiene alguna pregunta sobre esta Política de Privacidad o sobre el tratamiento de sus datos personales, puede contactarnos en:",
+      "email": "Correo electrónico:"
+    },
+    "lastUpdate": "Fecha de la última actualización:"
+  },
+  "terms": {
+    "title": "Términos y Condiciones de Uso",
+    "subtitle": "Condiciones generales de uso de la plataforma CREATE",
+    "intro": "Los presentes Términos y Condiciones de Uso (en adelante, los \"Términos\") regulan el acceso y uso de la plataforma SaaS CREATE, propiedad de Acceleralia SL (en adelante, el \"Prestador\" o \"nosotros\"). Al acceder o utilizar la plataforma, usted acepta estar sujeto a estos Términos. Si no está de acuerdo con alguna parte de estos Términos, no debe utilizar la plataforma.",
+    "provider": {
+      "title": "1. Identificación del Prestador del Servicio",
+      "company": "Razón Social:",
+      "nif": "NIF:",
+      "address": "Domicilio Social:",
+      "email": "Correo Electrónico:",
+      "registry": "Registro Mercantil:"
+    },
+    "object": {
+      "title": "2. Objeto y Ámbito de Aplicación",
+      "content": "CREATE es una plataforma SaaS multi-tenant diseñada para la organización, gestión y ejecución de eventos colaborativos como hackatones, bootcamps y sprints de innovación. La plataforma permite a los usuarios (organizadores, participantes, evaluadores) gestionar eventos, equipos, proyectos, entregas y evaluaciones dentro de un ecosistema centralizado.",
+      "scope": "Estos Términos se aplican a todos los usuarios que accedan o utilicen la plataforma CREATE, independientemente del tenant o organización a la que pertenezcan. El uso de la plataforma implica la aceptación plena y sin reservas de estos Términos."
+    },
+    "access": {
+      "title": "3. Condiciones de Acceso y Registro",
+      "intro": "Para utilizar la plataforma CREATE, el usuario debe:",
+      "requirement1": "Ser mayor de edad o contar con autorización de sus padres o tutores legales.",
+      "requirement2": "Proporcionar información veraz, exacta y completa durante el proceso de registro.",
+      "requirement3": "Mantener la confidencialidad de sus credenciales de acceso y ser responsable de todas las actividades realizadas bajo su cuenta.",
+      "requirement4": "Notificar inmediatamente cualquier uso no autorizado de su cuenta o cualquier brecha de seguridad.",
+      "reservation": "El Prestador se reserva el derecho de denegar o revocar el acceso a la plataforma a cualquier usuario que incumpla estos Términos o que, a juicio del Prestador, realice un uso indebido de la misma."
+    },
+    "obligations": {
+      "title": "4. Obligaciones del Usuario",
+      "intro": "El usuario se compromete a:",
+      "item1": "Utilizar la plataforma de conformidad con la ley, estos Términos y las buenas costumbres.",
+      "item2": "No introducir, almacenar o difundir contenidos ilícitos, difamatorios, obscenos, amenazantes o que violen derechos de terceros.",
+      "item3": "No realizar actividades que puedan dañar, inutilizar, sobrecargar o deteriorar la plataforma o los servidores.",
+      "item4": "No intentar acceder a áreas restringidas de la plataforma o a cuentas de otros usuarios.",
+      "item5": "No utilizar la plataforma para fines comerciales no autorizados o para enviar comunicaciones masivas no solicitadas (spam).",
+      "item6": "Respetar los derechos de propiedad intelectual e industrial del Prestador y de terceros.",
+      "item7": "No reproducir, copiar, distribuir o comunicar públicamente el contenido de la plataforma sin autorización expresa."
+    },
+    "intellectual": {
+      "title": "5. Propiedad Intelectual e Industrial",
+      "content": "Todos los derechos de propiedad intelectual e industrial sobre la plataforma CREATE, incluyendo su diseño, código fuente, funcionalidades, marcas, logotipos y contenidos, son propiedad exclusiva de Acceleralia SL o de sus licenciantes. El usuario reconoce que el uso de la plataforma no le confiere ningún derecho de propiedad sobre estos elementos.",
+      "userContent": "El usuario conserva todos los derechos de propiedad intelectual sobre los contenidos que cree, publique o suba a la plataforma (proyectos, ideas, documentos, etc.). No obstante, al utilizar la plataforma, el usuario otorga al Prestador una licencia no exclusiva, mundial y gratuita para utilizar, reproducir, modificar y mostrar dicho contenido únicamente en el contexto de la prestación del servicio.",
+      "tenant": "Los contenidos y datos introducidos por cada tenant (organización cliente) son de su exclusiva propiedad. Acceleralia SL actúa como encargado del tratamiento de dichos datos según lo establecido en la Política de Privacidad y el contrato de servicios correspondiente."
+    },
+    "liability": {
+      "title": "6. Responsabilidad y Limitaciones",
+      "service": "El Prestador se compromete a mantener la plataforma en funcionamiento con la máxima disponibilidad posible. No obstante, no garantiza la ausencia de interrupciones, errores técnicos o fallos en el servicio. El Prestador no será responsable de los daños derivados de la imposibilidad de acceso o uso de la plataforma por causas ajenas a su control.",
+      "content": "El Prestador no se hace responsable de los contenidos, datos o información introducidos por los usuarios en la plataforma. Cada usuario es responsable de la veracidad, exactitud y legalidad de los contenidos que publique. El Prestador se reserva el derecho de eliminar cualquier contenido que considere ilícito, inapropiado o que viole estos Términos.",
+      "limitation": "En la máxima medida permitida por la ley aplicable, el Prestador excluye toda responsabilidad por daños indirectos, lucro cesante, pérdida de datos o cualquier otro perjuicio derivado del uso o la imposibilidad de uso de la plataforma.",
+      "thirdParty": "La plataforma puede contener enlaces a sitios web de terceros. El Prestador no se responsabiliza del contenido, políticas de privacidad o prácticas de dichos sitios externos."
+    },
+    "data": {
+      "title": "7. Protección de Datos Personales",
+      "content": "El tratamiento de datos personales realizado a través de la plataforma CREATE se rige por nuestra Política de Privacidad, que forma parte integrante de estos Términos. El usuario debe leer y aceptar la Política de Privacidad antes de utilizar la plataforma.",
+      "tenant": "En el caso de datos introducidos por tenants (organizaciones cliente), Acceleralia SL actúa como encargado del tratamiento según lo establecido en el Reglamento General de Protección de Datos (RGPD) y el contrato de servicios correspondiente."
+    },
+    "modifications": {
+      "title": "8. Modificaciones de los Términos y del Servicio",
+      "terms": "El Prestador se reserva el derecho de modificar estos Términos en cualquier momento. Las modificaciones entrarán en vigor desde su publicación en la plataforma. El uso continuado de la plataforma tras la publicación de las modificaciones constituye la aceptación de las mismas. Se recomienda revisar periódicamente estos Términos.",
+      "service": "El Prestador se reserva el derecho de modificar, suspender o discontinuar temporal o permanentemente cualquier aspecto de la plataforma, con o sin previo aviso. El Prestador no será responsable ante el usuario o terceros por cualquier modificación, suspensión o discontinuación del servicio."
+    },
+    "termination": {
+      "title": "9. Terminación",
+      "user": "El usuario puede terminar su uso de la plataforma en cualquier momento, eliminando su cuenta o dejando de acceder al servicio. La terminación por parte del usuario no afecta a los derechos u obligaciones que hayan surgido antes de la terminación.",
+      "provider": "El Prestador puede suspender o terminar el acceso del usuario a la plataforma en caso de incumplimiento de estos Términos, actividad fraudulenta, o por cualquier otra razón que justifique dicha medida, con o sin previo aviso.",
+      "data": "Tras la terminación, el Prestador conservará los datos del usuario durante los plazos legalmente establecidos, según se detalla en la Política de Privacidad."
+    },
+    "law": {
+      "title": "10. Legislación Aplicable y Jurisdicción",
+      "content": "Estos Términos se rigen por la legislación española. Para cualquier controversia derivada de la interpretación o ejecución de estos Términos, las partes se someten a los juzgados y tribunales del domicilio del usuario, sin perjuicio de que el Prestador pueda ejercitar acciones ante los juzgados y tribunales del domicilio del Prestador o de cualquier otro que corresponda según la ley aplicable.",
+      "consumer": "Si el usuario actúa como consumidor según la normativa de protección de consumidores, se aplicarán las disposiciones de protección al consumidor de la legislación española y europea, y el usuario podrá acudir a los tribunales de su domicilio o a los mecanismos de resolución de conflictos alternativos disponibles."
+    },
+    "disputes": {
+      "title": "11. Resolución de Conflictos",
+      "content": "En caso de controversia, las partes se comprometen a intentar resolverla de forma amistosa. Si no fuera posible, y siempre que el usuario actúe como consumidor, podrá acudir a la plataforma europea de resolución de conflictos en línea disponible en:",
+      "mediation": "Asimismo, las partes pueden acudir a los servicios de mediación, arbitraje o conciliación disponibles según la legislación aplicable."
+    },
+    "contact": {
+      "title": "12. Contacto y Comunicaciones",
+      "content": "Para cualquier consulta, reclamación o comunicación relacionada con estos Términos o con la plataforma CREATE, el usuario puede contactar con el Prestador a través de:",
+      "email": "Correo electrónico:",
+      "acceptance": "Al utilizar la plataforma CREATE, el usuario acepta recibir comunicaciones electrónicas relacionadas con el servicio, incluyendo notificaciones, actualizaciones y mensajes administrativos."
+    },
+    "acceptance": {
+      "title": "13. Aceptación de los Términos",
+      "content": "El acceso y uso de la plataforma CREATE implica la aceptación plena e incondicional de estos Términos y Condiciones de Uso. Si el usuario no está de acuerdo con alguna de las disposiciones contenidas en estos Términos, debe abstenerse de utilizar la plataforma.",
+      "modifications": "El Prestador se reserva el derecho de actualizar estos Términos periódicamente. Se recomienda al usuario revisar esta página de forma regular para estar informado de cualquier cambio."
+    },
+    "lastUpdate": "Fecha de la última actualización:"
   }
 }

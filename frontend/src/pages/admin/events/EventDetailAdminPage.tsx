@@ -53,6 +53,10 @@ import {
   createRubric,
   updateRubric,
   deleteRubric,
+  getProjectRubrics,
+  createProjectRubric,
+  updateProjectRubric,
+  deleteProjectRubric,
   updateEvent,
   type Phase,
   type Task,
@@ -190,6 +194,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
   const rubricForm = useForm<RubricFormValues>({
     resolver: zodResolver(rubricSchema),
     defaultValues: {
+      rubric_scope: 'phase',
       phase_id: phases[0]?.id ?? 0,
       name: '',
       description: '',
@@ -338,6 +343,42 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
     onError: () => toast.error(t('common.error'))
   });
 
+  // Mutaciones de rúbricas de proyecto
+  const createProjectRubricMutation = useMutation({
+    mutationFn: (payload: RubricPayload) => createProjectRubric(eventId, payload),
+    onSuccess: () => {
+      toast.success(t('events.rubricCreated'));
+      resetRubricForm();
+      setIsRubricModalOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+    },
+    onError: () => toast.error(t('common.error'))
+  });
+
+  const updateProjectRubricMutation = useMutation({
+    mutationFn: ({ rubricId, payload }: { rubricId: number; payload: Partial<RubricPayload> }) =>
+      updateProjectRubric(eventId, rubricId, payload),
+    onSuccess: () => {
+      toast.success(t('events.rubricUpdated'));
+      resetRubricForm();
+      setIsRubricModalOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+    },
+    onError: () => toast.error(t('common.error'))
+  });
+
+  const deleteProjectRubricMutation = useMutation({
+    mutationFn: (rubricId: number) => deleteProjectRubric(eventId, rubricId),
+    onSuccess: () => {
+      toast.success(t('events.rubricDeleted'));
+      if (editingRubric?.id) {
+        resetRubricForm();
+      }
+      void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+    },
+    onError: () => toast.error(t('common.error'))
+  });
+
   // Query de equipos
   const { data: teams, isLoading: isLoadingTeams } = useQuery<Team[]>({
     queryKey: ['teams', eventId],
@@ -374,6 +415,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
   const resetRubricForm = () => {
     rubricForm.reset({
+      rubric_scope: 'phase',
       phase_id: phases[0]?.id ?? 0,
       name: '',
       description: '',
@@ -464,7 +506,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
     if (rubric) {
       setEditingRubric(rubric);
       rubricForm.reset({
-        phase_id: rubric.phase_id,
+        rubric_scope: rubric.rubric_scope ?? 'phase',
+        phase_id: rubric.phase_id ?? (phases[0]?.id ?? 0),
         name: rubric.name,
         description: rubric.description ?? '',
         scale_min: rubric.scale_min ?? 0,
@@ -554,6 +597,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
   const onSubmitRubric = (values: RubricFormValues) => {
     const payload: RubricPayload = {
+      rubric_scope: values.rubric_scope,
       name: values.name,
       description: values.description || undefined,
       scale_min: Number.isNaN(values.scale_min) ? undefined : values.scale_min,
@@ -568,17 +612,30 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
       }))
     };
 
+    const isProject = values.rubric_scope === 'project';
+
     if (editingRubric) {
-      updateRubricMutation.mutate({
-        phaseId: values.phase_id,
-        rubricId: editingRubric.id,
-        payload
-      });
+      if (isProject) {
+        updateProjectRubricMutation.mutate({
+          rubricId: editingRubric.id,
+          payload
+        });
+      } else {
+        updateRubricMutation.mutate({
+          phaseId: values.phase_id ?? 0,
+          rubricId: editingRubric.id,
+          payload
+        });
+      }
     } else {
-      createRubricMutation.mutate({
-        phaseId: values.phase_id,
-        payload
-      });
+      if (isProject) {
+        createProjectRubricMutation.mutate(payload);
+      } else {
+        createRubricMutation.mutate({
+          phaseId: values.phase_id ?? 0,
+          payload
+        });
+      }
     }
   };
 
@@ -620,13 +677,22 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
   const rubricMap = useMemo(() => new Map(rubrics.map(rubric => [rubric.id, rubric])), [rubrics]);
 
   const rubricsGroupedByPhase = useMemo(() => {
-    const grouped = new Map<number, PhaseRubric[]>();
+    const grouped = new Map<number | 'project', PhaseRubric[]>();
     rubrics.forEach(rubric => {
-      const existing = grouped.get(rubric.phase_id) ?? [];
+      const key = rubric.rubric_scope === 'project' ? 'project' : (rubric.phase_id ?? 0);
+      const existing = grouped.get(key) ?? [];
       existing.push(rubric);
-      grouped.set(rubric.phase_id, existing);
+      grouped.set(key, existing);
     });
     return grouped;
+  }, [rubrics]);
+
+  const projectRubrics = useMemo(() => {
+    return rubrics.filter(r => r.rubric_scope === 'project');
+  }, [rubrics]);
+
+  const phaseRubrics = useMemo(() => {
+    return rubrics.filter(r => r.rubric_scope === 'phase');
   }, [rubrics]);
 
   const primaryColor = branding.primaryColor || 'hsl(var(--primary))';
@@ -869,70 +935,129 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('events.rubricsTitle')}</CardTitle>
-              <Button onClick={() => handleOpenRubricModal()} disabled={phases.length === 0}>
+              <Button onClick={() => handleOpenRubricModal()}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t('common.add')}
               </Button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {sortedPhases.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t('events.rubricsEmptyPhases')}</p>
-              ) : (
-                sortedPhases.map(phase => {
-                  const phaseRubrics = rubricsGroupedByPhase.get(phase.id) ?? [];
-                  return (
-                    <div key={phase.id} className="space-y-2 rounded-lg border border-border/70 p-4">
-                      <p className="text-sm font-semibold text-foreground">{phase.name}</p>
-                      {phaseRubrics.length ? (
-                        <div className="space-y-3">
-                          {phaseRubrics.map(rubric => (
-                            <div key={rubric.id} className="rounded-md border border-border/60 p-3">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-foreground">{rubric.name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {t('events.rubricScaleSummary', { min: rubric.scale_min ?? 0, max: rubric.scale_max ?? 100 })}
-                                  </p>
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => handleOpenRubricModal(rubric)}>
-                                    {t('events.rubricEdit')}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => {
-                                      if (confirm(t('events.confirmDeleteRubric'))) {
-                                        deleteRubricMutation.mutate({ phaseId: rubric.phase_id, rubricId: rubric.id });
-                                      }
-                                    }}
-                                  >
-                                    {t('events.rubricDelete')}
-                                  </Button>
-                                </div>
-                              </div>
-                              {rubric.description && (
-                                <p className="mt-2 text-xs text-muted-foreground">{rubric.description}</p>
-                              )}
-                              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                                {rubric.criteria.map(criterion => (
-                                  <li key={criterion.id}>
-                                    <span className="font-semibold text-foreground">{criterion.title}</span>{' '}
-                                    · {t('events.rubricWeightLabel', { weight: criterion.weight ?? 1 })}
-                                    {criterion.max_score ? ` · ${t('events.rubricMaxScoreLabel', { score: criterion.max_score })}` : ''}
-                                    {criterion.description ? ` — ${criterion.description}` : ''}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
+            <CardContent className="space-y-6">
+              {/* Rúbricas de proyecto */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{t('events.projectRubrics')}</p>
+                {projectRubrics.length ? (
+                  <div className="space-y-3">
+                    {projectRubrics.map(rubric => (
+                      <div key={rubric.id} className="rounded-md border border-border/60 p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-foreground">{rubric.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t('events.rubricScaleSummary', { min: rubric.scale_min ?? 0, max: rubric.scale_max ?? 100 })}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleOpenRubricModal(rubric)}>
+                              {t('events.rubricEdit')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm(t('events.confirmDeleteRubric'))) {
+                                  deleteProjectRubricMutation.mutate(rubric.id);
+                                }
+                              }}
+                            >
+                              {t('events.rubricDelete')}
+                            </Button>
+                          </div>
                         </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{t('events.noRubricsPhase')}</p>
-                      )}
-                    </div>
-                  );
-                })
+                        {rubric.description && (
+                          <p className="mt-2 text-xs text-muted-foreground">{rubric.description}</p>
+                        )}
+                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {rubric.criteria.map(criterion => (
+                            <li key={criterion.id}>
+                              <span className="font-semibold text-foreground">{criterion.title}</span>{' '}
+                              · {t('events.rubricWeightLabel', { weight: criterion.weight ?? 1 })}
+                              {criterion.max_score ? ` · ${t('events.rubricMaxScoreLabel', { score: criterion.max_score })}` : ''}
+                              {criterion.description ? ` — ${criterion.description}` : ''}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{t('events.noProjectRubrics')}</p>
+                )}
+              </div>
+
+              {/* Rúbricas por fase */}
+              {sortedPhases.length === 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">{t('events.phaseRubrics')}</p>
+                  <p className="text-sm text-muted-foreground">{t('events.rubricsEmptyPhases')}</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm font-semibold text-foreground">{t('events.phaseRubrics')}</p>
+                  {sortedPhases.map(phase => {
+                    const phaseRubricsList = rubricsGroupedByPhase.get(phase.id) ?? [];
+                    return (
+                      <div key={phase.id} className="space-y-2 rounded-lg border border-border/70 p-4">
+                        <p className="text-sm font-semibold text-foreground">{phase.name}</p>
+                        {phaseRubricsList.length ? (
+                          <div className="space-y-3">
+                            {phaseRubricsList.map(rubric => (
+                              <div key={rubric.id} className="rounded-md border border-border/60 p-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium text-foreground">{rubric.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {t('events.rubricScaleSummary', { min: rubric.scale_min ?? 0, max: rubric.scale_max ?? 100 })}
+                                    </p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" onClick={() => handleOpenRubricModal(rubric)}>
+                                      {t('events.rubricEdit')}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() => {
+                                        if (confirm(t('events.confirmDeleteRubric'))) {
+                                          deleteRubricMutation.mutate({ phaseId: rubric.phase_id ?? 0, rubricId: rubric.id });
+                                        }
+                                      }}
+                                    >
+                                      {t('events.rubricDelete')}
+                                    </Button>
+                                  </div>
+                                </div>
+                                {rubric.description && (
+                                  <p className="mt-2 text-xs text-muted-foreground">{rubric.description}</p>
+                                )}
+                                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                  {rubric.criteria.map(criterion => (
+                                    <li key={criterion.id}>
+                                      <span className="font-semibold text-foreground">{criterion.title}</span>{' '}
+                                      · {t('events.rubricWeightLabel', { weight: criterion.weight ?? 1 })}
+                                      {criterion.max_score ? ` · ${t('events.rubricMaxScoreLabel', { score: criterion.max_score })}` : ''}
+                                      {criterion.description ? ` — ${criterion.description}` : ''}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">{t('events.noRubricsPhase')}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -1203,7 +1328,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                 onRemoveCriterion={criteriaArray.remove}
                 onSubmit={onSubmitRubric}
                 onCancelEdit={resetRubricForm}
-                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending}
+                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
                 isEditing={Boolean(editingRubric)}
                 hideSubmitButton={true}
                 sections={['basic']}
@@ -1226,7 +1351,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                 onRemoveCriterion={criteriaArray.remove}
                 onSubmit={onSubmitRubric}
                 onCancelEdit={resetRubricForm}
-                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending}
+                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
                 isEditing={Boolean(editingRubric)}
                 hideSubmitButton={true}
                 sections={['criteria']}
@@ -1239,9 +1364,9 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
             </Button>
             <Button
               onClick={rubricForm.handleSubmit(onSubmitRubric)}
-              disabled={createRubricMutation.isPending || updateRubricMutation.isPending}
+              disabled={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
             >
-              {createRubricMutation.isPending || updateRubricMutation.isPending
+              {createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending
                 ? t('common.loading')
                 : editingRubric
                   ? t('common.update')

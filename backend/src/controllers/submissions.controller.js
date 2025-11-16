@@ -69,6 +69,9 @@ export class SubmissionsController {
         if (!membership) {
           throw Object.assign(new Error('No perteneces a un equipo en este evento'), { statusCode: 403 });
         }
+        if (membership.role !== 'captain') {
+          throw Object.assign(new Error('Solo el capitán del equipo puede hacer entregas'), { statusCode: 403 });
+        }
         teamId = membership.team.id;
       }
 

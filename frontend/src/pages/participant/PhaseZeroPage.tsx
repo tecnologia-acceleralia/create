@@ -197,6 +197,8 @@ function PhaseZeroView({
     return initialSet;
   });
 
+  const [isPhaseContextExpanded, setIsPhaseContextExpanded] = useState(true);
+
   useEffect(() => {
     const newExpandedSet = new Set<number>();
     for (const task of activeTasks) {
@@ -221,25 +223,50 @@ function PhaseZeroView({
     <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
       <div className="space-y-6">
         {activePhase?.intro_html ? (
-          <div
-            className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6"
-            dangerouslySetInnerHTML={{ __html: activePhase.intro_html }}
-          />
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 flex-1">
+                <button
+                  onClick={() => setIsPhaseContextExpanded(!isPhaseContextExpanded)}
+                  className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
+                  aria-label={isPhaseContextExpanded ? t('common.collapse') : t('common.expand')}
+                >
+                  {isPhaseContextExpanded ? (
+                    <Minus className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">
+                    Fase
+                  </p>
+                  <p className="text-base font-semibold text-foreground">{activePhase.name}</p>
+                  {(activePhase.start_date || activePhase.end_date) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatDateRange(locale, activePhase.start_date ?? null, activePhase.end_date ?? null) ?? t('events.taskPeriodNotSet')}
+                    </p>
+                  )}
+                  {isPhaseContextExpanded && (
+                    <div
+                      className="prose prose-sm max-w-none mt-3"
+                      dangerouslySetInnerHTML={{ __html: activePhase.intro_html }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         ) : null}
-        <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link to={tenantPath(`dashboard/events/${eventDetail.id}/team#projects-list`)}>
-              {t('teams.viewTeams')}
-            </Link>
-          </Button>
-          {isParticipantOnly && !hasTeam ? (
+        {isParticipantOnly && !hasTeam ? (
+          <div className="flex flex-wrap gap-3">
             <Button asChild variant="outline">
               <Link to={tenantPath(`dashboard/events/${eventDetail.id}/team#projects-create`)}>
                 {t('teams.createTeam')}
               </Link>
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         <div className="space-y-4">
           {activeTasks.map(task => {
@@ -254,16 +281,19 @@ function PhaseZeroView({
                   <div className="flex items-start gap-2 flex-1">
                     <button
                       onClick={() => toggleTask(task.id)}
-                      className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                      className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
                       aria-label={isExpanded ? t('common.collapse') : t('common.expand')}
                     >
                       {isExpanded ? (
-                        <Minus className="h-5 w-5" aria-hidden="true" />
+                        <Minus className="h-4 w-4" aria-hidden="true" />
                       ) : (
-                        <Plus className="h-5 w-5" aria-hidden="true" />
+                        <Plus className="h-4 w-4" aria-hidden="true" />
                       )}
                     </button>
                     <div className="flex-1">
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">
+                        Actividad
+                      </p>
                       <p className="text-base font-semibold text-foreground">{task.title}</p>
                       {hasValidDates && (
                         <p className="text-xs text-muted-foreground mt-1">

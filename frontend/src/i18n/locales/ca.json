@@ -202,6 +202,14 @@
     "rubricWeightLabel": "Pes {{weight}}",
     "rubricMaxScoreLabel": "Màx. {{score}}",
     "noRubricsPhase": "Encara no hi ha rúbriques configurades per a aquesta fase.",
+    "rubricScope": "Abast de la rúbrica",
+    "rubricScopePhase": "Fase",
+    "rubricScopeProject": "Projecte complet",
+    "projectRubrics": "Rúbriques de projecte",
+    "phaseRubrics": "Rúbriques per fase",
+    "noProjectRubrics": "Encara no hi ha rúbriques de projecte configurades.",
+    "rubricPhaseRequired": "Les rúbriques de fase requereixen seleccionar una fase",
+    "rubricProjectNoPhase": "Les rúbriques de projecte no han de tenir fase assignada",
     "taskMaxFiles": "Màxim d'arxius",
     "taskMaxFileSize": "Mida màxima (MB)",
     "taskAllowedMimes": "Tipus MIME permesos (separats per comes)",
@@ -428,7 +436,9 @@
     "filesNotAllowed": "Aquesta tasca no permet pujar arxius.",
     "maxFilesReached": "Has arribat al màxim de {{count}} arxius permesos.",
     "fileTooLarge": "{{name}} supera la mida màxima de {{size}} MB.",
-    "fileTypeNotAllowed": "{{name}} té un tipus d'arxiu no permès."
+    "fileTypeNotAllowed": "{{name}} té un tipus d'arxiu no permès.",
+    "onlyCaptainCanSubmit": "Només el capità de l'equip pot fer entregues.",
+    "notTeamCaptain": "No ets capità d'un equip en aquest esdeveniment. Només els capitans poden registrar entregues."
   },
   "evaluations": {
     "add": "Afegir avaluació",
@@ -768,5 +778,248 @@
       "inactive": "Inactiu",
       "invited": "Convidat"
     }
+  },
+  "cookies": {
+    "title": "Política de Cookies",
+    "subtitle": "Informació sobre l'ús de cookies i tecnologies similars",
+    "intro": "A Acceleralia SL (en endavant, el \"Responsable\"), utilitzem cookies i tecnologies similars per millorar la vostra experiència a la nostra plataforma CREATE. Aquesta Política de Cookies explica què són les cookies, quins tipus utilitzem i com podeu gestionar-les.",
+    "whatAre": {
+      "title": "1. Què són les cookies?",
+      "content": "Les cookies són petits fitxers de text que s'emmagatzemen al vostre dispositiu (ordinador, tauleta o mòbil) quan visiteu un lloc web. En el nostre cas, utilitzem principalment l'emmagatzematge local del navegador per guardar informació necessària per al funcionament de la plataforma."
+    },
+    "types": {
+      "title": "2. Tipus de cookies que utilitzem",
+      "intro": "Utilitzem exclusivament cookies tècniques necessàries per al funcionament de la plataforma. Aquestes cookies són essencials perquè pugueu accedir i utilitzar els serveis que oferim.",
+      "auth": {
+        "title": "Cookies d'Autenticació i Sessió",
+        "purpose": "Propòsit:",
+        "purposeContent": "Aquestes cookies són necessàries per mantenir la vostra sessió activa i permetre-us accedir a les àrees privades de la plataforma. Emmagatzemen informació d'identificació de sessió de forma segura.",
+        "duration": "Durada:",
+        "durationContent": "Persistent fins que tanqueu sessió o expiri la sessió de forma automàtica per seguretat.",
+        "type": "Tipus:",
+        "typeContent": "Tècnica necessària"
+      },
+      "preferences": {
+        "title": "Cookies de Preferències i Configuració",
+        "purpose": "Propòsit:",
+        "purposeContent": "Aquestes cookies emmagatzemen informació sobre les vostres preferències i configuracions de la plataforma, com la personalització visual i les preferències d'idioma, per millorar la vostra experiència d'usuari.",
+        "duration": "Durada:",
+        "durationContent": "Temporal, es renova periòdicament per mantenir la informació actualitzada.",
+        "type": "Tipus:",
+        "typeContent": "Tècnica necessària"
+      }
+    },
+    "thirdParty": {
+      "title": "3. Cookies de tercers",
+      "content": "Actualment, la nostra plataforma no utilitza cookies de tercers per seguiment, anàlisi o publicitat. Els serveis externs que utilitzem per a funcionalitats específiques no instal·len cookies al vostre dispositiu."
+    },
+    "management": {
+      "title": "4. Gestió de cookies",
+      "content": "Podeu gestionar o eliminar les cookies emmagatzemades al vostre navegador a través de la configuració del mateix. A continuació, us indiquem com fer-ho als navegadors més comuns:",
+      "chrome": "Configuració → Privacitat i seguretat → Cookies i altres dades de llocs → Veure totes les cookies i dades de llocs",
+      "firefox": "Opcions → Privacitat i seguretat → Cookies i dades del lloc → Gestionar dades",
+      "edge": "Configuració → Cookies i permisos de lloc → Cookies i dades de lloc → Veure totes les cookies i dades de lloc",
+      "safari": "Preferències → Privacitat → Gestionar dades de llocs web",
+      "warning": "Important:",
+      "warningContent": "Si elimineu les cookies d'autenticació, haureu d'iniciar sessió novament a la plataforma. L'eliminació de les cookies de preferències només afectarà la personalització de la vostra experiència."
+    },
+    "consent": {
+      "title": "5. Consentiment",
+      "content": "En utilitzar la nostra plataforma, accepteu l'ús de cookies tècniques necessàries per al funcionament del servei. Aquestes cookies no requereixen consentiment previ segons la normativa europea (Directiva ePrivacy i RGPD), ja que són estrictament necessàries per a la prestació del servei sol·licitat."
+    },
+    "updates": {
+      "title": "6. Actualitzacions d'aquesta política",
+      "content": "Ens reservem el dret d'actualitzar aquesta Política de Cookies en qualsevol moment. Us recomanem que reviseu aquesta pàgina periòdicament per estar informat sobre qualsevol canvi. La data de l'última actualització s'indica al final d'aquesta política."
+    },
+    "contact": {
+      "title": "7. Contacte",
+      "content": "Si teniu alguna pregunta sobre la nostra Política de Cookies, podeu contactar-nos a:",
+      "email": "Correu electrònic:"
+    },
+    "lastUpdate": "Data de l'última actualització:"
+  },
+  "privacy": {
+    "title": "Política de Privacitat",
+    "subtitle": "Informació sobre el tractament de dades personals",
+    "intro": "A Acceleralia SL (en endavant, el \"Responsable\"), estem compromesos amb la protecció de les dades personals dels nostres usuaris. Aquesta Política de Privacitat descriu com recollim, utilitzem i tractem la vostra informació personal en el marc de la prestació del nostre servei SaaS.",
+    "controller": {
+      "title": "1. Identitat del Responsable del Tractament",
+      "company": "Raó Social:",
+      "nif": "NIF:",
+      "address": "Domicili Social:",
+      "email": "Correu Electrònic de Contacte:"
+    },
+    "purposes": {
+      "title": "2. Finals del Tractament i Base de Legitimació",
+      "intro": "Les dades que ens faciliteu es tracten amb les següents finalitats i sota les bases legals indicades a l'Art. 6 del RGPD:",
+      "purpose1": "Finalitat:",
+      "purpose1Content": "Gestió del registre d'usuari i la prestació del servei SaaS (accés, manteniment del compte i ús de les funcionalitats, com l'edició de projectes i idees per a concursos).",
+      "legalBasis1": "Base Legal:",
+      "legalBasis1Content": "Execució del contracte (Art. 6.1.b RGPD).",
+      "purpose2": "Finalitat:",
+      "purpose2Content": "Enviament de comunicacions relacionades amb el servei, actualitzacions tècniques o de seguretat.",
+      "legalBasis2": "Base Legal:",
+      "legalBasis2Content": "Interès legítim (Art. 6.1.f RGPD), necessari per al correcte funcionament del servei contractat.",
+      "purpose3": "Finalitat:",
+      "purpose3Content": "Compliment d'obligacions legals i fiscals aplicables al Responsable.",
+      "legalBasis3": "Base Legal:",
+      "legalBasis3Content": "Compliment d'una obligació legal (Art. 6.1.c RGPD).",
+      "purpose4": "Finalitat (si aplica):",
+      "purpose4Content": "Enviament de comunicacions comercials o butlletins informatius sobre els nostres serveis (només si es marca una casella de consentiment específica).",
+      "legalBasis4": "Base Legal:",
+      "legalBasis4Content": "Consentiment de l'interessat (Art. 6.1.a RGPD)."
+    },
+    "categories": {
+      "title": "3. Categories de Dades Personals",
+      "intro": "Les dades recollides directament de l'usuari inclouen:",
+      "identifying": "Dades Identificatives:",
+      "identifyingContent": "Nom, adreça de correu electrònic.",
+      "credentials": "Codis i Claus:",
+      "credentialsContent": "Contrasenyes (emmagatzemades de forma encriptada/hash).",
+      "connection": "Dades de Connexió:",
+      "connectionContent": "Adreça IP, dades d'ús de la plataforma (logs).",
+      "note": "Nota sobre el contingut dels projectes:",
+      "noteContent": "Pel que fa a les dades que el Client introdueix a la plataforma (projectes, idees de concurs, etc.), Acceleralia SL actua com a Encarregat del Tractament. El Client és el Responsable del Tractament d'aquestes dades, i ha de tenir la seva pròpia política de privacitat. Acceleralia SL únicament tracta aquesta informació seguint les instruccions del Client, segons el contracte de serveis o l'Acord d'Encarregat del Tractament signat amb el Client."
+    },
+    "recipients": {
+      "title": "4. Destinataris i Encarregats del Tractament",
+      "processors": "Encarregats del Tractament:",
+      "processorsContent": "Podem compartir les vostres dades amb proveïdors que ens presten serveis necessaris per a l'execució del servei (ex. allotjament web, serveis de comunicació, seguretat), actuant aquests com a encarregats del tractament i sota un contracte que exigeix el compliment del RGPD. (Exemple: Allotjament a Digital Ocean, Europa).",
+      "legal": "Obligació Legal:",
+      "legalContent": "Les vostres dades podran ser cedides a tercers en els casos en què existeixi una obligació legal, com a l'Administració Tributària.",
+      "transfers": "Transferències Internacionals de Dades:",
+      "transfersContent": "Totes les dades personals es processen i emmagatzemen dins de l'Espai Econòmic Europeu (EEE). No es realitzen transferències de dades personals fora de l'EEE."
+    },
+    "retention": {
+      "title": "5. Terminis de Conservació",
+      "content": "Les vostres dades personals es conservaran mentre mantingueu la condició d'usuari registrat a la plataforma. Un cop sol·liciteu la baixa, es bloquejaran i es conservaran durant el termini legalment exigible (generalment 6 anys per normativa fiscal o mercantil), després del qual seran eliminades de forma segura."
+    },
+    "rights": {
+      "title": "6. Exercici de Drets (Drets ARSOPP)",
+      "intro": "Teniu dret a obtenir confirmació sobre si a Acceleralia SL estem tractant dades personals que us concerneixin, i a exercir els següents drets:",
+      "access": "Accés:",
+      "accessContent": "Conèixer quines dades personals vostres estem tractant.",
+      "rectification": "Rectificació:",
+      "rectificationContent": "Sol·licitar la modificació de dades inexactes o incompletes.",
+      "deletion": "Supressió (Dret a l'Oblit):",
+      "deletionContent": "Sol·licitar l'eliminació de les dades quan, entre altres motius, ja no siguin necessàries per als fins que van ser recollides.",
+      "opposition": "Oposició:",
+      "oppositionContent": "Oposar-vos a que tractem les vostres dades per a determinades finalitats.",
+      "limitation": "Limitació:",
+      "limitationContent": "Sol·licitar la limitació del tractament.",
+      "portability": "Portabilitat:",
+      "portabilityContent": "Rebre les dades personals en un format estructurat, d'ús comú i lectura mecànica, i a transmetre-les a un altre responsable.",
+      "exercise": "Podeu exercir aquests drets enviant una sol·licitud a l'adreça de correu electrònic",
+      "exerciseContent": "adjuntant còpia del vostre DNI o document identificatiu equivalent.",
+      "withdrawal": "Teniu dret a retirar el consentiment en qualsevol moment. La retirada del consentiment no afectarà a la licitud del tractament basada en el consentiment previ a la seva retirada."
+    },
+    "authority": {
+      "title": "7. Dret a Reclamar davant l'Autoritat de Control",
+      "content": "Si considereu que Acceleralia SL no ha tramitat correctament els vostres drets o que s'ha vulnerat la normativa de protecció de dades, podeu presentar una reclamació davant l'Agència Espanyola de Protecció de Dades (AEPD), a través de la seva seu electrònica (",
+      "content2": ") o a l'adreça del carrer Jorge Juan, 6, 28001 Madrid."
+    },
+    "security": {
+      "title": "8. Mesures de Seguretat",
+      "content": "Acceleralia SL implementa mesures tècniques i organitzatives apropiades per protegir les vostres dades personals contra l'accés no autoritzat, la pèrdua, destrucció o alteració accidental. Aquestes mesures inclouen el xifratge de dades sensibles, controls d'accés, sistemes de còpia de seguretat i monitoratge continu de la seguretat."
+    },
+    "updates": {
+      "title": "9. Actualitzacions d'aquesta Política",
+      "content": "Ens reservem el dret d'actualitzar aquesta Política de Privacitat en qualsevol moment per reflectir canvis en les nostres pràctiques o en la legislació aplicable. Us recomanem que reviseu aquesta pàgina periòdicament. La data de l'última actualització s'indica al final d'aquesta política."
+    },
+    "contact": {
+      "title": "10. Contacte",
+      "content": "Si teniu alguna pregunta sobre aquesta Política de Privacitat o sobre el tractament de les vostres dades personals, podeu contactar-nos a:",
+      "email": "Correu electrònic:"
+    },
+    "lastUpdate": "Data de l'última actualització:"
+  },
+  "terms": {
+    "title": "Termes i Condicions d'Ús",
+    "subtitle": "Condicions generals d'ús de la plataforma CREATE",
+    "intro": "Els presents Termes i Condicions d'Ús (en endavant, els \"Termes\") regulen l'accés i ús de la plataforma SaaS CREATE, propietat d'Acceleralia SL (en endavant, el \"Prestador\" o \"nosaltres\"). En accedir o utilitzar la plataforma, accepteu estar subjecte a aquests Termes. Si no esteu d'acord amb alguna part d'aquests Termes, no heu d'utilitzar la plataforma.",
+    "provider": {
+      "title": "1. Identificació del Prestador del Servei",
+      "company": "Raó Social:",
+      "nif": "NIF:",
+      "address": "Domicili Social:",
+      "email": "Correu Electrònic:",
+      "registry": "Registre Mercantil:"
+    },
+    "object": {
+      "title": "2. Objecte i Àmbit d'Aplicació",
+      "content": "CREATE és una plataforma SaaS multi-tenant dissenyada per a l'organització, gestió i execució d'esdeveniments col·laboratius com hackatons, bootcamps i sprints d'innovació. La plataforma permet als usuaris (organitzadors, participants, avaluadors) gestionar esdeveniments, equips, projectes, lliuraments i avaluacions dins d'un ecosistema centralitzat.",
+      "scope": "Aquests Termes s'apliquen a tots els usuaris que accedeixin o utilitzin la plataforma CREATE, independentment del tenant o organització a la qual pertanyin. L'ús de la plataforma implica l'acceptació plena i sense reserves d'aquests Termes."
+    },
+    "access": {
+      "title": "3. Condicions d'Accés i Registre",
+      "intro": "Per utilitzar la plataforma CREATE, l'usuari ha de:",
+      "requirement1": "Ser major d'edat o comptar amb autorització dels seus pares o tutors legals.",
+      "requirement2": "Proporcionar informació verídica, exacta i completa durant el procés de registre.",
+      "requirement3": "Mantenir la confidencialitat de les seves credencials d'accés i ser responsable de totes les activitats realitzades sota el seu compte.",
+      "requirement4": "Notificar immediatament qualsevol ús no autoritzat del seu compte o qualsevol brecha de seguretat.",
+      "reservation": "El Prestador es reserva el dret de denegar o revocar l'accés a la plataforma a qualsevol usuari que incompleixi aquests Termes o que, a judici del Prestador, realitzi un ús indegut de la mateixa."
+    },
+    "obligations": {
+      "title": "4. Obligacions de l'Usuari",
+      "intro": "L'usuari es compromet a:",
+      "item1": "Utilitzar la plataforma de conformitat amb la llei, aquests Termes i les bones costums.",
+      "item2": "No introduir, emmagatzemar o difondre continguts il·lícits, difamatoris, obscens, amenaçadors o que violin drets de tercers.",
+      "item3": "No realitzar activitats que puguin danyar, inutilitzar, sobrecarregar o deteriorar la plataforma o els servidors.",
+      "item4": "No intentar accedir a àrees restringides de la plataforma o a comptes d'altres usuaris.",
+      "item5": "No utilitzar la plataforma per a fins comercials no autoritzats o per enviar comunicacions massives no sol·licitades (spam).",
+      "item6": "Respectar els drets de propietat intel·lectual i industrial del Prestador i de tercers.",
+      "item7": "No reproduir, copiar, distribuir o comunicar públicament el contingut de la plataforma sense autorització expressa."
+    },
+    "intellectual": {
+      "title": "5. Propietat Intel·lectual i Industrial",
+      "content": "Tots els drets de propietat intel·lectual i industrial sobre la plataforma CREATE, incloent el seu disseny, codi font, funcionalitats, marques, logotips i continguts, són propietat exclusiva d'Acceleralia SL o dels seus llicenciants. L'usuari reconeix que l'ús de la plataforma no li confereix cap dret de propietat sobre aquests elements.",
+      "userContent": "L'usuari conserva tots els drets de propietat intel·lectual sobre els continguts que creï, publiqui o pugi a la plataforma (projectes, idees, documents, etc.). No obstant això, en utilitzar la plataforma, l'usuari atorga al Prestador una llicència no exclusiva, mundial i gratuïta per utilitzar, reproduir, modificar i mostrar dit contingut únicament en el context de la prestació del servei.",
+      "tenant": "Els continguts i dades introduïts per cada tenant (organització client) són de la seva exclusiva propietat. Acceleralia SL actua com a encarregat del tractament de dites dades segons el que s'estableix a la Política de Privacitat i el contracte de serveis corresponent."
+    },
+    "liability": {
+      "title": "6. Responsabilitat i Limitacions",
+      "service": "El Prestador es compromet a mantenir la plataforma en funcionament amb la màxima disponibilitat possible. No obstant això, no garanteix l'absència d'interrupcions, errors tècnics o fallades en el servei. El Prestador no serà responsable dels danys derivats de la impossibilitat d'accés o ús de la plataforma per causes alienes al seu control.",
+      "content": "El Prestador no es fa responsable dels continguts, dades o informació introduïts pels usuaris a la plataforma. Cada usuari és responsable de la veracitat, exactitud i legalitat dels continguts que publiqui. El Prestador es reserva el dret d'eliminar qualsevol contingut que consideri il·lícit, inadequat o que violi aquests Termes.",
+      "limitation": "En la màxima mesura permesa per la llei aplicable, el Prestador exclou tota responsabilitat per danys indirectes, lucre cessant, pèrdua de dades o qualsevol altre perjudici derivat de l'ús o la impossibilitat d'ús de la plataforma.",
+      "thirdParty": "La plataforma pot contenir enllaços a llocs web de tercers. El Prestador no es responsabilitza del contingut, polítiques de privacitat o pràctiques d'aquests llocs externs."
+    },
+    "data": {
+      "title": "7. Protecció de Dades Personals",
+      "content": "El tractament de dades personals realitzat a través de la plataforma CREATE es regeix per la nostra Política de Privacitat, que forma part integrant d'aquests Termes. L'usuari ha de llegir i acceptar la Política de Privacitat abans d'utilitzar la plataforma.",
+      "tenant": "En el cas de dades introduïdes per tenants (organitzacions client), Acceleralia SL actua com a encarregat del tractament segons el que s'estableix al Reglament General de Protecció de Dades (RGPD) i el contracte de serveis corresponent."
+    },
+    "modifications": {
+      "title": "8. Modificacions dels Termes i del Servei",
+      "terms": "El Prestador es reserva el dret de modificar aquests Termes en qualsevol moment. Les modificacions entraran en vigor des de la seva publicació a la plataforma. L'ús continuat de la plataforma després de la publicació de les modificacions constitueix l'acceptació de les mateixes. Es recomana revisar periòdicament aquests Termes.",
+      "service": "El Prestador es reserva el dret de modificar, suspendre o discontinuar temporal o permanentment qualsevol aspecte de la plataforma, amb o sense previ avís. El Prestador no serà responsable davant l'usuari o tercers per qualsevol modificació, suspensió o discontinuació del servei."
+    },
+    "termination": {
+      "title": "9. Terminació",
+      "user": "L'usuari pot terminar el seu ús de la plataforma en qualsevol moment, eliminant el seu compte o deixant d'accedir al servei. La terminació per part de l'usuari no afecta als drets o obligacions que hagin sorgit abans de la terminació.",
+      "provider": "El Prestador pot suspendre o terminar l'accés de l'usuari a la plataforma en cas d'incompliment d'aquests Termes, activitat fraudulenta, o per qualsevol altra raó que justifiqui dita mesura, amb o sense previ avís.",
+      "data": "Després de la terminació, el Prestador conservarà les dades de l'usuari durant els terminis legalment establerts, segons es detalla a la Política de Privacitat."
+    },
+    "law": {
+      "title": "10. Legislació Aplicable i Jurisdicció",
+      "content": "Aquests Termes es regeixen per la legislació espanyola. Per a qualsevol controvèrsia derivada de la interpretació o execució d'aquests Termes, les parts es someten als jutjats i tribunals del domicili de l'usuari, sense perjudici que el Prestador pugui exercitar accions davant els jutjats i tribunals del domicili del Prestador o de qualsevol altre que correspongui segons la llei aplicable.",
+      "consumer": "Si l'usuari actua com a consumidor segons la normativa de protecció de consumidors, s'aplicaran les disposicions de protecció al consumidor de la legislació espanyola i europea, i l'usuari podrà acudir als tribunals del seu domicili o als mecanismes de resolució de conflictes alternatius disponibles."
+    },
+    "disputes": {
+      "title": "11. Resolució de Conflictes",
+      "content": "En cas de controvèrsia, les parts es comprometen a intentar resoldre-la de forma amistosa. Si no fos possible, i sempre que l'usuari actuï com a consumidor, podrà acudir a la plataforma europea de resolució de conflictes en línia disponible a:",
+      "mediation": "Així mateix, les parts poden acudir als serveis de mediació, arbitratge o conciliació disponibles segons la legislació aplicable."
+    },
+    "contact": {
+      "title": "12. Contacte i Comunicacions",
+      "content": "Per a qualsevol consulta, reclamació o comunicació relacionada amb aquests Termes o amb la plataforma CREATE, l'usuari pot contactar amb el Prestador a través de:",
+      "email": "Correu electrònic:",
+      "acceptance": "En utilitzar la plataforma CREATE, l'usuari accepta rebre comunicacions electròniques relacionades amb el servei, incloent notificacions, actualitzacions i missatges administratius."
+    },
+    "acceptance": {
+      "title": "13. Acceptació dels Termes",
+      "content": "L'accés i ús de la plataforma CREATE implica l'acceptació plena i incondicional d'aquests Termes i Condicions d'Ús. Si l'usuari no està d'acord amb alguna de les disposicions contingudes en aquests Termes, ha d'abstenir-se d'utilitzar la plataforma.",
+      "modifications": "El Prestador es reserva el dret d'actualitzar aquests Termes periòdicament. Es recomana a l'usuari revisar aquesta pàgina de forma regular per estar informat de qualsevol canvi."
+    },
+    "lastUpdate": "Data de l'última actualització:"
   }
 }

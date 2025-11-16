@@ -19,7 +19,7 @@ export async function up(queryInterface) {
   }
 
   const [[adminUser]] = await queryInterface.sequelize.query(
-    "SELECT id FROM users WHERE email = 'admin@uic.cat' LIMIT 1"
+    "SELECT id FROM users WHERE email = 'admin@uic.es' LIMIT 1"
   );
 
   if (!adminUser) {
@@ -45,28 +45,28 @@ export async function up(queryInterface) {
         {
           title: 'Claridad y definición de la idea',
           description: 'La idea de negocio está claramente definida y es comprensible. Se describe de manera concisa el concepto, el problema que resuelve y la solución propuesta.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 1
         },
         {
           title: 'Identificación del mercado objetivo',
           description: 'Se identifica claramente el mercado objetivo, incluyendo segmentación de clientes y necesidades específicas que se pretenden satisfacer.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Modelo de negocio inicial',
           description: 'Se presenta un modelo de negocio inicial coherente, aunque sea básico, que explique cómo se generará valor y se capturará ingresos.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Composición y complementariedad del equipo',
           description: 'El equipo está formado correctamente (mínimo 3 miembros, máximo 5) y muestra complementariedad de perfiles y habilidades necesarias para el proyecto.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 4
         }
@@ -79,28 +79,28 @@ export async function up(queryInterface) {
         {
           title: 'Análisis de mercado y fuerzas de Porter',
           description: 'Análisis completo y riguroso de las cinco fuerzas de Porter (poder de clientes, proveedores, amenaza de sustitutivos, nuevos competidores y rivalidad). Identificación clara de oportunidades y amenazas competitivas.',
-          weight: 1.0,
+          weight: 1,
           max_score: 30,
           order_index: 1
         },
         {
           title: 'Análisis PESTEL',
           description: 'Evaluación exhaustiva de factores políticos, económicos, socioculturales, tecnológicos, ecológicos y legales relevantes para el proyecto. Identificación de impactos potenciales y acciones preventivas.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Análisis DAFO',
           description: 'Identificación precisa de fortalezas, debilidades, oportunidades y amenazas. Priorización de hallazgos relevantes y definición de estrategias accionables basadas en el análisis.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Integración y coherencia del análisis',
           description: 'Los diferentes análisis (Porter, PESTEL, DAFO) están integrados y muestran coherencia. Se identifican conexiones entre los diferentes elementos y se derivan conclusiones estratégicas claras.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -113,28 +113,28 @@ export async function up(queryInterface) {
         {
           title: 'Cálculo de TAM (Total Available Market)',
           description: 'Estimación precisa del mercado total disponible, con fuentes de datos confiables y metodología clara. Incluye análisis de barreras que limitan el acceso al mercado.',
-          weight: 1.0,
+          weight: 1,
           max_score: 30,
           order_index: 1
         },
         {
           title: 'Cálculo de SAM (Serviceable Available Market)',
           description: 'Identificación correcta del segmento de mercado que puede ser atendido con la propuesta actual. Justificación clara de las limitaciones que definen el SAM.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Cálculo de SOM (Serviceable Obtainable Market)',
           description: 'Estimación realista de la participación de mercado alcanzable a corto plazo. Incluye análisis de capacidad operativa, recursos disponibles y estrategia de entrada.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Metodología y fuentes de datos',
           description: 'Uso de metodologías apropiadas para la cuantificación. Fuentes de datos confiables y actualizadas. Documentación clara de los cálculos y supuestos utilizados.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -147,28 +147,28 @@ export async function up(queryInterface) {
         {
           title: 'Definición de la propuesta de valor',
           description: 'La propuesta de valor está claramente articulada, conectando el problema del cliente con la solución ofrecida. Se identifican beneficios funcionales, emocionales y sociales.',
-          weight: 1.0,
+          weight: 1,
           max_score: 30,
           order_index: 1
         },
         {
           title: 'Diferenciación competitiva',
           description: 'Se identifica claramente qué hace único al proyecto y cómo se diferencia de la competencia. La propuesta de valor es distintiva y difícil de replicar.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Alineación con segmento de clientes',
           description: 'La propuesta de valor está perfectamente alineada con las necesidades, motivaciones y frustraciones del segmento de clientes identificado. Evidencia de investigación de mercado.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Comunicación y claridad',
           description: 'La propuesta de valor se comunica de manera clara, concisa y memorable. Está conectada con la misión, visión y valores del proyecto.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -181,28 +181,28 @@ export async function up(queryInterface) {
         {
           title: 'Completitud del Business Model Canvas',
           description: 'Todos los bloques del canvas están completados de manera coherente: segmentos de clientes, propuesta de valor, canales, relaciones, flujos de ingresos, recursos clave, actividades clave, alianzas y estructura de costes.',
-          weight: 1.0,
+          weight: 1,
           max_score: 35,
           order_index: 1
         },
         {
           title: 'Modelo de ingresos',
           description: 'Los flujos de ingresos están claramente definidos y son viables. Se explica cómo se captura valor y se generan ingresos de manera sostenible.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Recursos y actividades clave',
           description: 'Identificación precisa de los recursos y actividades necesarios para entregar la propuesta de valor. Análisis de viabilidad operativa y de recursos disponibles.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 3
         },
         {
           title: 'Ventaja competitiva sostenible',
           description: 'Identificación de ventajas competitivas internas y externas. Análisis de sostenibilidad y dificultad de réplica por parte de la competencia.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -215,28 +215,28 @@ export async function up(queryInterface) {
         {
           title: 'Estructura y narrativa del pitch',
           description: 'El pitch tiene una estructura clara con principio, nudo y cierre. La narrativa es coherente, memorable y conecta problema, cliente y solución de manera efectiva.',
-          weight: 1.0,
+          weight: 1,
           max_score: 30,
           order_index: 1
         },
         {
           title: 'Comunicación visual y diseño',
           description: 'La presentación visual es profesional, con diseño claro y atractivo. Cumple con las mejores prácticas (máximo 6 palabras por diapositiva, tipografía legible, imágenes potentes).',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Contenido y argumentación',
           description: 'El contenido del pitch cubre los aspectos clave: problema, solución, mercado, modelo de negocio y propuesta de valor. Los argumentos están respaldados por los análisis previos.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Calidad del vídeo y presentación',
           description: 'El vídeo del pitch es de calidad profesional, con buena producción audiovisual. La presentación es fluida, natural y demuestra dominio del proyecto. Duración adecuada (3-5 minutos).',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -249,28 +249,28 @@ export async function up(queryInterface) {
         {
           title: 'Validación del modelo de negocio',
           description: 'Evidencia de validación con clientes reales o potenciales. Incluye resultados de encuestas, entrevistas o pruebas piloto que confirmen problema, solución y modelo de ingresos.',
-          weight: 1.0,
+          weight: 1,
           max_score: 30,
           order_index: 1
         },
         {
           title: 'Diseño y planificación del MVP',
           description: 'Definición clara del producto mínimo viable, con identificación de funcionalidades esenciales. Planificación de experimentos para validar hipótesis críticas con recursos mínimos.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 2
         },
         {
           title: 'Roadmap y planificación (Diagrama de Gantt)',
           description: 'Planificación detallada con diagrama de Gantt que incluye tareas, dependencias, responsables y fechas. Identificación de ruta crítica y gestión de recursos.',
-          weight: 1.0,
+          weight: 1,
           max_score: 25,
           order_index: 3
         },
         {
           title: 'Viabilidad y ejecución',
           description: 'El plan de validación y desarrollo del MVP es realista y ejecutable. Se identifican recursos necesarios, riesgos potenciales y estrategias de mitigación.',
-          weight: 1.0,
+          weight: 1,
           max_score: 20,
           order_index: 4
         }
@@ -303,6 +303,7 @@ export async function up(queryInterface) {
         tenant_id: tenant.id,
         event_id: event.id,
         phase_id: phase.id,
+        rubric_scope: 'phase',
         name: rubricDef.name,
         description: rubricDef.description,
         scale_min: 0,

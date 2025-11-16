@@ -39,7 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Spinner } from '@/components/common';
 import { cn } from '@/utils/cn';
 import { fileToBase64 } from '@/utils/files';
-import { useForm, type UseFormReturn } from 'react-hook-form';
+import { useForm, type UseFormReturn, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 const TENANT_STATUS = ['active', 'trial', 'suspended', 'cancelled'] as const;
@@ -127,7 +127,37 @@ const tenantFormSchemaBase = z.object({
   admin_password: nullableString()
 });
 
-type TenantFormSchema = z.infer<typeof tenantFormSchemaBase>;
+// Tipo explícito para el formulario que coincide con la salida del esquema
+type TenantFormSchema = {
+  slug: string;
+  name: string;
+  subdomain: string | null;
+  custom_domain: string | null;
+  plan_type: 'free' | 'basic' | 'professional' | 'enterprise';
+  status: 'active' | 'trial' | 'suspended' | 'cancelled';
+  primary_color: string | null;
+  secondary_color: string | null;
+  accent_color: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  website_url: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  linkedin_url: string | null;
+  twitter_url: string | null;
+  youtube_url: string | null;
+  max_evaluators: number | null;
+  max_participants: number | null;
+  max_appointments_per_month: number | null;
+  hero_content: string | null;
+  tenant_css: string | null;
+  logo_url: string | null;
+  admin_email?: string;
+  admin_first_name: string | null;
+  admin_last_name: string | null;
+  admin_language: string | null;
+  admin_password: string | null;
+};
 
 type TenantModalMode = 'create' | 'edit';
 
@@ -273,15 +303,20 @@ function SuperAdminTenantsPage() {
   };
 
   const handleModalSubmit = async (payload: TenantModalSubmitPayload) => {
-    if (payload.type === 'create') {
-      await createTenantMutation.mutateAsync(payload.body);
-    } else {
-      await updateTenantMutation.mutateAsync({
-        tenantId: payload.tenantId,
-        payload: payload.body
-      });
+    try {
+      if (payload.type === 'create') {
+        await createTenantMutation.mutateAsync(payload.body);
+      } else {
+        await updateTenantMutation.mutateAsync({
+          tenantId: payload.tenantId,
+          payload: payload.body
+        });
+      }
+      closeModal();
+    } catch (error) {
+      // Los errores ya se manejan en las mutaciones (onError), pero aquí evitamos cerrar el modal si hay error
+      // El modal se cerrará solo cuando la mutación sea exitosa
     }
-    closeModal();
   };
 
   const handleOpenTrackingDialog = (tenant: SuperAdminTenant) => {
@@ -679,9 +714,12 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
   };
 
   const form = useForm<TenantFormSchema>({
-    resolver: zodResolver(tenantFormSchemaBase),
+    resolver: zodResolver(tenantFormSchemaBase) as unknown as Resolver<TenantFormSchema>,
     defaultValues: getTenantFormDefaults(mode, tenant)
   });
+
+  // Obtener el color primario del tenant para aplicar al tab activo
+  const primaryColor = form.watch('primary_color') || tenant?.primary_color || '#0ea5e9';
 
   useEffect(() => {
     if (!open) {
@@ -729,108 +767,160 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
     let heroContent: unknown;
     try {
       heroContent = parseHeroContent(values.hero_content, form, t);
-    } catch {
+    } catch (error) {
+      // El error ya se muestra en parseHeroContent mediante setError
       return;
     }
 
-    if (mode === 'create') {
-      if (!values.admin_email) {
-        form.setError('admin_email', { type: 'manual', message: t('superadmin.tenants.adminEmailRequired') });
-        return;
-      }
-
-      const payload = {
-        slug: values.slug,
-        name: values.name,
-        subdomain: values.subdomain ?? undefined,
-        custom_domain: values.custom_domain ?? undefined,
-        plan_type: values.plan_type,
-        status: values.status,
-        primary_color: values.primary_color ?? undefined,
-        secondary_color: values.secondary_color ?? undefined,
-        accent_color: values.accent_color ?? undefined,
-        start_date: values.start_date ?? undefined,
-        end_date: values.end_date ?? undefined,
-        website_url: values.website_url ?? undefined,
-        facebook_url: values.facebook_url ?? undefined,
-        instagram_url: values.instagram_url ?? undefined,
-        linkedin_url: values.linkedin_url ?? undefined,
-        twitter_url: values.twitter_url ?? undefined,
-        youtube_url: values.youtube_url ?? undefined,
-        max_evaluators: values.max_evaluators ?? undefined,
-        max_participants: values.max_participants ?? undefined,
-        max_appointments_per_month: values.max_appointments_per_month ?? undefined,
-        hero_content: heroContent,
-        tenant_css: values.tenant_css ?? undefined,
-        logo_url: values.logo_url ?? undefined,
-        logo: logoBase64 ?? undefined,
-        admin: {
-          email: values.admin_email,
-          first_name: values.admin_first_name ?? undefined,
-          last_name: values.admin_last_name ?? undefined,
-          language: values.admin_language ?? undefined,
-          password: values.admin_password ?? undefined
+    try {
+      if (mode === 'create') {
+        if (!values.admin_email) {
+          form.setError('admin_email', { type: 'manual', message: t('superadmin.tenants.adminEmailRequired') });
+          return;
         }
-      };
 
-      await onSubmit({ type: 'create', body: payload });
-    } else if (tenant) {
-      const payload = {
-        name: values.name,
-        subdomain: values.subdomain ?? undefined,
-        custom_domain: values.custom_domain ?? undefined,
-        plan_type: values.plan_type,
-        status: values.status,
-        primary_color: values.primary_color ?? undefined,
-        secondary_color: values.secondary_color ?? undefined,
-        accent_color: values.accent_color ?? undefined,
-        start_date: values.start_date ?? undefined,
-        end_date: values.end_date ?? undefined,
-        website_url: values.website_url ?? undefined,
-        facebook_url: values.facebook_url ?? undefined,
-        instagram_url: values.instagram_url ?? undefined,
-        linkedin_url: values.linkedin_url ?? undefined,
-        twitter_url: values.twitter_url ?? undefined,
-        youtube_url: values.youtube_url ?? undefined,
-        max_evaluators: values.max_evaluators ?? undefined,
-        max_participants: values.max_participants ?? undefined,
-        max_appointments_per_month: values.max_appointments_per_month ?? undefined,
-        hero_content: heroContent,
-        tenant_css: values.tenant_css ?? undefined,
-        logo_url: values.logo_url ?? undefined,
-        logo: removeLogo ? null : logoBase64 ?? undefined
-      };
+        const payload = {
+          slug: values.slug,
+          name: values.name,
+          subdomain: values.subdomain ?? undefined,
+          custom_domain: values.custom_domain ?? undefined,
+          plan_type: values.plan_type,
+          status: values.status,
+          primary_color: values.primary_color ?? undefined,
+          secondary_color: values.secondary_color ?? undefined,
+          accent_color: values.accent_color ?? undefined,
+          start_date: values.start_date ?? undefined,
+          end_date: values.end_date ?? undefined,
+          website_url: values.website_url ?? undefined,
+          facebook_url: values.facebook_url ?? undefined,
+          instagram_url: values.instagram_url ?? undefined,
+          linkedin_url: values.linkedin_url ?? undefined,
+          twitter_url: values.twitter_url ?? undefined,
+          youtube_url: values.youtube_url ?? undefined,
+          max_evaluators: values.max_evaluators ?? undefined,
+          max_participants: values.max_participants ?? undefined,
+          max_appointments_per_month: values.max_appointments_per_month ?? undefined,
+          hero_content: heroContent,
+          tenant_css: values.tenant_css ?? undefined,
+          logo_url: values.logo_url ?? undefined,
+          logo: logoBase64 ?? undefined,
+          admin: {
+            email: values.admin_email,
+            first_name: values.admin_first_name ?? undefined,
+            last_name: values.admin_last_name ?? undefined,
+            language: values.admin_language ?? undefined,
+            password: values.admin_password ?? undefined
+          }
+        };
 
-      await onSubmit({ type: 'update', tenantId: tenant.id, body: payload });
+        await onSubmit({ type: 'create', body: payload });
+      } else if (tenant) {
+        const payload = {
+          name: values.name,
+          subdomain: values.subdomain ?? undefined,
+          custom_domain: values.custom_domain ?? undefined,
+          plan_type: values.plan_type,
+          status: values.status,
+          primary_color: values.primary_color ?? undefined,
+          secondary_color: values.secondary_color ?? undefined,
+          accent_color: values.accent_color ?? undefined,
+          start_date: values.start_date ?? undefined,
+          end_date: values.end_date ?? undefined,
+          website_url: values.website_url ?? undefined,
+          facebook_url: values.facebook_url ?? undefined,
+          instagram_url: values.instagram_url ?? undefined,
+          linkedin_url: values.linkedin_url ?? undefined,
+          twitter_url: values.twitter_url ?? undefined,
+          youtube_url: values.youtube_url ?? undefined,
+          max_evaluators: values.max_evaluators ?? undefined,
+          max_participants: values.max_participants ?? undefined,
+          max_appointments_per_month: values.max_appointments_per_month ?? undefined,
+          hero_content: heroContent,
+          tenant_css: values.tenant_css ?? undefined,
+          logo_url: values.logo_url ?? undefined,
+          logo: removeLogo ? null : logoBase64 ?? undefined
+        };
+
+        await onSubmit({ type: 'update', tenantId: tenant.id, body: payload });
+      }
+    } catch (error) {
+      // Los errores se manejan en las mutaciones, pero aquí capturamos cualquier error inesperado
+      console.error('Error al enviar formulario:', error);
+      toast.error(t('common.error'));
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={openState => (!openState ? handleClose() : null)}>
-      <DialogContent className="h-[80vh] w-full max-w-5xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {mode === 'create'
-              ? t('superadmin.tenants.createTitle')
-              : t('superadmin.tenants.editTitle', { name: tenant?.name ?? '' })}
-          </DialogTitle>
-        </DialogHeader>
+      <DialogContent className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden p-0">
+        <div className="flex-shrink-0 border-b border-border px-6 py-4">
+          <DialogHeader>
+            <DialogTitle>
+              {mode === 'create'
+                ? t('superadmin.tenants.createTitle')
+                : t('superadmin.tenants.editTitle', { name: tenant?.name ?? '' })}
+            </DialogTitle>
+          </DialogHeader>
+        </div>
 
-        <form className="flex h-full flex-col overflow-hidden" onSubmit={form.handleSubmit(submitForm)}>
-          <Tabs defaultValue="general" className="flex h-full flex-col space-y-6">
-            <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
-              <TabsTrigger value="general">{t('superadmin.tenants.sections.general')}</TabsTrigger>
-              <TabsTrigger value="branding">{t('superadmin.tenants.sections.branding')}</TabsTrigger>
-              <TabsTrigger value="limits">{t('superadmin.tenants.sections.limits')}</TabsTrigger>
-              <TabsTrigger value="dates">{t('superadmin.tenants.sections.dates')}</TabsTrigger>
-              <TabsTrigger value="links">{t('superadmin.tenants.sections.links')}</TabsTrigger>
-              <TabsTrigger value="content">{t('superadmin.tenants.sections.content')}</TabsTrigger>
-              {mode === 'create' ? (
-                <TabsTrigger value="admin">{t('superadmin.tenants.sections.admin')}</TabsTrigger>
-              ) : null}
-            </TabsList>
+        <form
+          className="flex flex-1 flex-col overflow-hidden"
+          onSubmit={form.handleSubmit(submitForm, errors => {
+            // Mostrar errores de validación
+            const firstError = Object.values(errors)[0];
+            if (firstError?.message) {
+              toast.error(firstError.message);
+            } else {
+              toast.error(t('common.error'));
+            }
+            // Hacer scroll al primer error
+            const firstErrorField = Object.keys(errors)[0];
+            if (firstErrorField) {
+              const element = document.querySelector(`[name="${firstErrorField}"]`);
+              if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+          })}
+        >
+          <Tabs defaultValue="general" className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex-shrink-0 border-b border-border px-6 py-4">
+              <style>
+                {`
+                  .tenant-tab-trigger[data-state="active"] {
+                    background-color: ${primaryColor} !important;
+                    color: #ffffff !important;
+                  }
+                `}
+              </style>
+              <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
+                <TabsTrigger value="general" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.general')}
+                </TabsTrigger>
+                <TabsTrigger value="branding" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.branding')}
+                </TabsTrigger>
+                <TabsTrigger value="limits" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.limits')}
+                </TabsTrigger>
+                <TabsTrigger value="dates" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.dates')}
+                </TabsTrigger>
+                <TabsTrigger value="links" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.links')}
+                </TabsTrigger>
+                <TabsTrigger value="content" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                  {t('superadmin.tenants.sections.content')}
+                </TabsTrigger>
+                {mode === 'create' ? (
+                  <TabsTrigger value="admin" className="tenant-tab-trigger data-[state=active]:shadow-sm">
+                    {t('superadmin.tenants.sections.admin')}
+                  </TabsTrigger>
+                ) : null}
+              </TabsList>
+            </div>
 
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
               <TabsContent value="general" className="mt-0 space-y-6">
                 <FormGrid columns={2}>
                   <FormField label={t('superadmin.tenants.fields.slug')} required>
@@ -1015,14 +1105,16 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
             </div>
           </Tabs>
 
-          <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={handleClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('common.loading') : t('common.save')}
-            </Button>
-          </DialogFooter>
+          <div className="flex-shrink-0 border-t border-border px-6 py-4">
+            <DialogFooter className="pt-0">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>

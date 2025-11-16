@@ -27,6 +27,19 @@ import SuperAdminRootPage from '@/pages/superadmin/SuperAdminRootPage';
 import EventLandingPage from '@/pages/public/EventLandingPage';
 import PasswordResetPage from '@/pages/public/PasswordResetPage';
 import RegisterPage from '@/pages/public/RegisterPage';
+import PrivacyPolicyPage from '@/pages/public/PrivacyPolicyPage';
+import CookiesPolicyPage from '@/pages/public/CookiesPolicyPage';
+import TermsAndConditionsPage from '@/pages/public/TermsAndConditionsPage';
+
+function TenantNotFoundRedirect() {
+  const params = useParams<{ tenantSlug?: string }>();
+  
+  if (params.tenantSlug) {
+    return <Navigate to={`/${params.tenantSlug}`} replace />;
+  }
+  
+  return <Navigate to="/" replace />;
+}
 
 function TenantLayout() {
   const { tenantSlug, setTenantSlug, accessWindow, loading } = useTenant();
@@ -55,7 +68,8 @@ function TenantLayout() {
     if (
       accessWindow.isActiveNow === false &&
       !location.pathname.includes('/dashboard') &&
-      !location.pathname.includes('/login')
+      !location.pathname.includes('/login') &&
+      !location.pathname.includes('/legal')
     ) {
       navigate(`/${params.tenantSlug}/dashboard`, { replace: true });
     }
@@ -80,6 +94,9 @@ function AppRoutes() {
         { path: 'login', element: <LoginPage /> },
         { path: 'register', element: <RegisterPage /> },
         { path: 'password-reset', element: <PasswordResetPage /> },
+        { path: 'legal/privacy', element: <PrivacyPolicyPage /> },
+        { path: 'legal/cookies', element: <CookiesPolicyPage /> },
+        { path: 'legal/terms', element: <TermsAndConditionsPage /> },
         { path: 'events/:eventId', element: <EventLandingPage /> },
         {
           path: 'dashboard',
@@ -168,6 +185,10 @@ function AppRoutes() {
               <NotificationsPage />
             </ProtectedRoute>
           )
+        },
+        {
+          path: '*',
+          element: <TenantNotFoundRedirect />
         }
       ]
     },

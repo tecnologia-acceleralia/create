@@ -61,15 +61,33 @@ export const rubricCriterionSchema = z.object({
   order_index: z.union([z.number().int().min(1), z.nan()]).optional()
 });
 
-export const rubricSchema = z.object({
-  phase_id: z.number().int(),
-  name: z.string().min(3),
-  description: z.string().optional(),
-  scale_min: z.union([z.number(), z.nan()]).optional(),
-  scale_max: z.union([z.number(), z.nan()]).optional(),
-  model_preference: z.string().optional(),
-  criteria: z.array(rubricCriterionSchema).min(1)
-});
+export const rubricSchema = z
+  .object({
+    rubric_scope: z.enum(['phase', 'project']).default('phase'),
+    phase_id: z.union([z.number().int(), z.nan(), z.null()]).optional(),
+    name: z.string().min(3),
+    description: z.string().optional(),
+    scale_min: z.union([z.number(), z.nan()]).optional(),
+    scale_max: z.union([z.number(), z.nan()]).optional(),
+    model_preference: z.string().optional(),
+    criteria: z.array(rubricCriterionSchema).min(1)
+  })
+  .superRefine((data, ctx) => {
+    if (data.rubric_scope === 'phase' && (!data.phase_id || Number.isNaN(data.phase_id))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'events.rubricPhaseRequired',
+        path: ['phase_id']
+      });
+    }
+    if (data.rubric_scope === 'project' && data.phase_id && !Number.isNaN(data.phase_id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'events.rubricProjectNoPhase',
+        path: ['phase_id']
+      });
+    }
+  });
 
 export const eventSchema = z
   .object({

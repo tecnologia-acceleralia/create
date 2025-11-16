@@ -144,7 +144,13 @@ export function SiteHeader() {
   }, [user, displayName, isSuperAdminSession, superAdminUser]);
   const loginHref = tenantSlug ? tenantPath('login') : '/superadmin';
 
-  const visiblePhases = useMemo(() => phases.filter(phase => phase.isVisibleNow), [phases]);
+  // Los administradores ven todas las fases, los demás solo las visibles
+  const visiblePhases = useMemo(() => {
+    if (isEventAdmin) {
+      return phases; // Administradores ven todas las fases
+    }
+    return phases.filter(phase => phase.isVisibleNow);
+  }, [phases, isEventAdmin]);
   const eventPhases = useMemo(
     () =>
       activeEventId && isEventRoute

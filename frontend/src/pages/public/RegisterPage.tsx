@@ -29,7 +29,10 @@ const baseSchema = z
     email: z.string().email(),
     password: z.string().min(8),
     confirmPassword: z.string().min(8),
-    grade: z.string().optional()
+    grade: z.string().optional(),
+    acceptPrivacyPolicy: z.boolean().refine(val => val === true, {
+      message: 'register.privacyPolicyRequired'
+    })
   })
   .refine(values => values.password === values.confirmPassword, {
     message: 'register.passwordMismatch',
@@ -37,7 +40,7 @@ const baseSchema = z
   });
 
 type BaseFormValues = z.infer<typeof baseSchema>;
-type FormValues = BaseFormValues & Record<string, string | undefined>;
+type FormValues = BaseFormValues & Record<string, string | boolean | undefined>;
 
 type GradeOption = {
   value: string;
@@ -167,7 +170,10 @@ export default function RegisterPage() {
     watch,
     setValue
   } = useForm<FormValues>({
-    resolver: zodResolver(schema)
+    resolver: zodResolver(schema),
+    defaultValues: {
+      acceptPrivacyPolicy: false
+    }
   });
 
   useEffect(() => {
@@ -250,7 +256,8 @@ export default function RegisterPage() {
       email: currentValues.email ?? '',
       password: currentValues.password ?? '',
       confirmPassword: currentValues.confirmPassword ?? '',
-      grade: ''
+      grade: '',
+      acceptPrivacyPolicy: currentValues.acceptPrivacyPolicy ?? false
     };
 
     additionalFields.forEach(field => {
@@ -542,6 +549,36 @@ export default function RegisterPage() {
                 {...register('confirmPassword')}
               />
             </FormField>
+
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="acceptPrivacyPolicy"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-[color:var(--tenant-primary)] focus:ring-2 focus:ring-[color:var(--tenant-primary)] focus:ring-offset-2"
+                  {...register('acceptPrivacyPolicy', { required: true })}
+                />
+                <label htmlFor="acceptPrivacyPolicy" className="text-sm leading-relaxed text-foreground">
+                  {t('register.acceptPrivacyPolicy', {
+                    defaultValue: 'Acepto la '
+                  })}
+                  <a
+                    href={tenantPath('legal/privacy')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-[color:var(--tenant-primary)] underline hover:text-[color:var(--tenant-primary)]/80"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {t('register.privacyPolicy', { defaultValue: 'Política de Privacidad' })}
+                  </a>
+                </label>
+              </div>
+              {errors.acceptPrivacyPolicy ? (
+                <p className="text-sm text-destructive">
+                  {t(errors.acceptPrivacyPolicy.message ?? '', { defaultValue: errors.acceptPrivacyPolicy.message })}
+                </p>
+              ) : null}
+            </div>
 
             {submissionError ? <p className="text-sm text-destructive">{submissionError}</p> : null}
 

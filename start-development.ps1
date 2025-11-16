@@ -490,7 +490,7 @@ function Write-EnvironmentSummary {
         Write-Host ""
         Write-Host "Tenant UIC:"
         Write-Host "  - Frontend:   http://localhost:3100/uic"
-        Write-Host "  - Admin:      admin@uic.cat / UdS*r2ZD5?;O"
+        Write-Host "  - Admin:      admin@uic.es / UdS*r2ZD5?;O"
         Write-Host "  - Admin eval: mgraells@uic.es / Ll4=u2D$S0>s"
         Write-Host "  - Evaluadores:"
         Write-Host "    - agironza@uic.es / fJ(wvc7OrMOw99"

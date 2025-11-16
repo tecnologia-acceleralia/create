@@ -469,12 +469,19 @@ export async function up(queryInterface, Sequelize) {
     },
     phase_id: {
       type: Sequelize.INTEGER.UNSIGNED,
-      allowNull: false,
+      allowNull: true,
       references: {
         model: 'phases',
         key: 'id'
       },
-      onDelete: 'CASCADE'
+      onDelete: 'CASCADE',
+      comment: 'NULL para rúbricas de proyecto completo, obligatorio para rúbricas de fase'
+    },
+    rubric_scope: {
+      type: Sequelize.ENUM('phase', 'project'),
+      allowNull: false,
+      defaultValue: 'phase',
+      comment: 'Indica si la rúbrica es para una fase específica o para el proyecto completo'
     },
     name: {
       type: Sequelize.STRING(255),

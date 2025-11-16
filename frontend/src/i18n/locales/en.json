@@ -204,6 +204,14 @@
     "rubricWeightLabel": "Weight {{weight}}",
     "rubricMaxScoreLabel": "Max {{score}}",
     "noRubricsPhase": "No rubrics configured for this phase yet.",
+    "rubricScope": "Rubric scope",
+    "rubricScopePhase": "Phase",
+    "rubricScopeProject": "Full project",
+    "projectRubrics": "Project rubrics",
+    "phaseRubrics": "Phase rubrics",
+    "noProjectRubrics": "No project rubrics configured yet.",
+    "rubricPhaseRequired": "Phase rubrics require selecting a phase",
+    "rubricProjectNoPhase": "Project rubrics should not have an assigned phase",
     "taskMaxFiles": "Maximum files",
     "taskMaxFileSize": "Maximum size (MB)",
     "taskAllowedMimes": "Allowed MIME types (comma separated)",
@@ -432,7 +440,9 @@
     "filesNotAllowed": "This task does not allow file uploads.",
     "maxFilesReached": "You reached the maximum of {{count}} files allowed.",
     "fileTooLarge": "{{name}} exceeds the maximum size of {{size}} MB.",
-    "fileTypeNotAllowed": "{{name}} has a file type that is not allowed."
+    "fileTypeNotAllowed": "{{name}} has a file type that is not allowed.",
+    "onlyCaptainCanSubmit": "Only the team captain can submit deliverables.",
+    "notTeamCaptain": "You are not a team captain in this event. Only captains can register submissions."
   },
   "evaluations": {
     "add": "Add evaluation",
@@ -499,7 +509,10 @@
     "gradeRequired": "Select your degree",
     "gradeInvalid": "Select a valid option",
     "dynamicFieldRequired": "This field is required",
-    "selectPlaceholder": "Select an option"
+    "selectPlaceholder": "Select an option",
+    "acceptPrivacyPolicy": "I accept the ",
+    "privacyPolicy": "Privacy Policy",
+    "privacyPolicyRequired": "You must accept the Privacy Policy to continue"
   },
   "publicHub": {
     "title": "Explore open events across CREATE",
@@ -772,5 +785,248 @@
       "inactive": "Inactive",
       "invited": "Invited"
     }
+  },
+  "cookies": {
+    "title": "Cookie Policy",
+    "subtitle": "Information about the use of cookies and similar technologies",
+    "intro": "At Acceleralia SL (hereinafter, the \"Controller\"), we use cookies and similar technologies to improve your experience on our CREATE platform. This Cookie Policy explains what cookies are, what types we use, and how you can manage them.",
+    "whatAre": {
+      "title": "1. What are cookies?",
+      "content": "Cookies are small text files that are stored on your device (computer, tablet, or mobile) when you visit a website. In our case, we primarily use browser local storage to store information necessary for the platform to function."
+    },
+    "types": {
+      "title": "2. Types of cookies we use",
+      "intro": "We use exclusively technical cookies necessary for the platform to function. These cookies are essential for you to access and use the services we offer.",
+      "auth": {
+        "title": "Authentication and Session Cookies",
+        "purpose": "Purpose:",
+        "purposeContent": "These cookies are necessary to keep your session active and allow you to access private areas of the platform. They store session identification information securely.",
+        "duration": "Duration:",
+        "durationContent": "Persistent until you log out or the session expires automatically for security reasons.",
+        "type": "Type:",
+        "typeContent": "Technical necessary"
+      },
+      "preferences": {
+        "title": "Preferences and Configuration Cookies",
+        "purpose": "Purpose:",
+        "purposeContent": "These cookies store information about your preferences and platform settings, such as visual customization and language preferences, to improve your user experience.",
+        "duration": "Duration:",
+        "durationContent": "Temporary, renewed periodically to keep information up to date.",
+        "type": "Type:",
+        "typeContent": "Technical necessary"
+      }
+    },
+    "thirdParty": {
+      "title": "3. Third-party cookies",
+      "content": "Currently, our platform does not use third-party cookies for tracking, analytics, or advertising. External services we use for specific functionalities do not install cookies on your device."
+    },
+    "management": {
+      "title": "4. Cookie management",
+      "content": "You can manage or delete cookies stored in your browser through its settings. Below, we explain how to do this in the most common browsers:",
+      "chrome": "Settings → Privacy and security → Cookies and other site data → View all cookies and site data",
+      "firefox": "Options → Privacy & Security → Cookies and Site Data → Manage Data",
+      "edge": "Settings → Cookies and site permissions → Cookies and site data → View all cookies and site data",
+      "safari": "Preferences → Privacy → Manage Website Data",
+      "warning": "Important:",
+      "warningContent": "If you delete authentication cookies, you will need to log in again to the platform. Deleting preference cookies will only affect the personalization of your experience."
+    },
+    "consent": {
+      "title": "5. Consent",
+      "content": "By using our platform, you accept the use of technical cookies necessary for the service to function. These cookies do not require prior consent under European regulations (ePrivacy Directive and GDPR), as they are strictly necessary for the provision of the requested service."
+    },
+    "updates": {
+      "title": "6. Updates to this policy",
+      "content": "We reserve the right to update this Cookie Policy at any time. We recommend that you review this page periodically to stay informed about any changes. The date of the last update is indicated at the end of this policy."
+    },
+    "contact": {
+      "title": "7. Contact",
+      "content": "If you have any questions about our Cookie Policy, you can contact us at:",
+      "email": "Email:"
+    },
+    "lastUpdate": "Last update date:"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "subtitle": "Information about personal data processing",
+    "intro": "At Acceleralia SL (hereinafter, the \"Controller\"), we are committed to protecting the personal data of our users. This Privacy Policy describes how we collect, use and process your personal information in the context of providing our SaaS service.",
+    "controller": {
+      "title": "1. Identity of the Data Controller",
+      "company": "Company Name:",
+      "nif": "Tax ID:",
+      "address": "Registered Address:",
+      "email": "Contact Email:"
+    },
+    "purposes": {
+      "title": "2. Processing Purposes and Legal Basis",
+      "intro": "The data you provide to us is processed for the following purposes and under the legal bases indicated in Art. 6 of the GDPR:",
+      "purpose1": "Purpose:",
+      "purpose1Content": "User registration management and SaaS service provision (access, account maintenance and use of functionalities, such as editing projects and ideas for competitions).",
+      "legalBasis1": "Legal Basis:",
+      "legalBasis1Content": "Contract performance (Art. 6.1.b GDPR).",
+      "purpose2": "Purpose:",
+      "purpose2Content": "Sending service-related communications, technical or security updates.",
+      "legalBasis2": "Legal Basis:",
+      "legalBasis2Content": "Legitimate interest (Art. 6.1.f GDPR), necessary for the proper functioning of the contracted service.",
+      "purpose3": "Purpose:",
+      "purpose3Content": "Compliance with legal and tax obligations applicable to the Controller.",
+      "legalBasis3": "Legal Basis:",
+      "legalBasis3Content": "Compliance with a legal obligation (Art. 6.1.c GDPR).",
+      "purpose4": "Purpose (if applicable):",
+      "purpose4Content": "Sending commercial communications or newsletters about our services (only if a specific consent checkbox is marked).",
+      "legalBasis4": "Legal Basis:",
+      "legalBasis4Content": "Data subject consent (Art. 6.1.a GDPR)."
+    },
+    "categories": {
+      "title": "3. Categories of Personal Data",
+      "intro": "Data collected directly from the user includes:",
+      "identifying": "Identifying Data:",
+      "identifyingContent": "Name, email address.",
+      "credentials": "Codes and Keys:",
+      "credentialsContent": "Passwords (stored encrypted/hashed).",
+      "connection": "Connection Data:",
+      "connectionContent": "IP address, platform usage data (logs).",
+      "note": "Note on project content:",
+      "noteContent": "Regarding data entered by the Client in the platform (projects, competition ideas, etc.), Acceleralia SL acts as a Data Processor. The Client is the Data Controller for such data and must have its own privacy policy. Acceleralia SL only processes that information following the Client's instructions, according to the service contract or the Data Processing Agreement signed with the Client."
+    },
+    "recipients": {
+      "title": "4. Recipients and Data Processors",
+      "processors": "Data Processors:",
+      "processorsContent": "We may share your data with providers who provide us with services necessary for service execution (e.g., web hosting, communication services, security), these acting as data processors and under a contract requiring GDPR compliance. (Example: Hosting in Digital Ocean, Europe).",
+      "legal": "Legal Obligation:",
+      "legalContent": "Your data may be transferred to third parties in cases where there is a legal obligation, such as to the Tax Administration.",
+      "transfers": "International Data Transfers:",
+      "transfersContent": "All personal data is processed and stored within the European Economic Area (EEA). No transfers of personal data are made outside the EEA."
+    },
+    "retention": {
+      "title": "5. Retention Periods",
+      "content": "Your personal data will be retained while you maintain the status of registered user on the platform. Once you request deletion, it will be blocked and retained for the legally required period (generally 6 years under tax or commercial regulations), after which it will be securely deleted."
+    },
+    "rights": {
+      "title": "6. Exercise of Rights (ARSOPP Rights)",
+      "intro": "You have the right to obtain confirmation as to whether Acceleralia SL is processing personal data concerning you, and to exercise the following rights:",
+      "access": "Access:",
+      "accessContent": "Know what personal data of yours we are processing.",
+      "rectification": "Rectification:",
+      "rectificationContent": "Request modification of inaccurate or incomplete data.",
+      "deletion": "Deletion (Right to be Forgotten):",
+      "deletionContent": "Request deletion of data when, among other reasons, it is no longer necessary for the purposes for which it was collected.",
+      "opposition": "Opposition:",
+      "oppositionContent": "Object to our processing your data for certain purposes.",
+      "limitation": "Limitation:",
+      "limitationContent": "Request limitation of processing.",
+      "portability": "Portability:",
+      "portabilityContent": "Receive personal data in a structured, commonly used and machine-readable format, and to transmit it to another controller.",
+      "exercise": "You can exercise these rights by sending a request to the email address",
+      "exerciseContent": "attaching a copy of your ID or equivalent identification document.",
+      "withdrawal": "You have the right to withdraw consent at any time. Withdrawal of consent will not affect the lawfulness of processing based on consent before its withdrawal."
+    },
+    "authority": {
+      "title": "7. Right to Lodge a Complaint with the Supervisory Authority",
+      "content": "If you consider that Acceleralia SL has not properly processed your rights or that data protection regulations have been violated, you can file a complaint with the Spanish Data Protection Agency (AEPD), through its electronic headquarters (",
+      "content2": ") or at the address Calle Jorge Juan, 6, 28001 Madrid."
+    },
+    "security": {
+      "title": "8. Security Measures",
+      "content": "Acceleralia SL implements appropriate technical and organizational measures to protect your personal data against unauthorized access, loss, destruction or accidental alteration. These measures include encryption of sensitive data, access controls, backup systems and continuous security monitoring."
+    },
+    "updates": {
+      "title": "9. Updates to this Policy",
+      "content": "We reserve the right to update this Privacy Policy at any time to reflect changes in our practices or applicable legislation. We recommend that you review this page periodically. The date of the last update is indicated at the end of this policy."
+    },
+    "contact": {
+      "title": "10. Contact",
+      "content": "If you have any questions about this Privacy Policy or about the processing of your personal data, you can contact us at:",
+      "email": "Email:"
+    },
+    "lastUpdate": "Last update date:"
+  },
+  "terms": {
+    "title": "Terms and Conditions of Use",
+    "subtitle": "General terms of use of the CREATE platform",
+    "intro": "These Terms and Conditions of Use (hereinafter, the \"Terms\") govern the access and use of the CREATE SaaS platform, owned by Acceleralia SL (hereinafter, the \"Provider\" or \"we\"). By accessing or using the platform, you agree to be bound by these Terms. If you do not agree with any part of these Terms, you must not use the platform.",
+    "provider": {
+      "title": "1. Service Provider Identification",
+      "company": "Company Name:",
+      "nif": "Tax ID:",
+      "address": "Registered Address:",
+      "email": "Email:",
+      "registry": "Commercial Registry:"
+    },
+    "object": {
+      "title": "2. Object and Scope of Application",
+      "content": "CREATE is a multi-tenant SaaS platform designed for the organization, management and execution of collaborative events such as hackathons, bootcamps and innovation sprints. The platform allows users (organizers, participants, evaluators) to manage events, teams, projects, submissions and evaluations within a centralized ecosystem.",
+      "scope": "These Terms apply to all users who access or use the CREATE platform, regardless of the tenant or organization to which they belong. Use of the platform implies full and unreserved acceptance of these Terms."
+    },
+    "access": {
+      "title": "3. Access Conditions and Registration",
+      "intro": "To use the CREATE platform, the user must:",
+      "requirement1": "Be of legal age or have authorization from their parents or legal guardians.",
+      "requirement2": "Provide truthful, accurate and complete information during the registration process.",
+      "requirement3": "Maintain the confidentiality of their access credentials and be responsible for all activities carried out under their account.",
+      "requirement4": "Immediately notify any unauthorized use of their account or any security breach.",
+      "reservation": "The Provider reserves the right to deny or revoke access to the platform to any user who violates these Terms or who, in the Provider's judgment, makes improper use of it."
+    },
+    "obligations": {
+      "title": "4. User Obligations",
+      "intro": "The user agrees to:",
+      "item1": "Use the platform in accordance with the law, these Terms and good customs.",
+      "item2": "Not introduce, store or disseminate illegal, defamatory, obscene, threatening content or content that violates third-party rights.",
+      "item3": "Not carry out activities that may damage, disable, overload or deteriorate the platform or servers.",
+      "item4": "Not attempt to access restricted areas of the platform or other users' accounts.",
+      "item5": "Not use the platform for unauthorized commercial purposes or to send unsolicited mass communications (spam).",
+      "item6": "Respect the intellectual and industrial property rights of the Provider and third parties.",
+      "item7": "Not reproduce, copy, distribute or publicly communicate the content of the platform without express authorization."
+    },
+    "intellectual": {
+      "title": "5. Intellectual and Industrial Property",
+      "content": "All intellectual and industrial property rights over the CREATE platform, including its design, source code, functionalities, trademarks, logos and content, are the exclusive property of Acceleralia SL or its licensors. The user acknowledges that use of the platform does not grant them any ownership rights over these elements.",
+      "userContent": "The user retains all intellectual property rights over the content they create, publish or upload to the platform (projects, ideas, documents, etc.). However, by using the platform, the user grants the Provider a non-exclusive, worldwide and free license to use, reproduce, modify and display such content solely in the context of service provision.",
+      "tenant": "The content and data entered by each tenant (client organization) are their exclusive property. Acceleralia SL acts as a data processor for such data as established in the Privacy Policy and the corresponding service contract."
+    },
+    "liability": {
+      "title": "6. Liability and Limitations",
+      "service": "The Provider undertakes to keep the platform operational with maximum possible availability. However, it does not guarantee the absence of interruptions, technical errors or service failures. The Provider shall not be liable for damages arising from the impossibility of accessing or using the platform due to causes beyond its control.",
+      "content": "The Provider is not responsible for the content, data or information entered by users on the platform. Each user is responsible for the truthfulness, accuracy and legality of the content they publish. The Provider reserves the right to remove any content it considers illegal, inappropriate or that violates these Terms.",
+      "limitation": "To the maximum extent permitted by applicable law, the Provider excludes all liability for indirect damages, lost profits, data loss or any other harm arising from the use or inability to use the platform.",
+      "thirdParty": "The platform may contain links to third-party websites. The Provider is not responsible for the content, privacy policies or practices of such external sites."
+    },
+    "data": {
+      "title": "7. Personal Data Protection",
+      "content": "The processing of personal data carried out through the CREATE platform is governed by our Privacy Policy, which is an integral part of these Terms. The user must read and accept the Privacy Policy before using the platform.",
+      "tenant": "In the case of data entered by tenants (client organizations), Acceleralia SL acts as a data processor as established in the General Data Protection Regulation (GDPR) and the corresponding service contract."
+    },
+    "modifications": {
+      "title": "8. Modifications to Terms and Service",
+      "terms": "The Provider reserves the right to modify these Terms at any time. Modifications will take effect from their publication on the platform. Continued use of the platform after publication of modifications constitutes acceptance of them. It is recommended to review these Terms periodically.",
+      "service": "The Provider reserves the right to modify, suspend or discontinue temporarily or permanently any aspect of the platform, with or without prior notice. The Provider shall not be liable to the user or third parties for any modification, suspension or discontinuation of the service."
+    },
+    "termination": {
+      "title": "9. Termination",
+      "user": "The user may terminate their use of the platform at any time by deleting their account or ceasing to access the service. Termination by the user does not affect rights or obligations that have arisen before termination.",
+      "provider": "The Provider may suspend or terminate the user's access to the platform in case of breach of these Terms, fraudulent activity, or for any other reason that justifies such measure, with or without prior notice.",
+      "data": "After termination, the Provider will retain the user's data for the legally established periods, as detailed in the Privacy Policy."
+    },
+    "law": {
+      "title": "10. Applicable Law and Jurisdiction",
+      "content": "These Terms are governed by Spanish law. For any dispute arising from the interpretation or execution of these Terms, the parties submit to the courts and tribunals of the user's domicile, without prejudice to the Provider being able to take action before the courts and tribunals of the Provider's domicile or any other that corresponds according to applicable law.",
+      "consumer": "If the user acts as a consumer under consumer protection regulations, the consumer protection provisions of Spanish and European legislation will apply, and the user may go to the courts of their domicile or to alternative dispute resolution mechanisms available."
+    },
+    "disputes": {
+      "title": "11. Dispute Resolution",
+      "content": "In case of dispute, the parties agree to try to resolve it amicably. If this is not possible, and provided that the user acts as a consumer, they may go to the European online dispute resolution platform available at:",
+      "mediation": "Likewise, the parties may resort to mediation, arbitration or conciliation services available according to applicable law."
+    },
+    "contact": {
+      "title": "12. Contact and Communications",
+      "content": "For any query, claim or communication related to these Terms or the CREATE platform, the user can contact the Provider through:",
+      "email": "Email:",
+      "acceptance": "By using the CREATE platform, the user agrees to receive electronic communications related to the service, including notifications, updates and administrative messages."
+    },
+    "acceptance": {
+      "title": "13. Acceptance of Terms",
+      "content": "Access and use of the CREATE platform implies full and unconditional acceptance of these Terms and Conditions of Use. If the user does not agree with any of the provisions contained in these Terms, they must refrain from using the platform.",
+      "modifications": "The Provider reserves the right to update these Terms periodically. The user is recommended to review this page regularly to be informed of any changes."
+    },
+    "lastUpdate": "Last update date:"
   }
 }

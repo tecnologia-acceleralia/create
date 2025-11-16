@@ -222,15 +222,15 @@ export async function up(queryInterface) {
   };
 
   const { userId: adminUserId } = await ensureUserWithRole(
-    'admin@uic.cat',
-    'Equipo',
+    'admin@uic.es',
+    'Admin',
     'UIC',
     passwordHash,
     adminRole.id
   );
 
-  const eventStart = new Date('2025-09-22T00:00:00.000Z');
-  const eventEnd = new Date('2026-05-22T23:59:59.000Z');
+  const eventStart = new Date('2025-11-24T00:00:00.000Z');
+  const eventEnd = new Date('2026-04-16T23:59:59.000Z');
 
   const phaseIntroStyles = `
 <style>
@@ -473,7 +473,7 @@ export async function up(queryInterface) {
       tenant_id: tenant.id,
       created_by: adminUserId,
       name: 'SPP 2026',
-      description: 'Programa SPP 2026 para proyectos colaborativos.',
+      description: 'Bienvenid@ al Startup Pioneer Program (SPP)',
       description_html: eventDescriptionHtml,
       start_date: eventStart,
       end_date: eventEnd,
@@ -816,8 +816,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 0'],
       order_index: 0,
       is_elimination: false,
-      start_date: new Date('2025-09-22T00:00:00.000Z'),
-      end_date: new Date('2025-09-26T23:59:59.000Z'),
+      start_date: new Date('2025-11-24T00:00:00.000Z'),
+      end_date: new Date('2025-12-12T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -831,8 +831,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 1'],
       order_index: 2,
       is_elimination: false,
-      start_date: new Date('2025-10-20T00:00:00.000Z'),
-      end_date: new Date('2025-10-31T23:59:59.000Z'),
+      start_date: new Date('2026-02-02T00:00:00.000Z'),
+      end_date: new Date('2026-02-06T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -846,8 +846,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 2'],
       order_index: 3,
       is_elimination: false,
-      start_date: new Date('2025-11-17T00:00:00.000Z'),
-      end_date: new Date('2025-11-28T23:59:59.000Z'),
+      start_date: new Date('2026-02-09T00:00:00.000Z'),
+      end_date: new Date('2026-02-20T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -861,8 +861,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 3'],
       order_index: 4,
       is_elimination: false,
-      start_date: new Date('2026-01-19T00:00:00.000Z'),
-      end_date: new Date('2026-01-23T23:59:59.000Z'),
+      start_date: new Date('2026-03-02T00:00:00.000Z'),
+      end_date: new Date('2026-03-20T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -876,8 +876,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 4'],
       order_index: 5,
       is_elimination: false,
-      start_date: new Date('2026-02-23T00:00:00.000Z'),
-      end_date: new Date('2026-02-27T23:59:59.000Z'),
+      start_date: new Date('2026-03-02T00:00:00.000Z'),
+      end_date: new Date('2026-03-20T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -892,7 +892,7 @@ export async function up(queryInterface) {
       order_index: 6,
       is_elimination: false,
       start_date: new Date('2026-03-23T00:00:00.000Z'),
-      end_date: new Date('2026-03-27T23:59:59.000Z'),
+      end_date: new Date('2026-03-23T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -906,8 +906,8 @@ export async function up(queryInterface) {
       intro_html: phaseIntroHtml['Fase 6'],
       order_index: 7,
       is_elimination: false,
-      start_date: new Date('2026-05-18T00:00:00.000Z'),
-      end_date: new Date('2026-05-22T23:59:59.000Z'),
+      start_date: new Date('2026-03-02T00:00:00.000Z'),
+      end_date: new Date('2026-03-20T23:59:59.000Z'),
       view_start_date: eventStartDate,
       view_end_date: eventEndDate,
       created_at: phaseNow,
@@ -1944,7 +1944,7 @@ export async function down(queryInterface) {
   }
 
   const [[adminUser]] = await queryInterface.sequelize.query(
-    "SELECT id FROM users WHERE email = 'admin@uic.cat' LIMIT 1"
+    "SELECT id FROM users WHERE email = 'admin@uic.es' LIMIT 1"
   );
 
   if (adminUser) {
@@ -1958,7 +1958,7 @@ export async function down(queryInterface) {
     }
   }
 
-  await queryInterface.bulkDelete('users', { email: 'admin@uic.cat' });
+  await queryInterface.bulkDelete('users', { email: 'admin@uic.es' });
   await queryInterface.bulkDelete('roles', { tenant_id: tenant.id, scope: 'tenant_admin' });
   await queryInterface.bulkDelete('tenants', { id: tenant.id });
 }

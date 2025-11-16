@@ -4,7 +4,6 @@ import {
   buildPublicUrl,
   normalizeFileName
 } from '../../../utils/s3-utils.js';
-import { getS3ClientAndSettings } from '../../../services/tenant-assets.service.js';
 
 /**
  * Seeder que obtiene los recursos existentes en S3 para el evento UIC SPP 2026
@@ -33,7 +32,7 @@ export async function up(queryInterface) {
 
   // Obtener el usuario admin para uploaded_by
   const [[adminUser]] = await queryInterface.sequelize.query(
-    "SELECT id FROM users WHERE email = 'admin@uic.cat' LIMIT 1"
+    "SELECT id FROM users WHERE email = 'admin@uic.es' LIMIT 1"
   );
 
   if (!adminUser) {

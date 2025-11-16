@@ -64,7 +64,7 @@ const FIXED_PASSWORDS = {
     password: 'dEm!pAsS10@demo',
     role: 'Participante Demo (Proyecto 5)'
   },
-  'admin@uic.cat': {
+  'admin@uic.es': {
     password: 'UdS*r2ZD5?;O',
     role: 'Admin UIC'
   },

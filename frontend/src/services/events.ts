@@ -70,7 +70,8 @@ export type PhaseRubric = {
   name: string;
   description?: string | null;
   event_id: number;
-  phase_id: number;
+  phase_id: number | null;
+  rubric_scope: 'phase' | 'project';
   scale_min: number;
   scale_max: number;
   model_preference?: string | null;
@@ -135,6 +136,7 @@ export async function getEventTasks(eventId: number) {
 }
 
 export type RubricPayload = {
+  rubric_scope?: 'phase' | 'project';
   name: string;
   description?: string;
   scale_min?: number;
@@ -166,6 +168,26 @@ export async function updateRubric(eventId: number, phaseId: number, rubricId: n
 
 export async function deleteRubric(eventId: number, phaseId: number, rubricId: number) {
   await apiClient.delete(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`);
+}
+
+// Funciones para rúbricas de proyecto
+export async function getProjectRubrics(eventId: number) {
+  const response = await apiClient.get(`/events/${eventId}/rubrics/project`);
+  return response.data.data as PhaseRubric[];
+}
+
+export async function createProjectRubric(eventId: number, payload: RubricPayload) {
+  const response = await apiClient.post(`/events/${eventId}/rubrics/project`, payload);
+  return response.data.data as PhaseRubric;
+}
+
+export async function updateProjectRubric(eventId: number, rubricId: number, payload: Partial<RubricPayload>) {
+  const response = await apiClient.put(`/events/${eventId}/rubrics/project/${rubricId}`, payload);
+  return response.data.data as PhaseRubric;
+}
+
+export async function deleteProjectRubric(eventId: number, rubricId: number) {
+  await apiClient.delete(`/events/${eventId}/rubrics/project/${rubricId}`);
 }
 
 export type TeamMemberTracking = {

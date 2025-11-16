@@ -1,5 +1,80 @@
 ﻿import { Op } from 'sequelize';
+import jwt from 'jsonwebtoken';
+import { appConfig } from '../config/env.js';
 import { getModels } from "../models/index.js";
+
+/**
+ * Verifica opcionalmente si hay un usuario autenticado y si es administrador
+ * @param {import('express').Request} req
+ * @param {number} tenantId - ID del tenant de la petición
+ * @returns {{ isAdmin: boolean, user: any | null }}
+ */
+async function checkOptionalAuth(req, tenantId) {
+  const authHeader = req.headers.authorization ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return { isAdmin: false, user: null };
+  }
+
+  try {
+    const payload = jwt.verify(token, appConfig.jwtSecret);
+    const { User, UserTenant, Role } = getModels();
+    const user = await User.findOne({
+      where: { id: payload.sub }
+    });
+
+    if (!user) {
+      return { isAdmin: false, user: null };
+    }
+
+    const isSuperAdmin = Boolean(user.is_super_admin);
+    
+    let roleScopes = [];
+    let membershipTenantId = null;
+    
+    if (payload.membershipId) {
+      const membership = await UserTenant.findOne({
+        where: {
+          id: payload.membershipId,
+          user_id: user.id,
+          status: 'active'
+        },
+        include: [
+          {
+            model: Role,
+            as: 'assignedRoles',
+            attributes: ['scope'],
+            through: { attributes: [] }
+          }
+        ]
+      });
+
+      if (membership) {
+        roleScopes = membership.assignedRoles?.map(role => role.scope) ?? [];
+        membershipTenantId = membership.tenant_id;
+      }
+    } else {
+      roleScopes = payload.roleScopes ?? [];
+      // Si hay tenantId en el payload, usarlo para verificar
+      if (payload.tenantId) {
+        membershipTenantId = payload.tenantId;
+      }
+    }
+
+    // Verificar que el tenant del usuario coincida con el tenant de la petición
+    // (excepto para super admins que pueden ver todos los tenants)
+    if (!isSuperAdmin && membershipTenantId && Number(membershipTenantId) !== Number(tenantId)) {
+      return { isAdmin: false, user: null };
+    }
+
+    const isAdmin = isSuperAdmin || roleScopes.includes('tenant_admin') || roleScopes.includes('organizer');
+    
+    return { isAdmin, user };
+  } catch (error) {
+    return { isAdmin: false, user: null };
+  }
+}
 
 export class PublicController {
   static async getBranding(req, res) {
@@ -196,25 +271,34 @@ static async listPhases(req, res) {
       return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
     }
 
+    // Verificar si el usuario es administrador (opcional)
+    const { isAdmin } = await checkOptionalAuth(req, tenant.id);
+
     const now = new Date();
+    
+    // Si es administrador, no filtrar por fechas; si no, aplicar el filtro normal
+    const whereClause = isAdmin
+      ? { tenant_id: tenant.id }
+      : {
+          tenant_id: tenant.id,
+          [Op.and]: [
+            {
+              [Op.or]: [
+                { view_start_date: null },
+                { view_start_date: { [Op.lte]: now } }
+              ]
+            },
+            {
+              [Op.or]: [
+                { view_end_date: null },
+                { view_end_date: { [Op.gte]: now } }
+              ]
+            }
+          ]
+        };
+
     const phases = await Phase.findAll({
-      where: {
-        tenant_id: tenant.id,
-        [Op.and]: [
-          {
-            [Op.or]: [
-              { view_start_date: null },
-              { view_start_date: { [Op.lte]: now } }
-            ]
-          },
-          {
-            [Op.or]: [
-              { view_end_date: null },
-              { view_end_date: { [Op.gte]: now } }
-            ]
-          }
-        ]
-      },
+      where: whereClause,
       include: [
         {
           model: Event,
@@ -233,8 +317,10 @@ static async listPhases(req, res) {
     const payload = phases.map(phase => {
       const viewStart = phase.view_start_date ? new Date(phase.view_start_date) : null;
       const viewEnd = phase.view_end_date ? new Date(phase.view_end_date) : null;
-      const isVisible =
-        (!viewStart || viewStart <= now) && (!viewEnd || viewEnd >= now);
+      // Si es admin, siempre marcar como visible; si no, verificar fechas
+      const isVisible = isAdmin
+        ? true
+        : ((!viewStart || viewStart <= now) && (!viewEnd || viewEnd >= now));
 
       return {
         id: phase.id,

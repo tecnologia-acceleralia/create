@@ -53,19 +53,32 @@ export function RubricForm({
       {showBasic && (
         <FormGrid columns={2}>
         <FormField
-          label={t('events.rubricPhase')}
-          htmlFor={`${idPrefix}-phase`}
-          error={translateError(errors.phase_id?.message)}
+          label={t('events.rubricScope')}
+          htmlFor={`${idPrefix}-scope`}
+          error={translateError(errors.rubric_scope?.message)}
           required
         >
-          <Select id={`${idPrefix}-phase`} {...register('phase_id', { valueAsNumber: true })} disabled={!phases.length}>
-            {phases.map(phase => (
-              <option key={phase.id} value={phase.id}>
-                {phase.name}
-              </option>
-            ))}
+          <Select id={`${idPrefix}-scope`} {...register('rubric_scope')}>
+            <option value="phase">{t('events.rubricScopePhase')}</option>
+            <option value="project">{t('events.rubricScopeProject')}</option>
           </Select>
         </FormField>
+        {form.watch('rubric_scope') === 'phase' && (
+          <FormField
+            label={t('events.rubricPhase')}
+            htmlFor={`${idPrefix}-phase`}
+            error={translateError(errors.phase_id?.message)}
+            required
+          >
+            <Select id={`${idPrefix}-phase`} {...register('phase_id', { valueAsNumber: true })} disabled={!phases.length}>
+              {phases.map(phase => (
+                <option key={phase.id} value={phase.id}>
+                  {phase.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        )}
         <FormField
           label={t('events.rubricName')}
           htmlFor={`${idPrefix}-name`}
