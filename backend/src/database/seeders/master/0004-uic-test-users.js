@@ -11,23 +11,30 @@ const UIC_TEST_PASSWORDS = {
   'usuario7@uic.es': 'uIc!pAsS7@uic',
   'usuario8@uic.es': 'uIc!pAsS8@uic',
   'usuario9@uic.es': 'uIc!pAsS9@uic',
-  'usuario10@uic.es': 'uIc!pAsS10@uic'
+  'usuario10@uic.es': 'uIc!pAsS10@uic',
+  'usuario11@uic.es': 'uIc!pAsS11@uic',
+  'usuario12@uic.es': 'uIc!pAsS12@uic'
 };
 
-// Seeder para crear 10 usuarios de prueba de UIC con 5 proyectos
+// Seeder para crear 12 usuarios de prueba de UIC: 10 usuarios con 5 proyectos (2 usuarios por proyecto) y 2 usuarios sin equipo
 // Dependencias: requiere que el tenant 'uic' y su evento 'SPP 2026' ya existan (0002-uic-tenant.js)
 
+// Usar los valores del registration_schema (no los labels completos)
+// Valores válidos según el esquema: ade, arquitectura, bioenginyeria, ciencies_biomediques, dret, fisioterapia, humanitats, medicina, odontologia, publicitat
 const testUsersData = [
-  { firstName: 'Usuario', lastName: 'Uno', email: 'usuario1@uic.es', projectNum: 1, isCaptain: true },
-  { firstName: 'Usuario', lastName: 'Dos', email: 'usuario2@uic.es', projectNum: 1, isCaptain: false },
-  { firstName: 'Usuario', lastName: 'Tres', email: 'usuario3@uic.es', projectNum: 2, isCaptain: true },
-  { firstName: 'Usuario', lastName: 'Cuatro', email: 'usuario4@uic.es', projectNum: 2, isCaptain: false },
-  { firstName: 'Usuario', lastName: 'Cinco', email: 'usuario5@uic.es', projectNum: 3, isCaptain: true },
-  { firstName: 'Usuario', lastName: 'Seis', email: 'usuario6@uic.es', projectNum: 3, isCaptain: false },
-  { firstName: 'Usuario', lastName: 'Siete', email: 'usuario7@uic.es', projectNum: 4, isCaptain: true },
-  { firstName: 'Usuario', lastName: 'Ocho', email: 'usuario8@uic.es', projectNum: 4, isCaptain: false },
-  { firstName: 'Usuario', lastName: 'Nueve', email: 'usuario9@uic.es', projectNum: 5, isCaptain: true },
-  { firstName: 'Usuario', lastName: 'Diez', email: 'usuario10@uic.es', projectNum: 5, isCaptain: false }
+  { firstName: 'Usuario', lastName: 'Uno', email: 'usuario1@uic.es', projectNum: 1, isCaptain: true, grade: 'ade' },
+  { firstName: 'Usuario', lastName: 'Dos', email: 'usuario2@uic.es', projectNum: 1, isCaptain: false, grade: 'arquitectura' },
+  { firstName: 'Usuario', lastName: 'Tres', email: 'usuario3@uic.es', projectNum: 2, isCaptain: true, grade: 'bioenginyeria' },
+  { firstName: 'Usuario', lastName: 'Cuatro', email: 'usuario4@uic.es', projectNum: 2, isCaptain: false, grade: 'ciencies_biomediques' },
+  { firstName: 'Usuario', lastName: 'Cinco', email: 'usuario5@uic.es', projectNum: 3, isCaptain: true, grade: 'dret' },
+  { firstName: 'Usuario', lastName: 'Seis', email: 'usuario6@uic.es', projectNum: 3, isCaptain: false, grade: 'fisioterapia' },
+  { firstName: 'Usuario', lastName: 'Siete', email: 'usuario7@uic.es', projectNum: 4, isCaptain: true, grade: 'medicina' },
+  { firstName: 'Usuario', lastName: 'Ocho', email: 'usuario8@uic.es', projectNum: 4, isCaptain: false, grade: 'humanitats' },
+  { firstName: 'Usuario', lastName: 'Nueve', email: 'usuario9@uic.es', projectNum: 5, isCaptain: true, grade: 'odontologia' },
+  { firstName: 'Usuario', lastName: 'Diez', email: 'usuario10@uic.es', projectNum: 5, isCaptain: false, grade: 'publicitat' },
+  // Usuarios sin equipo
+  { firstName: 'Usuario', lastName: 'Once', email: 'usuario11@uic.es', projectNum: null, isCaptain: false, grade: 'ade' },
+  { firstName: 'Usuario', lastName: 'Doce', email: 'usuario12@uic.es', projectNum: null, isCaptain: false, grade: 'arquitectura' }
 ];
 
 export async function up(queryInterface) {
@@ -87,10 +94,10 @@ export async function up(queryInterface) {
     let userId;
     if (existingUser) {
       userId = existingUser.id;
-      // Actualizar contraseña si existe
+      // Actualizar contraseña y grado si existe
       await queryInterface.bulkUpdate(
         'users',
-        { password: passwordHash, updated_at: now },
+        { password: passwordHash, grade: userData.grade || null, updated_at: now },
         { id: userId }
       );
     } else {
@@ -100,6 +107,7 @@ export async function up(queryInterface) {
           password: passwordHash,
           first_name: userData.firstName,
           last_name: userData.lastName,
+          grade: userData.grade || null,
           language: 'ca',
           status: 'active',
           profile_image_url: null,
@@ -156,6 +164,33 @@ export async function up(queryInterface) {
           updated_at: now
         }
       ]);
+    }
+
+    // Registrar usuario en el evento con el grado
+    const [[existingRegistration]] = await queryInterface.sequelize.query(
+      `SELECT id FROM event_registrations WHERE user_id = ${userId} AND event_id = ${event.id} LIMIT 1`
+    );
+
+    if (!existingRegistration) {
+      await queryInterface.bulkInsert('event_registrations', [
+        {
+          tenant_id: tenant.id,
+          event_id: event.id,
+          user_id: userId,
+          status: 'registered',
+          grade: userData.grade || null,
+          answers: JSON.stringify({}),
+          created_at: now,
+          updated_at: now
+        }
+      ]);
+    } else {
+      // Actualizar el grado si ya existe el registro
+      await queryInterface.bulkUpdate(
+        'event_registrations',
+        { grade: userData.grade || null, updated_at: now },
+        { id: existingRegistration.id }
+      );
     }
 
     createdUsers.push({ ...userData, userId, userTenantId });

@@ -58,16 +58,20 @@ import {
   updateProjectRubric,
   deleteProjectRubric,
   updateEvent,
+  getEventStatistics,
   type Phase,
   type Task,
   type PhaseRubric,
   type RubricPayload,
-  type Event
+  type Event,
+  type EventStatistics
 } from '@/services/events';
 import { getTeamsByEvent, type Team } from '@/services/teams';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { useTenant } from '@/context/TenantContext';
 import { EventAssetsManager } from '@/components/events/EventAssetsManager';
+import EventStatisticsTab from '@/components/events/EventStatisticsTab';
+import EventDeliverablesTrackingTab from '@/components/events/EventDeliverablesTrackingTab';
 
 type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 
@@ -714,7 +718,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
       [data-event-form-tabs] button[data-state="active"],
       [data-phase-form-tabs] button[data-state="active"],
       [data-task-form-tabs] button[data-state="active"],
-      [data-rubric-form-tabs] button[data-state="active"] {
+      [data-rubric-form-tabs] button[data-state="active"],
+      [data-statistics-tabs] button[data-state="active"] {
         background-color: ${primaryColor} !important;
         color: white !important;
       }
@@ -736,7 +741,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
           <TabsTrigger value="phases-tasks">{t('events.phasesAndTasks')}</TabsTrigger>
           <TabsTrigger value="rubrics">{t('events.rubricsTitle')}</TabsTrigger>
           <TabsTrigger value="assets">{t('events.assetsTitle', { defaultValue: 'Recursos' })}</TabsTrigger>
-          <TabsTrigger value="teams">{t('teams.allTeams')}</TabsTrigger>
+          <TabsTrigger value="statistics">{t('events.statistics', { defaultValue: 'Estadísticas' })}</TabsTrigger>
+          <TabsTrigger value="deliverables-tracking">{t('events.deliverablesTracking.title', { defaultValue: 'Seguimiento de Entregables' })}</TabsTrigger>
         </TabsList>
 
         {/* Tab: Datos del evento */}
@@ -1068,103 +1074,78 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
           <EventAssetsManager eventId={eventId} />
         </TabsContent>
 
-        {/* Tab: Equipos */}
-        <TabsContent value="teams" className="space-y-6">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader>
-              <CardTitle>{t('teams.allTeams')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoadingTeams ? (
-                <Spinner />
-              ) : teams && teams.length > 0 ? (
-                <div className="space-y-4">
-                  {teams.map(team => (
-                    <div key={team.id} className="rounded-lg border border-border/70 p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-foreground">{team.name}</p>
-                          {team.description && (
-                            <p className="text-xs text-muted-foreground mt-1">{team.description}</p>
-                          )}
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            <Badge variant={team.status === 'open' ? 'default' : 'secondary'}>
-                              {team.status === 'open' ? t('teams.statusOpen') : t('teams.statusClosed')}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {t('teams.membersCount', { count: team.members?.length ?? 0 })}
-                            </span>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedTeam(team);
-                            setIsTeamDetailsModalOpen(true);
-                          }}
-                        >
-                          {t('teams.viewDetails')}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t('teams.noTeams')}</p>
-              )}
-            </CardContent>
-          </Card>
+        {/* Tab: Estadísticas */}
+        <TabsContent value="statistics" className="space-y-6">
+          <EventStatisticsTab 
+            eventId={eventId} 
+            onViewTeam={(teamId) => {
+              const team = teams?.find(t => t.id === teamId);
+              if (team) {
+                setSelectedTeam(team);
+                setIsTeamDetailsModalOpen(true);
+              }
+            }}
+          />
+        </TabsContent>
+
+        {/* Tab: Seguimiento de Entregables */}
+        <TabsContent value="deliverables-tracking" className="space-y-6">
+          <EventDeliverablesTrackingTab eventId={eventId} />
         </TabsContent>
       </Tabs>
 
       {/* Modal de Edición de Evento */}
       <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>{t('events.editEvent')}</DialogTitle>
             <DialogDescription>
               {t('events.editEventDescription', { defaultValue: 'Modifica los detalles del evento' })}
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList data-event-form-tabs className="grid w-full grid-cols-3">
-              <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-              <TabsTrigger value="html">HTML</TabsTrigger>
-              <TabsTrigger value="registration">{t('events.registrationSchema', { defaultValue: 'Esquema de Registro' })}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="mt-4">
-              <EventForm
-                form={eventForm}
-                onSubmit={onSubmitEvent}
-                isSubmitting={updateEventMutation.isPending}
-                hideSubmitButton
-                idPrefix="event"
-                sections={['basic']}
-              />
-            </TabsContent>
-            <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-              <EventForm
-                form={eventForm}
-                onSubmit={onSubmitEvent}
-                isSubmitting={updateEventMutation.isPending}
-                hideSubmitButton
-                idPrefix="event"
-                sections={['html']}
-              />
-            </TabsContent>
-            <TabsContent value="registration" className="mt-4">
-              <EventForm
-                form={eventForm}
-                onSubmit={onSubmitEvent}
-                isSubmitting={updateEventMutation.isPending}
-                hideSubmitButton
-                idPrefix="event"
-                sections={['registration']}
-              />
-            </TabsContent>
-          </Tabs>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto px-6">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList data-event-form-tabs className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+                <TabsTrigger value="registration">{t('events.registrationSchema', { defaultValue: 'Esquema de Registro' })}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="mt-4">
+                <EventForm
+                  form={eventForm}
+                  onSubmit={onSubmitEvent}
+                  isSubmitting={updateEventMutation.isPending}
+                  hideSubmitButton
+                  idPrefix="event"
+                  sections={['basic']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
+                <EventForm
+                  form={eventForm}
+                  onSubmit={onSubmitEvent}
+                  isSubmitting={updateEventMutation.isPending}
+                  hideSubmitButton
+                  idPrefix="event"
+                  sections={['html']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+              <TabsContent value="registration" className="mt-4">
+                <EventForm
+                  form={eventForm}
+                  onSubmit={onSubmitEvent}
+                  isSubmitting={updateEventMutation.isPending}
+                  hideSubmitButton
+                  idPrefix="event"
+                  sections={['registration']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button variant="outline" onClick={() => setIsEventModalOpen(false)}>
               {t('common.cancel')}
             </Button>
@@ -1181,8 +1162,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
       {/* Modal de Fase */}
       <Dialog open={isPhaseModalOpen} onOpenChange={setIsPhaseModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>
               {editingPhase ? t('events.editPhase') : t('events.createPhase')}
             </DialogTitle>
@@ -1192,31 +1173,35 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                 : t('events.createPhaseDescription', { defaultValue: 'Crea una nueva fase para el evento' })}
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList data-phase-form-tabs className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-              <TabsTrigger value="html">HTML</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="mt-4">
-              <PhaseForm
-                form={phaseForm}
-                onSubmit={onSubmitPhase}
-                isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
-                hideSubmitButton={true}
-                sections={['basic']}
-              />
-            </TabsContent>
-            <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-              <PhaseForm
-                form={phaseForm}
-                onSubmit={onSubmitPhase}
-                isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
-                hideSubmitButton={true}
-                sections={['html']}
-              />
-            </TabsContent>
-          </Tabs>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto px-6">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList data-phase-form-tabs className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="mt-4">
+                <PhaseForm
+                  form={phaseForm}
+                  onSubmit={onSubmitPhase}
+                  isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
+                  hideSubmitButton={true}
+                  sections={['basic']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
+                <PhaseForm
+                  form={phaseForm}
+                  onSubmit={onSubmitPhase}
+                  isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
+                  hideSubmitButton={true}
+                  sections={['html']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button variant="outline" onClick={() => setIsPhaseModalOpen(false)}>
               {t('common.cancel')}
             </Button>
@@ -1236,8 +1221,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
       {/* Modal de Tarea */}
       <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>
               {editingTask ? t('events.editTask') : t('events.createTask')}
             </DialogTitle>
@@ -1247,35 +1232,39 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                 : t('events.createTaskDescription', { defaultValue: 'Crea una nueva tarea para la fase' })}
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList data-task-form-tabs className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-              <TabsTrigger value="html">HTML</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="mt-4">
-              <TaskForm
-                form={taskForm as any}
-                phases={sortedPhases}
-                availableRubrics={availableRubrics}
-                onSubmit={onSubmitTask}
-                isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
-                hideSubmitButton={true}
-                sections={['basic']}
-              />
-            </TabsContent>
-            <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-              <TaskForm
-                form={taskForm as any}
-                phases={sortedPhases}
-                availableRubrics={availableRubrics}
-                onSubmit={onSubmitTask}
-                isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
-                hideSubmitButton={true}
-                sections={['html']}
-              />
-            </TabsContent>
-          </Tabs>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto px-6">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList data-task-form-tabs className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
+                <TabsTrigger value="html">HTML</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="mt-4">
+                <TaskForm
+                  form={taskForm as any}
+                  phases={sortedPhases}
+                  availableRubrics={availableRubrics}
+                  onSubmit={onSubmitTask}
+                  isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
+                  hideSubmitButton={true}
+                  sections={['basic']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
+                <TaskForm
+                  form={taskForm as any}
+                  phases={sortedPhases}
+                  availableRubrics={availableRubrics}
+                  onSubmit={onSubmitTask}
+                  isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
+                  hideSubmitButton={true}
+                  sections={['html']}
+                  eventId={eventId}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button variant="outline" onClick={() => setIsTaskModalOpen(false)}>
               {t('common.cancel')}
             </Button>
@@ -1295,8 +1284,8 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
       {/* Modal de Rúbrica */}
       <Dialog open={isRubricModalOpen} onOpenChange={setIsRubricModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>
               {editingRubric ? t('events.editRubric') : t('events.createRubric')}
             </DialogTitle>
@@ -1306,59 +1295,61 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                 : t('events.createRubricDescription', { defaultValue: 'Crea una nueva rúbrica de evaluación' })}
             </DialogDescription>
           </DialogHeader>
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList data-rubric-form-tabs className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-              <TabsTrigger value="criteria">{t('events.rubricCriteriaTitle', { defaultValue: 'Criterios' })}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="basic" className="mt-4">
-              <RubricForm
-                form={rubricForm}
-                phases={sortedPhases}
-                criteriaFields={criteriaArray.fields}
-                onAddCriterion={() =>
-                  criteriaArray.append({
-                    title: '',
-                    description: '',
-                    weight: 1,
-                    max_score: null,
-                    order_index: (criteriaArray.fields.length || 0) + 1
-                  })
-                }
-                onRemoveCriterion={criteriaArray.remove}
-                onSubmit={onSubmitRubric}
-                onCancelEdit={resetRubricForm}
-                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
-                isEditing={Boolean(editingRubric)}
-                hideSubmitButton={true}
-                sections={['basic']}
-              />
-            </TabsContent>
-            <TabsContent value="criteria" className="mt-4">
-              <RubricForm
-                form={rubricForm}
-                phases={sortedPhases}
-                criteriaFields={criteriaArray.fields}
-                onAddCriterion={() =>
-                  criteriaArray.append({
-                    title: '',
-                    description: '',
-                    weight: 1,
-                    max_score: null,
-                    order_index: (criteriaArray.fields.length || 0) + 1
-                  })
-                }
-                onRemoveCriterion={criteriaArray.remove}
-                onSubmit={onSubmitRubric}
-                onCancelEdit={resetRubricForm}
-                isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
-                isEditing={Boolean(editingRubric)}
-                hideSubmitButton={true}
-                sections={['criteria']}
-              />
-            </TabsContent>
-          </Tabs>
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto px-6">
+            <Tabs defaultValue="basic" className="w-full">
+              <TabsList data-rubric-form-tabs className="grid w-full grid-cols-2">
+                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
+                <TabsTrigger value="criteria">{t('events.rubricCriteriaTitle', { defaultValue: 'Criterios' })}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="mt-4">
+                <RubricForm
+                  form={rubricForm}
+                  phases={sortedPhases}
+                  criteriaFields={criteriaArray.fields}
+                  onAddCriterion={() =>
+                    criteriaArray.append({
+                      title: '',
+                      description: '',
+                      weight: 1,
+                      max_score: null,
+                      order_index: (criteriaArray.fields.length || 0) + 1
+                    })
+                  }
+                  onRemoveCriterion={criteriaArray.remove}
+                  onSubmit={onSubmitRubric}
+                  onCancelEdit={resetRubricForm}
+                  isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
+                  isEditing={Boolean(editingRubric)}
+                  hideSubmitButton={true}
+                  sections={['basic']}
+                />
+              </TabsContent>
+              <TabsContent value="criteria" className="mt-4">
+                <RubricForm
+                  form={rubricForm}
+                  phases={sortedPhases}
+                  criteriaFields={criteriaArray.fields}
+                  onAddCriterion={() =>
+                    criteriaArray.append({
+                      title: '',
+                      description: '',
+                      weight: 1,
+                      max_score: null,
+                      order_index: (criteriaArray.fields.length || 0) + 1
+                    })
+                  }
+                  onRemoveCriterion={criteriaArray.remove}
+                  onSubmit={onSubmitRubric}
+                  onCancelEdit={resetRubricForm}
+                  isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
+                  isEditing={Boolean(editingRubric)}
+                  hideSubmitButton={true}
+                  sections={['criteria']}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button variant="outline" onClick={() => setIsRubricModalOpen(false)}>
               {t('common.cancel')}
             </Button>

@@ -14,9 +14,10 @@ type EventFormProps = {
   hideSubmitButton?: boolean;
   idPrefix?: string;
   sections?: ('basic' | 'html' | 'registration')[];
+  eventId?: number;
 };
 
-export function EventForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'event', sections = ['basic', 'html', 'registration'] }: EventFormProps) {
+export function EventForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'event', sections = ['basic', 'html', 'registration'], eventId }: EventFormProps) {
   const { t } = useTranslation();
   const {
     handleSubmit,
@@ -68,6 +69,7 @@ export function EventForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPr
             rows={showBasic ? 10 : 30}
             placeholder={t('events.descriptionHtmlPlaceholder')}
             previewTitle={t('events.descriptionHtmlPreview')}
+            eventId={eventId}
           />
         </FormField>
       )}

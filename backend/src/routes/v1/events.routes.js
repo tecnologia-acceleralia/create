@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { EventsController } from '../../controllers/events.controller.js';
 import { EventTrackingController } from '../../controllers/event-tracking.controller.js';
+import { EventStatisticsController } from '../../controllers/event-statistics.controller.js';
+import { EventDeliverablesController } from '../../controllers/event-deliverables.controller.js';
 import { EventAssetsController, uploadMiddleware } from '../../controllers/event-assets.controller.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorizeRoles } from '../../middleware/authorization.middleware.js';
@@ -58,6 +60,22 @@ eventsRouter.get(
   [param('eventId').isInt()],
   validateRequest,
   EventTrackingController.overview
+);
+
+eventsRouter.get(
+  '/:eventId/statistics',
+  authorizeRoles('tenant_admin', 'organizer'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventStatisticsController.getStatistics
+);
+
+eventsRouter.get(
+  '/:eventId/deliverables-tracking',
+  authorizeRoles('tenant_admin', 'organizer'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventDeliverablesController.getDeliverablesTracking
 );
 
 eventsRouter.put(

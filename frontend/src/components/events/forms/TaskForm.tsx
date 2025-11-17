@@ -18,9 +18,10 @@ type TaskFormProps = {
   hideSubmitButton?: boolean;
   idPrefix?: string;
   sections?: ('basic' | 'html')[];
+  eventId?: number;
 };
 
-export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'task', sections = ['basic', 'html'] }: TaskFormProps) {
+export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'task', sections = ['basic', 'html'], eventId }: TaskFormProps) {
   const { t } = useTranslation();
   const {
     handleSubmit,
@@ -69,6 +70,7 @@ export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmittin
             fieldName="intro_html"
             rows={showBasic ? 4 : 30}
             previewTitle={t('events.taskIntroHtmlPreview')}
+            eventId={eventId}
           />
         </FormField>
       )}

@@ -13,9 +13,10 @@ type PhaseFormProps = {
   hideSubmitButton?: boolean;
   idPrefix?: string;
   sections?: ('basic' | 'html')[];
+  eventId?: number;
 };
 
-export function PhaseForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'phase', sections = ['basic', 'html'] }: PhaseFormProps) {
+export function PhaseForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPrefix = 'phase', sections = ['basic', 'html'], eventId }: PhaseFormProps) {
   const { t } = useTranslation();
   const {
     handleSubmit,
@@ -64,6 +65,7 @@ export function PhaseForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPr
             fieldName="intro_html"
             rows={showBasic ? 4 : 30}
             previewTitle={t('events.phaseIntroHtmlPreview')}
+            eventId={eventId}
           />
         </FormField>
       )}

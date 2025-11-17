@@ -89,15 +89,17 @@ function EventsListPage() {
       }
     >
       <Dialog open={isDialogOpen} onOpenChange={openState => (!openState ? handleCloseDialog() : null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>{t('events.formTitle')}</DialogTitle>
             <DialogDescription>
               {t('events.createEventDescription', { defaultValue: 'Crea un nuevo evento' })}
             </DialogDescription>
           </DialogHeader>
-          <EventForm form={eventForm} onSubmit={onSubmit} isSubmitting={createMutation.isPending} hideSubmitButton />
-          <DialogFooter>
+          <div className="flex-1 overflow-y-auto px-6">
+            <EventForm form={eventForm} onSubmit={onSubmit} isSubmitting={createMutation.isPending} hideSubmitButton />
+          </div>
+          <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button type="button" variant="outline" onClick={handleCloseDialog}>
               {t('common.cancel')}
             </Button>

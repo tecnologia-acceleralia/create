@@ -288,3 +288,118 @@ export async function getEventTrackingOverview(eventId: number) {
   return response.data.data as EventTrackingOverview;
 }
 
+export type TeamStatistics = {
+  id: number;
+  name: string;
+  project: {
+    id: number;
+    name: string;
+    summary?: string | null;
+    status: string;
+  } | null;
+  captain: {
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+  } | null;
+  members: Array<{
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    role: string;
+    grade: string | null;
+  }>;
+  totalMembers: number;
+};
+
+export type UserStatistics = {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  grade: string | null;
+  lastLoginAt: string | null;
+  team: {
+    id: number;
+    name: string;
+  } | null;
+  roles: string[];
+};
+
+export type GradeSummaryEntry = {
+  grade: string;
+  withTeam: number;
+  withoutTeam: number;
+  total: number;
+};
+
+export type CustomField = {
+  name: string;
+  label: string;
+  type: string;
+};
+
+export type CustomFieldAggregate = {
+  field: CustomField;
+  summary: Array<{
+    value: string;
+    withTeam: number;
+    withoutTeam: number;
+    total: number;
+  }>;
+};
+
+export type EventStatistics = {
+  teams: TeamStatistics[];
+  users: UserStatistics[];
+  usersWithoutTeam: UserStatistics[];
+  gradeSummary: GradeSummaryEntry[];
+  customFields: CustomField[];
+  customFieldAggregates: Record<string, CustomFieldAggregate>;
+};
+
+export async function getEventStatistics(eventId: number) {
+  const response = await apiClient.get(`/events/${eventId}/statistics`);
+  return response.data.data as EventStatistics;
+}
+
+export type DeliverableColumn = {
+  phaseId: number;
+  phaseName: string;
+  taskId: number;
+  taskTitle: string;
+  orderIndex?: number;
+};
+
+export type TeamDeliverable = {
+  taskId: number;
+  taskTitle: string;
+  phaseId: number;
+  phaseName: string;
+  submitted: boolean;
+  submissionId: number | null;
+  attachmentUrl: string | null;
+  content: string | null;
+  submittedAt: string | null;
+};
+
+export type TeamDeliverablesData = {
+  id: number;
+  name: string;
+  deliverables: TeamDeliverable[];
+};
+
+export type EventDeliverablesTracking = {
+  teams: TeamDeliverablesData[];
+  columns: DeliverableColumn[];
+  phases: Array<{ id: number; name: string; orderIndex: number }>;
+  tasks: Array<{ id: number; title: string; phaseId: number }>;
+};
+
+export async function getEventDeliverablesTracking(eventId: number) {
+  const response = await apiClient.get(`/events/${eventId}/deliverables-tracking`);
+  return response.data.data as EventDeliverablesTracking;
+}
+

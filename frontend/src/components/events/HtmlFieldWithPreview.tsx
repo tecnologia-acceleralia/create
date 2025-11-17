@@ -4,6 +4,7 @@ import { Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { HtmlPreviewDialog } from './HtmlPreviewDialog';
+import { AssetMarkerSelector } from './AssetMarkerSelector';
 import type { UseFormRegisterReturn, UseFormWatch } from 'react-hook-form';
 
 type HtmlFieldWithPreviewProps = {
@@ -14,6 +15,7 @@ type HtmlFieldWithPreviewProps = {
   rows?: number;
   placeholder?: string;
   previewTitle?: string;
+  eventId?: number;
 };
 
 export function HtmlFieldWithPreview({
@@ -23,7 +25,8 @@ export function HtmlFieldWithPreview({
   fieldName,
   rows = 10,
   placeholder,
-  previewTitle
+  previewTitle,
+  eventId
 }: HtmlFieldWithPreviewProps) {
   const { t } = useTranslation();
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -56,6 +59,9 @@ export function HtmlFieldWithPreview({
           <Eye className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
+      {eventId && (
+        <AssetMarkerSelector eventId={eventId} />
+      )}
       <HtmlPreviewDialog
         open={isPreviewOpen}
         onOpenChange={setIsPreviewOpen}

@@ -132,6 +132,14 @@ const FIXED_PASSWORDS = {
   'usuario10@uic.es': {
     password: 'uIc!pAsS10@uic',
     role: 'Participante UIC (Proyecto 5)'
+  },
+  'usuario11@uic.es': {
+    password: 'uIc!pAsS11@uic',
+    role: 'Usuario UIC (Sin equipo)'
+  },
+  'usuario12@uic.es': {
+    password: 'uIc!pAsS12@uic',
+    role: 'Usuario UIC (Sin equipo)'
   }
 };
 

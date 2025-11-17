@@ -18,7 +18,8 @@
     "create": "Crear",
     "delete": "Eliminar",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "export": "Exportar CSV"
   },
   "navigation": {
     "brand": "Create",
@@ -116,6 +117,8 @@
     "htmlPreview": "Previsualització HTML",
     "htmlPreviewDescription": "Aquesta és una vista prèvia de com es renderitzarà el contingut HTML.",
     "htmlPreviewEmpty": "No hi ha contingut HTML per previsualitzar.",
+    "timeline": "Cronograma",
+    "homeNavigation": "Navegació d'inici",
     "start": "Inici",
     "end": "Final",
     "minTeam": "Mida mínima de l'equip",
@@ -228,6 +231,29 @@
     "taskAllowedMimesLabel": "Tipus permesos: {{types}}",
     "taskMimeAny": "Qualsevol tipus",
     "taskSizeUnlimited": "Sense límit",
+    "selectMarker": "Seleccionar marcador",
+    "selectMarkerPlaceholder": "Selecciona un recurs...",
+    "markerHint": "Selecciona un recurs i es copiarà el marcador {{asset:nombre}} al porta-retalls per enganxar-lo a l'HTML.",
+    "noAssetsForMarkers": "No hi ha recursos disponibles per generar marcadors",
+    "copyFirstMarker": "Copiar primer marcador",
+    "markerCopied": "Marcador copiat al porta-retalls",
+    "copyMarker": "Copiar marcador",
+    "marker": "Marcador",
+    "assetsTitle": "Recursos de l'esdeveniment",
+    "selectFile": "Seleccionar fitxer",
+    "assetName": "Nom del recurs",
+    "assetNamePlaceholder": "nom-del-recurs",
+    "assetNameHint": "Només lletres, números, guions i guions baixos. Aquest nom s'usarà als marcadors.",
+    "uploadAsset": "Pujar fitxer",
+    "uploadedAssets": "Fitxers pujats",
+    "copyUrl": "Copiar URL",
+    "urlCopied": "URL copiada al porta-retalls",
+    "confirmDeleteAsset": "Eliminar aquest fitxer?",
+    "noAssets": "No hi ha fitxers pujats",
+    "assetUploaded": "Fitxer pujat correctament",
+    "assetDeleted": "Fitxer eliminat correctament",
+    "assetNameRequired": "Has de seleccionar un fitxer i proporcionar un nom",
+    "assetNameInvalid": "El nom només pot contenir lletres, números, guions i guions baixos",
     "eventData": "Dades de l'esdeveniment",
     "phasesAndTasks": "Fases i Tasques",
     "addPhase": "Afegir Fase",
@@ -328,6 +354,75 @@
         "empty": "No hi ha equips per mostrar.",
         "noSubmission": "Sense entrega"
       }
+    },
+    "statistics": "Estadístiques",
+    "statisticsError": "Error en carregar les estadístiques",
+    "statisticsSection": {
+      "teams": {
+        "title": "Equips i Projectes",
+        "team": "Equip",
+        "project": "Projecte",
+        "captain": "Capità",
+        "members": "Membres",
+        "totalMembers": "Total Membres",
+        "empty": "No hi ha equips registrats",
+        "noProject": "Sense projecte",
+        "noCaptain": "Sense capità",
+        "noMembers": "Sense membres"
+      },
+      "usersWithoutTeam": {
+        "title": "Usuaris sense Equips",
+        "name": "Nom",
+        "email": "Email",
+        "grade": "Grau",
+        "lastLogin": "Darrer login",
+        "empty": "Tots els usuaris tenen equip"
+      },
+      "users": {
+        "title": "Tots els Usuaris",
+        "name": "Nom",
+        "email": "Email",
+        "team": "Equip",
+        "role": "Rol",
+        "grade": "Grau",
+        "lastLogin": "Darrer login",
+        "empty": "No hi ha usuaris registrats",
+        "noTeam": "Sense equip",
+        "noRoles": "Sense rols"
+      },
+      "grades": {
+        "title": "Resum per Graus",
+        "grade": "Grau",
+        "withTeam": "Amb equip",
+        "withoutTeam": "Sense equip",
+        "total": "Total",
+        "noGrade": "Sense grau",
+        "empty": "No hi ha dades de graus"
+      },
+      "customFields": {
+        "title": "Agregats per Variables Custom",
+        "selectField": "Seleccionar variable:",
+        "selectPlaceholder": "Selecciona una variable",
+        "withTeam": "Amb equip",
+        "withoutTeam": "Sense equip",
+        "total": "Total",
+        "noValue": "Sense valor",
+        "empty": "No hi ha dades"
+      }
+    },
+    "deliverablesTracking": {
+      "title": "Seguiment d'Entregables",
+      "subtitle": "Estat de les entregues per equip",
+      "team": "Equip",
+      "phase": "Fase",
+      "task": "Tasca",
+      "submitted": "Entregat",
+      "notSubmitted": "No entregat",
+      "viewSubmission": "Veure entrega",
+      "noTeams": "No hi ha equips registrats",
+      "noPhases": "No hi ha fases configurades",
+      "noTasks": "No hi ha tasques configurades",
+      "error": "Error en carregar les dades de seguiment"
     }
   },
   "teams": {
@@ -337,6 +432,7 @@
     "createTitle": "Crear equip",
     "viewTeams": "Veure equips",
     "createTeam": "Crear un equip",
+    "introduction": "Introducció",
     "name": "Nom de l'equip",
     "description": "Descripció",
     "requirements": "Requisits",
@@ -377,6 +473,7 @@
   "projects": {
     "preparationSubtitle": "Fase 0 · Explora projectes existents o crea el teu.",
     "listSection": "Explorar projectes",
+    "viewProjects": "Veure projectes",
     "availableSubtitle": "Revisa els projectes disponibles i uneix-t'hi si hi ha places lliures.",
     "empty": "Encara no hi ha projectes per a aquest esdeveniment.",
     "formSection": "Crear un projecte",
@@ -505,7 +602,10 @@
     "gradeRequired": "Selecciona els teus estudis",
     "gradeInvalid": "Selecciona una opció vàlida",
     "dynamicFieldRequired": "Aquest camp és obligatori",
-    "selectPlaceholder": "Selecciona una opció"
+    "selectPlaceholder": "Selecciona una opció",
+    "acceptPrivacyPolicy": "Accepto la ",
+    "privacyPolicy": "Política de Privacitat",
+    "privacyPolicyRequired": "Has d'acceptar la Política de Privacitat per continuar"
   },
   "publicHub": {
     "title": "Explora esdeveniments oberts a CREATE",

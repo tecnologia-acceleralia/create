@@ -18,7 +18,8 @@
     "create": "Crear",
     "delete": "Eliminar",
     "yes": "Sí",
-    "no": "No"
+    "no": "No",
+    "export": "Exportar CSV"
   },
   "navigation": {
     "brand": "Create",
@@ -230,6 +231,29 @@
     "taskAllowedMimesLabel": "Tipos permitidos: {{types}}",
     "taskMimeAny": "Cualquier tipo",
     "taskSizeUnlimited": "Sin límite",
+    "selectMarker": "Seleccionar marcador",
+    "selectMarkerPlaceholder": "Selecciona un recurso...",
+    "markerHint": "Selecciona un recurso y se copiará el marcador {{asset:nombre}} al portapapeles para pegarlo en el HTML.",
+    "noAssetsForMarkers": "No hay recursos disponibles para generar marcadores",
+    "copyFirstMarker": "Copiar primer marcador",
+    "markerCopied": "Marcador copiado al portapapeles",
+    "copyMarker": "Copiar marcador",
+    "marker": "Marcador",
+    "assetsTitle": "Recursos del evento",
+    "selectFile": "Seleccionar archivo",
+    "assetName": "Nombre del recurso",
+    "assetNamePlaceholder": "nombre-del-recurso",
+    "assetNameHint": "Solo letras, números, guiones y guiones bajos. Este nombre se usará en los marcadores.",
+    "uploadAsset": "Subir archivo",
+    "uploadedAssets": "Archivos subidos",
+    "copyUrl": "Copiar URL",
+    "urlCopied": "URL copiada al portapapeles",
+    "confirmDeleteAsset": "¿Eliminar este archivo?",
+    "noAssets": "No hay archivos subidos",
+    "assetUploaded": "Archivo subido correctamente",
+    "assetDeleted": "Archivo eliminado correctamente",
+    "assetNameRequired": "Debes seleccionar un archivo y proporcionar un nombre",
+    "assetNameInvalid": "El nombre solo puede contener letras, números, guiones y guiones bajos",
     "eventData": "Datos del evento",
     "phasesAndTasks": "Fases y Tareas",
     "addPhase": "Añadir Fase",
@@ -330,6 +354,75 @@
         "empty": "No hay equipos para mostrar.",
         "noSubmission": "Sin entrega"
       }
+    },
+    "statistics": "Estadísticas",
+    "statisticsError": "Error al cargar las estadísticas",
+    "statisticsSection": {
+      "teams": {
+        "title": "Equipos y Proyectos",
+        "team": "Equipo",
+        "project": "Proyecto",
+        "captain": "Capitán",
+        "members": "Miembros",
+        "totalMembers": "Total Miembros",
+        "empty": "No hay equipos registrados",
+        "noProject": "Sin proyecto",
+        "noCaptain": "Sin capitán",
+        "noMembers": "Sin miembros"
+      },
+      "usersWithoutTeam": {
+        "title": "Usuarios sin Equipos",
+        "name": "Nombre",
+        "email": "Email",
+        "grade": "Grado",
+        "lastLogin": "Último login",
+        "empty": "Todos los usuarios tienen equipo"
+      },
+      "users": {
+        "title": "Todos los Usuarios",
+        "name": "Nombre",
+        "email": "Email",
+        "team": "Equipo",
+        "role": "Rol",
+        "grade": "Grado",
+        "lastLogin": "Último login",
+        "empty": "No hay usuarios registrados",
+        "noTeam": "Sin equipo",
+        "noRoles": "Sin roles"
+      },
+      "grades": {
+        "title": "Resumen por Grados",
+        "grade": "Grado",
+        "withTeam": "Con equipo",
+        "withoutTeam": "Sin equipo",
+        "total": "Total",
+        "noGrade": "Sin grado",
+        "empty": "No hay datos de grados"
+      },
+      "customFields": {
+        "title": "Agregados por Variables Custom",
+        "selectField": "Seleccionar variable:",
+        "selectPlaceholder": "Selecciona una variable",
+        "withTeam": "Con equipo",
+        "withoutTeam": "Sin equipo",
+        "total": "Total",
+        "noValue": "Sin valor",
+        "empty": "No hay datos"
+      }
+    },
+    "deliverablesTracking": {
+      "title": "Seguimiento de Entregables",
+      "subtitle": "Estado de las entregas por equipo",
+      "team": "Equipo",
+      "phase": "Fase",
+      "task": "Tarea",
+      "submitted": "Entregado",
+      "notSubmitted": "No entregado",
+      "viewSubmission": "Ver entrega",
+      "noTeams": "No hay equipos registrados",
+      "noPhases": "No hay fases configuradas",
+      "noTasks": "No hay tareas configuradas",
+      "error": "Error al cargar los datos de seguimiento"
     }
   },
   "teams": {

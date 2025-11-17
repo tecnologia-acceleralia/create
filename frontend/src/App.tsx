@@ -14,6 +14,7 @@ import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import EventsListPage from '@/pages/admin/events/EventsListPage';
 import EventDetailAdminPage from '@/pages/admin/events/EventDetailAdminPage';
 import EventTrackingPage from '@/pages/admin/events/EventTrackingPage';
+import EventDeliverablesTrackingPage from '@/pages/admin/events/EventDeliverablesTrackingPage';
 import TeamDashboardPage from '@/pages/participant/TeamDashboardPage';
 import ParticipantDashboardPage from '@/pages/participant/ParticipantDashboardPage';
 import EventDetailParticipantPage from '@/pages/participant/EventDetailParticipantPage';
@@ -159,6 +160,14 @@ function AppRoutes() {
           element: (
             <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
               <EventTrackingPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/deliverables-tracking',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer']}>
+              <EventDeliverablesTrackingPage />
             </ProtectedRoute>
           )
         },

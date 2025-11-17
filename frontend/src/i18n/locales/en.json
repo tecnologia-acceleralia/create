@@ -18,7 +18,8 @@
     "create": "Create",
     "delete": "Delete",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "export": "Export CSV"
   },
   "navigation": {
     "brand": "Create",
@@ -230,6 +231,29 @@
     "taskAllowedMimesLabel": "Allowed types: {{types}}",
     "taskMimeAny": "Any type",
     "taskSizeUnlimited": "Unlimited",
+    "selectMarker": "Select marker",
+    "selectMarkerPlaceholder": "Select a resource...",
+    "markerHint": "Select a resource and the marker {{asset:name}} will be copied to the clipboard to paste it in the HTML.",
+    "noAssetsForMarkers": "No resources available to generate markers",
+    "copyFirstMarker": "Copy first marker",
+    "markerCopied": "Marker copied to clipboard",
+    "copyMarker": "Copy marker",
+    "marker": "Marker",
+    "assetsTitle": "Event resources",
+    "selectFile": "Select file",
+    "assetName": "Resource name",
+    "assetNamePlaceholder": "resource-name",
+    "assetNameHint": "Only letters, numbers, hyphens and underscores. This name will be used in markers.",
+    "uploadAsset": "Upload file",
+    "uploadedAssets": "Uploaded files",
+    "copyUrl": "Copy URL",
+    "urlCopied": "URL copied to clipboard",
+    "confirmDeleteAsset": "Delete this file?",
+    "noAssets": "No files uploaded",
+    "assetUploaded": "File uploaded successfully",
+    "assetDeleted": "File deleted successfully",
+    "assetNameRequired": "You must select a file and provide a name",
+    "assetNameInvalid": "The name can only contain letters, numbers, hyphens and underscores",
     "eventData": "Event data",
     "phasesAndTasks": "Phases and Tasks",
     "addPhase": "Add Phase",
@@ -330,6 +354,75 @@
         "empty": "No teams to display.",
         "noSubmission": "No submission"
       }
+    },
+    "statistics": "Statistics",
+    "statisticsError": "Error loading statistics",
+    "statisticsSection": {
+      "teams": {
+        "title": "Teams and Projects",
+        "team": "Team",
+        "project": "Project",
+        "captain": "Captain",
+        "members": "Members",
+        "totalMembers": "Total Members",
+        "empty": "No teams registered",
+        "noProject": "No project",
+        "noCaptain": "No captain",
+        "noMembers": "No members"
+      },
+      "usersWithoutTeam": {
+        "title": "Users without Teams",
+        "name": "Name",
+        "email": "Email",
+        "grade": "Grade",
+        "lastLogin": "Last login",
+        "empty": "All users have teams"
+      },
+      "users": {
+        "title": "All Users",
+        "name": "Name",
+        "email": "Email",
+        "team": "Team",
+        "role": "Role",
+        "grade": "Grade",
+        "lastLogin": "Last login",
+        "empty": "No registered users",
+        "noTeam": "No team",
+        "noRoles": "No roles"
+      },
+      "grades": {
+        "title": "Summary by Grades",
+        "grade": "Grade",
+        "withTeam": "With team",
+        "withoutTeam": "Without team",
+        "total": "Total",
+        "noGrade": "No grade",
+        "empty": "No grade data"
+      },
+      "customFields": {
+        "title": "Aggregates by Custom Variables",
+        "selectField": "Select variable:",
+        "selectPlaceholder": "Select a variable",
+        "withTeam": "With team",
+        "withoutTeam": "Without team",
+        "total": "Total",
+        "noValue": "No value",
+        "empty": "No data"
+      }
+    },
+    "deliverablesTracking": {
+      "title": "Deliverables Tracking",
+      "subtitle": "Delivery status by team",
+      "team": "Team",
+      "phase": "Phase",
+      "task": "Task",
+      "submitted": "Submitted",
+      "notSubmitted": "Not submitted",
+      "viewSubmission": "View submission",
+      "noTeams": "No teams registered",
+      "noPhases": "No phases configured",
+      "noTasks": "No tasks configured",
+      "error": "Error loading tracking data"
     }
   },
   "teams": {
