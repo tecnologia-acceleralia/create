@@ -636,6 +636,7 @@
         "accentColor": "Color d'accent",
         "logoUrl": "Logotip (URL)",
         "logoUpload": "Logotip (fitxer)",
+        "logoPreview": "Vista prèvia del logotip",
         "currentLogo": "Logotip actual",
         "maxEvaluators": "Màx. avaluadors",
         "maxParticipants": "Màx. participants",

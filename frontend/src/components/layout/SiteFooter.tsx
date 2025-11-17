@@ -116,7 +116,16 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-4">
             {branding.logoUrl ? (
-              <img src={branding.logoUrl} alt={t('navigation.brand', { defaultValue: 'Create' })} className="h-10 w-auto" />
+              <div
+                className="flex h-10 w-auto items-center justify-center rounded border border-[color:var(--footer-border)] p-2"
+                style={{ backgroundColor: branding.primaryColor || footerTheme.background }}
+              >
+                <img
+                  src={branding.logoUrl}
+                  alt={t('navigation.brand', { defaultValue: 'Create' })}
+                  className="h-full w-auto max-h-full max-w-full object-contain"
+                />
+              </div>
             ) : (
               <span className="text-lg font-semibold text-[color:var(--footer-fg)]">Create</span>
             )}

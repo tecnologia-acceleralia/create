@@ -332,11 +332,16 @@ export function SiteHeader() {
 
     if (hasTenantLogo && tenantLogoUrl) {
       return (
-        <img
-          src={tenantLogoUrl}
-          alt={brandLabel}
-          className="h-10 w-auto"
-        />
+        <div
+          className="flex h-10 w-auto items-center justify-center rounded border border-[color:var(--header-border)] p-2"
+          style={{ backgroundColor: branding.primaryColor || headerTheme.background }}
+        >
+          <img
+            src={tenantLogoUrl}
+            alt={brandLabel}
+            className="h-full w-auto max-h-full max-w-full object-contain"
+          />
+        </div>
       );
     }
 
@@ -345,7 +350,7 @@ export function SiteHeader() {
         {tenantSlug}
       </span>
     );
-  }, [brandLabel, hasTenantLogo, tenantLogoUrl, tenantSlug, headerTheme]);
+  }, [brandLabel, hasTenantLogo, tenantLogoUrl, tenantSlug, branding.primaryColor, headerTheme]);
 
   const toggleLanguage = () => {
     const currentIndex = availableLanguages.indexOf(currentLanguage);

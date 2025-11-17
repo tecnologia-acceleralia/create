@@ -66,6 +66,7 @@ function LandingPage() {
           subtitle={heroSubtitle}
           logoUrl={branding.logoUrl}
           logoAlt={t('navigation.brand', { defaultValue: 'Create' })}
+          logoBackgroundColor={branding.primaryColor}
           actions={null}
         />
 
@@ -79,6 +80,7 @@ function LandingPage() {
               event={event}
               to={tenantSlug ? tenantPath(`events/${event.id}`) : undefined}
               showVideo
+              showStatus={false}
             />
           )}
         />

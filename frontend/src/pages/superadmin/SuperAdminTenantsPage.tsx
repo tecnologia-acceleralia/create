@@ -120,7 +120,15 @@ const tenantFormSchemaBase = z.object({
   hero_content: nullableString(),
   tenant_css: nullableString(),
   logo_url: nullableString(),
-  admin_email: z.string().email({ message: 'Correo inválido' }).optional(),
+  admin_email: z.preprocess(
+    value => {
+      if (value === '' || value === undefined || value === null) {
+        return undefined;
+      }
+      return value;
+    },
+    z.string().email({ message: 'Correo inválido' }).optional()
+  ),
   admin_first_name: nullableString(),
   admin_last_name: nullableString(),
   admin_language: nullableString(),
@@ -673,7 +681,7 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
         hero_content: currentTenant.hero_content ? JSON.stringify(currentTenant.hero_content, null, 2) : '',
         tenant_css: currentTenant.tenant_css ?? '',
         logo_url: currentTenant.logo_url ?? '',
-        admin_email: '',
+        admin_email: undefined,
         admin_first_name: '',
         admin_last_name: '',
         admin_language: 'es',
@@ -987,14 +995,33 @@ function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: Te
                     <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleFileChange} />
                     {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
                   </FormField>
+                  {logoBase64 ? (
+                    <FormField label={t('superadmin.tenants.fields.logoPreview')}>
+                      <div
+                        className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        <img
+                          src={logoBase64}
+                          alt=""
+                          className="h-full w-auto max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    </FormField>
+                  ) : null}
                   {mode === 'edit' && tenant?.logo_url ? (
                     <FormField label={t('superadmin.tenants.fields.currentLogo')}>
                       <div className="flex flex-col gap-2">
-                        <img
-                          src={tenant.logo_url}
-                          alt=""
-                          className="h-16 w-auto rounded border border-border bg-white p-2"
-                        />
+                        <div
+                          className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          <img
+                            src={tenant.logo_url}
+                            alt=""
+                            className="h-full w-auto max-h-full max-w-full object-contain"
+                          />
+                        </div>
                         <label className="flex items-center gap-2 text-xs text-muted-foreground">
                           <input
                             type="checkbox"

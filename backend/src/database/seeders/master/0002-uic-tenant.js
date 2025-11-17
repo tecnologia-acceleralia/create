@@ -20,7 +20,7 @@ export async function up(queryInterface) {
       name: 'UIC Universitat Internacional de Catalunya',
       subdomain: 'uic',
       custom_domain: null,
-      logo_url: null,
+      logo_url: 'https://acc-create-test.fra1.digitaloceanspaces.com/tenants/uic/branding/logo-1763364706619-26ef4de4-3091-4e9b-a154-20a1d4f42706.svg',
       primary_color: '#00416b',
       secondary_color: '#007bff',
       accent_color: '#007bff',

@@ -643,6 +643,7 @@
         "accentColor": "Accent color",
         "logoUrl": "Logo (URL)",
         "logoUpload": "Logo (file)",
+        "logoPreview": "Logo preview",
         "currentLogo": "Current logo",
         "maxEvaluators": "Max evaluators",
         "maxParticipants": "Max participants",

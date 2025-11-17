@@ -107,11 +107,18 @@ function PublicEventsHubPage() {
                   <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:justify-between sm:text-left">
                     <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-3">
                       {tenant?.logo_url ? (
-                        <img
-                          src={tenant.logo_url}
-                          alt={tenantName}
-                          className="h-12 w-auto rounded border border-border bg-white p-2"
-                        />
+                        <div
+                          className="flex h-12 w-auto items-center justify-center rounded border border-border p-2"
+                          style={{
+                            backgroundColor: tenant.primary_color || '#0ea5e9'
+                          }}
+                        >
+                          <img
+                            src={tenant.logo_url}
+                            alt={tenantName}
+                            className="h-full w-auto max-h-full max-w-full object-contain"
+                          />
+                        </div>
                       ) : null}
                       <div>
                         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -141,6 +148,7 @@ function PublicEventsHubPage() {
                         to={tenantSlugForLinks ? `/${tenantSlugForLinks}/events/${event.id}` : undefined}
                         className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                         showVideo
+                        showStatus={false}
                       />
                     ))}
                   </div>

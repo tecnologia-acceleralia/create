@@ -59,11 +59,16 @@ function LoginPage() {
       <Card className="h-full w-full max-w-md border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
         <CardHeader className="flex flex-col items-center gap-3">
           {branding.logoUrl ? (
-            <img
-              src={branding.logoUrl}
-              alt={t('navigation.brand', { defaultValue: 'Create' })}
-              className="h-12 w-auto"
-            />
+            <div
+              className="flex h-12 w-auto items-center justify-center rounded border border-border p-2"
+              style={{ backgroundColor: branding.primaryColor || '#0ea5e9' }}
+            >
+              <img
+                src={branding.logoUrl}
+                alt={t('navigation.brand', { defaultValue: 'Create' })}
+                className="h-full w-auto max-h-full max-w-full object-contain"
+              />
+            </div>
           ) : null}
           {tenantSlug ? (
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
