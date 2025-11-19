@@ -101,6 +101,12 @@ services:
         condition: service_healthy
     networks:
       - create-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:3100/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
     profiles:
       - prod
 

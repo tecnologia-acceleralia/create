@@ -71,7 +71,7 @@ if [ $ENV_BACKUP_COUNT -gt 0 ]; then
 fi
 
 # Backup de MySQL
-if docker-compose ps database | grep -q "Up"; then
+if docker-compose --profile prod ps database 2>/dev/null | grep -q "Up" || docker-compose ps database | grep -q "Up"; then
     log "📦 Haciendo backup de MySQL..."
     
     # Cargar variables de entorno desde .env si existe
@@ -84,11 +84,11 @@ if docker-compose ps database | grep -q "Up"; then
     DB_PASSWORD="${MYSQL_PASSWORD:-${DB_PASSWORD:-root}}"
     
     # Hacer backup de MySQL
-    if docker-compose exec -T database mysqldump -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "$BACKUP_DIR/database_backup.sql" 2>/dev/null; then
+    if docker-compose --profile prod exec -T database mysqldump -u"$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" > "$BACKUP_DIR/database_backup.sql" 2>/dev/null; then
         success "Backup de base de datos creado en $BACKUP_DIR/database_backup.sql"
     else
         # Intentar sin contraseña en el comando (usando variable de entorno)
-        MYSQL_PWD="$DB_PASSWORD" docker-compose exec -T -e MYSQL_PWD="$DB_PASSWORD" database mysqldump -u"$DB_USER" "$DB_NAME" > "$BACKUP_DIR/database_backup.sql" 2>/dev/null
+        MYSQL_PWD="$DB_PASSWORD" docker-compose --profile prod exec -T -e MYSQL_PWD="$DB_PASSWORD" database mysqldump -u"$DB_USER" "$DB_NAME" > "$BACKUP_DIR/database_backup.sql" 2>/dev/null
         if [ $? -eq 0 ]; then
             success "Backup de base de datos creado en $BACKUP_DIR/database_backup.sql"
         else
@@ -180,21 +180,21 @@ if [ "$NEEDS_REBUILD" = true ]; then
     
     # Parar servicios (manteniendo volúmenes)
     log "⏹️  Parando servicios..."
-    if ! docker-compose down; then
+    if ! docker-compose --profile prod down; then
         error "Error al parar servicios"
         exit 1
     fi
     
     # Rebuild sin cache
     log "🔨 Reconstruyendo imágenes..."
-    if ! docker-compose build --no-cache; then
+    if ! docker-compose --profile prod build --no-cache; then
         error "Error al reconstruir imágenes"
         exit 1
     fi
     
     # Levantar servicios
     log "🚀 Levantando servicios..."
-    if ! docker-compose up -d; then
+    if ! docker-compose --profile prod up -d; then
         error "Error al levantar servicios"
         exit 1
     fi
@@ -206,7 +206,7 @@ if [ "$NEEDS_REBUILD" = true ]; then
     # Verificar health checks
     log "🏥 Verificando health checks..."
     for i in {1..30}; do
-        if docker-compose ps | grep -q "healthy"; then
+        if docker-compose --profile prod ps | grep -q "healthy"; then
             success "Servicios saludables"
             break
         fi
@@ -219,7 +219,7 @@ if [ "$NEEDS_REBUILD" = true ]; then
     
 else
     log "ℹ️  No hay cambios en código o archivos de Docker. Solo reiniciando servicios..."
-    if ! docker-compose restart; then
+    if ! docker-compose --profile prod restart; then
         error "Error al reiniciar servicios"
         exit 1
     fi
@@ -231,7 +231,7 @@ log "🗄️  Verificando migraciones de base de datos..."
 # Esperar a que MySQL esté completamente listo
 log "⏳ Esperando a que MySQL esté listo..."
 for i in {1..30}; do
-    if docker-compose exec -T database mysqladmin ping -h localhost --silent > /dev/null 2>&1; then
+    if docker-compose --profile prod exec -T database mysqladmin ping -h localhost --silent > /dev/null 2>&1; then
         success "MySQL está listo"
         break
     fi
@@ -244,12 +244,12 @@ done
 
 # Ejecutar migraciones con Sequelize/Umzug
 log "📊 Ejecutando migraciones..."
-if docker-compose exec -T backend pnpm run migrate:up; then
+if docker-compose --profile prod exec -T backend pnpm run migrate:up; then
     success "Migraciones ejecutadas correctamente"
 else
     error "Error ejecutando migraciones"
     log "🔍 Verificando logs del backend para más detalles..."
-    docker-compose logs backend --tail=20
+    docker-compose --profile prod logs backend --tail=20
     exit 1
 fi
 
@@ -277,9 +277,9 @@ done
 if [ "$BACKEND_OK" = false ]; then
     error "Backend no responde después de 10 intentos"
     log "🔍 Verificando logs del backend..."
-    docker-compose logs backend --tail=20
+    docker-compose --profile prod logs backend --tail=20
     log "🔍 Verificando estado de contenedores..."
-    docker-compose ps
+    docker-compose --profile prod ps
     exit 1
 fi
 
@@ -300,17 +300,17 @@ done
 if [ "$FRONTEND_OK" = false ]; then
     error "Frontend no responde después de 5 intentos"
     log "🔍 Verificando logs del frontend..."
-    docker-compose logs frontend --tail=20
+    docker-compose --profile prod logs frontend-prod --tail=20
     exit 1
 fi
 
 # 7. Mostrar estado final
 log "📊 Estado final de los contenedores:"
-docker-compose ps
+docker-compose --profile prod ps
 
 # 8. Mostrar logs recientes
 log "📋 Últimos logs del backend:"
-docker-compose logs backend --tail=10
+docker-compose --profile prod logs backend --tail=10
 
 # 9. Limpiar backups antiguos (mantener solo los últimos 5)
 log "🧹 Limpiando backups antiguos..."
