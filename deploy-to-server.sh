@@ -208,7 +208,7 @@ sleep 30
 # Check if backend is healthy before running migrations
 echo -e "${YELLOW}🔍 Checking backend health...${NC}"
 for i in {1..10}; do
-    if curl -f http://localhost:3001/api/health >/dev/null 2>&1; then
+    if curl -f http://localhost:5100/health >/dev/null 2>&1; then
         echo -e "${GREEN}✅ Backend is healthy${NC}"
         break
     else
@@ -220,121 +220,56 @@ done
 # Run migrations with proper error handling
 echo -e "${YELLOW}🔄 Running database migrations...${NC}"
 
-# First, check if there are any pending migrations
+# Check migration status
 echo -e "${YELLOW}🔍 Checking migration status...${NC}"
-CURRENT_REVISION=$(docker-compose exec -T backend flask db current 2>/dev/null | grep -o 'Rev: [a-f0-9_]*' | cut -d' ' -f2 || echo "none")
-HEAD_REVISION=$(docker-compose exec -T backend flask db heads 2>/dev/null | grep -o 'Rev: [a-f0-9_]*' | cut -d' ' -f2 || echo "none")
+MIGRATION_STATUS=$(docker-compose exec -T backend pnpm run migrate:status 2>&1 || echo "error")
 
-echo "Current revision: $CURRENT_REVISION"
-echo "Head revision: $HEAD_REVISION"
-
-if [ "$CURRENT_REVISION" = "$HEAD_REVISION" ]; then
-    echo -e "${GREEN}✅ Database is already up to date${NC}"
-else
-    echo -e "${YELLOW}🔄 Running migrations from $CURRENT_REVISION to $HEAD_REVISION...${NC}"
-    
-    if docker-compose exec -T backend flask db upgrade; then
+if echo "$MIGRATION_STATUS" | grep -q "Migraciones pendientes:.*✖"; then
+    echo -e "${YELLOW}🔄 Running pending migrations...${NC}"
+    if docker-compose exec -T backend pnpm run migrate:up; then
         echo -e "${GREEN}✅ Migrations completed successfully${NC}"
     else
-        echo -e "${RED}❌ Migration failed. Attempting to fix...${NC}"
-        
-        # Try to fix common migration issues
-        echo -e "${YELLOW}🔧 Attempting to fix migration issues...${NC}"
-        
-        # Check if the issue is with duplicate columns
-        echo -e "${YELLOW}🔍 Checking for common migration issues...${NC}"
-        
-        # Check if año_documento column exists but migration is failing
-        if docker-compose exec -T postgres psql -U postgres -d buscador_proyectos -c "
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name = 'proyectos_generales' 
-        AND column_name = 'año_documento';
-        " 2>/dev/null | grep -q "año_documento"; then
-            echo -e "${YELLOW}⚠️  Columna año_documento ya existe. Marcando migración como aplicada...${NC}"
-            
-            # Mark the specific migration as applied without running it
-            docker-compose exec -T backend flask db stamp 20250909_134046
-            
-            # Try upgrade again
-            echo -e "${YELLOW}🔄 Retrying migration after fixing duplicate column issue...${NC}"
-            if docker-compose exec -T backend flask db upgrade; then
-                echo -e "${GREEN}✅ Migrations fixed and completed${NC}"
-            else
-                echo -e "${RED}❌ Migration still failed after fix attempt${NC}"
-                echo -e "${YELLOW}Please check the logs and fix manually:${NC}"
-                echo "  docker-compose logs backend"
-                echo "  docker-compose exec backend flask db current"
-                echo "  docker-compose exec backend flask db history"
-                exit 1
-            fi
-        else
-            # Try to stamp the database to current revision
-            echo "Stamping database to current revision..."
-            docker-compose exec -T backend flask db stamp head
-            
-            # Try upgrade again
-            echo "Retrying migration..."
-            if docker-compose exec -T backend flask db upgrade; then
-                echo -e "${GREEN}✅ Migrations fixed and completed${NC}"
-            else
-                echo -e "${RED}❌ Migration still failed. Manual intervention required.${NC}"
-                echo -e "${YELLOW}Please check the logs and fix manually:${NC}"
-                echo "  docker-compose logs backend"
-                echo "  docker-compose exec backend flask db current"
-                echo "  docker-compose exec backend flask db history"
-                exit 1
-            fi
-        fi
+        echo -e "${RED}❌ Migration failed${NC}"
+        echo -e "${YELLOW}Please check the logs and fix manually:${NC}"
+        echo "  docker-compose logs backend"
+        echo "  docker-compose exec backend pnpm run migrate:status"
+        exit 1
     fi
+else
+    echo -e "${GREEN}✅ Database is already up to date${NC}"
 fi
 
 # Verify migrations were applied correctly
 echo -e "${YELLOW}🔍 Verifying migrations...${NC}"
-CURRENT_REVISION=$(docker-compose exec -T backend flask db current 2>/dev/null | grep -o 'Rev: [a-f0-9_]*' | cut -d' ' -f2)
-echo "Current database revision: $CURRENT_REVISION"
+docker-compose exec -T backend pnpm run migrate:status
 
 # Test database connectivity
 echo -e "${YELLOW}🧪 Testing database connectivity...${NC}"
-if docker-compose exec -T postgres psql -U postgres -d buscador_proyectos -c "SELECT 1;" >/dev/null 2>&1; then
+# Load database credentials from .env file
+DB_NAME=$(grep "^DB_NAME=" .env | cut -d'=' -f2 | tr -d '"' || echo "create")
+DB_USER=$(grep "^DB_USER=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
+DB_PASSWORD=$(grep "^DB_PASSWORD=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
+
+# Use MYSQL_PWD environment variable to avoid password in command line
+if docker-compose exec -T -e MYSQL_PWD="${DB_PASSWORD}" database mysql -u"${DB_USER}" -e "USE ${DB_NAME}; SELECT 1;" >/dev/null 2>&1; then
     echo -e "${GREEN}✅ Database is accessible${NC}"
 else
     echo -e "${RED}❌ Database is not accessible${NC}"
+    echo -e "${YELLOW}Checking database container status...${NC}"
+    docker-compose ps database
+    echo -e "${YELLOW}Checking database logs...${NC}"
+    docker-compose logs --tail=20 database
     exit 1
-fi
-
-# Verify specific critical columns exist
-echo -e "${YELLOW}🔍 Verifying critical database columns...${NC}"
-
-# Check for año_documento column (the one that caused the issue)
-if docker-compose exec -T postgres psql -U postgres -d buscador_proyectos -c "
-SELECT column_name 
-FROM information_schema.columns 
-WHERE table_name = 'proyectos_generales' 
-AND column_name = 'año_documento';
-" 2>/dev/null | grep -q "año_documento"; then
-    echo -e "${GREEN}✅ Columna año_documento existe${NC}"
-else
-    echo -e "${YELLOW}⚠️  Columna año_documento no existe. Creándola...${NC}"
-    if docker-compose exec -T postgres psql -U postgres -d buscador_proyectos -c "
-    ALTER TABLE proyectos_generales 
-    ADD COLUMN IF NOT EXISTS año_documento INTEGER;
-    " 2>/dev/null; then
-        echo -e "${GREEN}✅ Columna año_documento creada${NC}"
-    else
-        echo -e "${RED}❌ Error creando columna año_documento${NC}"
-        exit 1
-    fi
 fi
 
 # Test critical endpoints to ensure migrations worked
 echo -e "${YELLOW}🧪 Testing critical endpoints...${NC}"
-if curl -f http://localhost:3001/api/proyectos/estadisticas >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Endpoint de estadísticas funciona${NC}"
+if curl -f http://localhost:5100/health >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ Backend health endpoint works${NC}"
 else
-    echo -e "${RED}❌ Endpoint de estadísticas falla. Revisando logs...${NC}"
+    echo -e "${YELLOW}⚠️  Backend health endpoint check failed. Checking logs...${NC}"
     docker-compose logs --tail=20 backend
-    echo -e "${YELLOW}⚠️  Puede requerir intervención manual${NC}"
+    echo -e "${YELLOW}⚠️  This may require manual intervention${NC}"
 fi
 
 # Setup firewall
@@ -378,7 +313,10 @@ DATE=\$(date +%Y%m%d_%H%M%S)
 mkdir -p \$BACKUP_DIR
 
 # Backup database
-docker-compose exec -T postgres pg_dump -U postgres buscador_proyectos > \$BACKUP_DIR/db_backup_\$DATE.sql
+DB_NAME=\$(grep "^DB_NAME=" .env | cut -d'=' -f2 | tr -d '"' || echo "create")
+DB_USER=\$(grep "^DB_USER=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
+DB_PASSWORD=\$(grep "^DB_PASSWORD=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
+docker-compose exec -T -e MYSQL_PWD="\${DB_PASSWORD}" database mysqldump -u"\${DB_USER}" "\${DB_NAME}" > \$BACKUP_DIR/db_backup_\$DATE.sql
 
 # Backup uploads
 tar -czf \$BACKUP_DIR/uploads_backup_\$DATE.tar.gz uploads/
