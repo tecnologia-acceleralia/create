@@ -104,7 +104,8 @@ export class PublicController {
         'instagram_url',
         'linkedin_url',
         'twitter_url',
-        'youtube_url'
+        'youtube_url',
+        'registration_schema'
       ]
     });
 
@@ -184,7 +185,30 @@ export class PublicController {
       ]
     });
 
-    return res.json({ success: true, data: events });
+    // Asegurar que las fechas se serialicen correctamente
+    const payload = events.map(event => {
+      const eventJson = event.toJSON();
+      // Convertir fechas a ISO string si existen
+      if (eventJson.start_date) {
+        if (eventJson.start_date instanceof Date) {
+          eventJson.start_date = eventJson.start_date.toISOString();
+        } else if (typeof eventJson.start_date === 'string' && eventJson.start_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.start_date = `${eventJson.start_date}T00:00:00.000Z`;
+        }
+      }
+      if (eventJson.end_date) {
+        if (eventJson.end_date instanceof Date) {
+          eventJson.end_date = eventJson.end_date.toISOString();
+        } else if (typeof eventJson.end_date === 'string' && eventJson.end_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.end_date = `${eventJson.end_date}T23:59:59.999Z`;
+        }
+      }
+      return eventJson;
+    });
+
+    return res.json({ success: true, data: payload });
   }
 
   static async listAllEvents(req, res) {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { PasswordInput } from '@/components/common';
 import { FormField, FormGrid } from '@/components/form';
 import { useSuperAdminSession } from '@/context/SuperAdminContext';
 
@@ -57,9 +58,8 @@ export function SuperAdminLoginCard() {
               />
             </FormField>
             <FormField label={t('auth.password')} htmlFor="superadmin-password" required>
-              <Input
+              <PasswordInput
                 id="superadmin-password"
-                type="password"
                 autoComplete="current-password"
                 required
                 value={credentials.password}

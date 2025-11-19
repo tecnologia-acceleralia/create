@@ -16,8 +16,9 @@ export async function createServer() {
   app.use(helmet());
   app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*' }));
   app.use(morgan('combined'));
-  app.use(json());
-  app.use(urlencoded({ extended: true }));
+  // Aumentar límite para permitir archivos en base64 (50MB)
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   app.get('/health', (req, res) => {
     res.json({ success: true, message: 'ok' });

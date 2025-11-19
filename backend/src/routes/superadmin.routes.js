@@ -69,6 +69,7 @@ superAdminRouter.post(
     body('max_appointments_per_month').optional({ nullable: true }).isInt({ min: 0 }),
     body('hero_content').optional({ nullable: true }).custom(validateJsonable),
     body('tenant_css').optional({ nullable: true }).isString(),
+    body('registration_schema').optional({ nullable: true }).custom(validateJsonable),
     body('admin.email').isEmail().normalizeEmail(),
     body('admin.first_name').optional({ nullable: true }).isString(),
     body('admin.last_name').optional({ nullable: true }).isString(),
@@ -121,7 +122,8 @@ superAdminRouter.patch(
     body('hero_content').optional({ nullable: true }).custom(validateJsonable),
     body('tenant_css').optional({ nullable: true }).isString(),
     body('start_date').optional({ nullable: true }).isISO8601({ strict: true }),
-    body('end_date').optional({ nullable: true }).isISO8601({ strict: true })
+    body('end_date').optional({ nullable: true }).isISO8601({ strict: true }),
+    body('registration_schema').optional({ nullable: true }).custom(validateJsonable)
   ],
   validateRequest,
   (req, res, next) => SuperAdminController.updateTenant(req, res, next)

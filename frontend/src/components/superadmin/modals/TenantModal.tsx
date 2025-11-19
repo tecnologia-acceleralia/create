@@ -20,6 +20,7 @@ import { InfoTooltip } from '@/components/common';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/utils/cn';
 import { fileToBase64 } from '@/utils/files';
+import { RegistrationSchemaForm } from '@/components/events/forms/RegistrationSchemaForm';
 import {
   createTenantSuperAdmin,
   updateTenantSuperAdmin,
@@ -87,6 +88,22 @@ const tenantFormSchemaBase = z.object({
   hero_content: nullableString(),
   tenant_css: nullableString(),
   logo_url: nullableString(),
+  registration_schema: z.preprocess(
+    value => {
+      if (value === '' || value === undefined || value === null) {
+        return null;
+      }
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return value;
+        }
+      }
+      return value;
+    },
+    z.any().nullable()
+  ),
   admin_email: z.preprocess(
     value => {
       if (value === '' || value === undefined || value === null) {
@@ -126,6 +143,7 @@ type TenantFormSchema = {
   hero_content: string | null;
   tenant_css: string | null;
   logo_url: string | null;
+  registration_schema: import('@/services/public').RegistrationSchema | null;
   admin_email?: string;
   admin_first_name: string | null;
   admin_last_name: string | null;
@@ -204,6 +222,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
         hero_content: currentTenant.hero_content ? JSON.stringify(currentTenant.hero_content, null, 2) : '',
         tenant_css: currentTenant.tenant_css ?? '',
         logo_url: currentTenant.logo_url ?? '',
+        registration_schema: currentTenant.registration_schema ?? null,
         admin_email: undefined,
         admin_first_name: '',
         admin_last_name: '',
@@ -236,6 +255,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
       hero_content: '',
       tenant_css: '',
       logo_url: '',
+      registration_schema: null,
       admin_email: '',
       admin_first_name: '',
       admin_last_name: '',
@@ -335,6 +355,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
           tenant_css: values.tenant_css ?? undefined,
           logo_url: values.logo_url ?? undefined,
           logo: logoBase64 ?? undefined,
+          registration_schema: values.registration_schema !== undefined ? values.registration_schema : undefined,
           admin: {
             email: values.admin_email,
             first_name: values.admin_first_name ?? undefined,
@@ -369,7 +390,8 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
           hero_content: heroContent,
           tenant_css: values.tenant_css ?? undefined,
           logo_url: values.logo_url ?? undefined,
-          logo: removeLogo ? null : logoBase64 ?? undefined
+          logo: removeLogo ? null : logoBase64 ?? undefined,
+          registration_schema: values.registration_schema ?? undefined
         };
 
         await onSubmit({ type: 'update', tenantId: tenant.id, body: payload });
@@ -383,7 +405,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
   return (
     <Dialog open={open} onOpenChange={openState => (!openState ? handleClose() : null)}>
-      <DialogContent className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden p-0">
+      <DialogContent className="flex h-[80vh] w-full max-w-7xl flex-col overflow-hidden p-0">
         <div className="flex-shrink-0 border-b border-border px-6 py-4">
           <DialogHeader>
             <DialogTitle>
@@ -418,7 +440,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
             <Tabs defaultValue="general" className="flex flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto flex flex-col">
                 <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-4">
-                  <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
+                  <TabsList className="flex-nowrap justify-start gap-2 bg-transparent overflow-x-auto">
                 <TabsTrigger value="general">
                   {t('superadmin.tenants.sections.general')}
                 </TabsTrigger>
@@ -436,6 +458,9 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 </TabsTrigger>
                 <TabsTrigger value="content">
                   {t('superadmin.tenants.sections.content')}
+                </TabsTrigger>
+                <TabsTrigger value="registration">
+                  {t('superadmin.tenants.sections.registration')}
                 </TabsTrigger>
                 {mode === 'create' ? (
                   <TabsTrigger value="admin">
@@ -620,6 +645,31 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                     rows={4}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
                     {...form.register('tenant_css')}
+                  />
+                </FormField>
+              </TabsContent>
+
+              <TabsContent value="registration" className="mt-0 space-y-4">
+                <FormField
+                  label={t('events.registrationSchema')}
+                  htmlFor="tenant-registration-schema"
+                  error={
+                    typeof form.formState.errors.registration_schema?.message === 'string'
+                      ? form.formState.errors.registration_schema.message
+                      : undefined
+                  }
+                >
+                  <RegistrationSchemaForm
+                    id="tenant-registration-schema"
+                    value={form.watch('registration_schema')}
+                    onChange={value => {
+                      form.setValue('registration_schema', value, { shouldValidate: true });
+                    }}
+                    error={
+                      typeof form.formState.errors.registration_schema?.message === 'string'
+                        ? form.formState.errors.registration_schema.message
+                        : undefined
+                    }
                   />
                 </FormField>
               </TabsContent>

@@ -19,7 +19,15 @@ export class SubmissionsController {
       }
 
       const filesPayload = Array.isArray(req.body.files) ? req.body.files : [];
-      if (filesPayload.length > 0 && !['file', 'zip', 'audio', 'video'].includes(task.delivery_type)) {
+      const requiresFiles = ['file', 'zip', 'audio', 'video'].includes(task.delivery_type);
+      
+      // Validar que se proporcione al menos un archivo si el tipo de entrega lo requiere
+      if (requiresFiles && filesPayload.length === 0) {
+        throw Object.assign(new Error('Debes subir al menos un archivo para esta entrega'), { statusCode: 400 });
+      }
+      
+      // Validar que no se suban archivos si el tipo de entrega no lo permite
+      if (filesPayload.length > 0 && !requiresFiles && task.delivery_type !== 'none') {
         throw Object.assign(new Error('La tarea no permite archivos adjuntos'), { statusCode: 400 });
       }
 
@@ -56,6 +64,7 @@ export class SubmissionsController {
       }
 
       const submission = await Submission.create({
+        tenant_id: req.tenant.id,
         task_id: task.id,
         event_id: task.event_id,
         team_id: teamId,
@@ -79,7 +88,20 @@ export class SubmissionsController {
             throw Object.assign(new Error('Archivo inválido'), { statusCode: 400 });
           }
 
-          const { buffer, mimeType } = decodeBase64File(rawFile.base64);
+          let buffer, mimeType;
+          try {
+            const decoded = decodeBase64File(rawFile.base64);
+            buffer = decoded.buffer;
+            mimeType = decoded.mimeType;
+          } catch (decodeError) {
+            logger.error('Error decodificando archivo base64', { 
+              error: decodeError.message, 
+              stack: decodeError.stack,
+              fileIndex: index 
+            });
+            throw Object.assign(new Error('Error al procesar el archivo: ' + decodeError.message), { statusCode: 400 });
+          }
+
           if (!mimeType) {
             throw Object.assign(new Error('No se pudo determinar el tipo MIME del archivo'), { statusCode: 400 });
           }
@@ -96,27 +118,51 @@ export class SubmissionsController {
           const fileName = rawFile.name || `archivo-${index + 1}`;
           const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
-          const { key, url } = await uploadSubmissionFile({
-            tenantSlug: req.tenant.slug,
-            submissionId: submission.id,
-            fileName,
-            buffer,
-            contentType: mimeType
-          });
+          let key, url;
+          try {
+            const uploadResult = await uploadSubmissionFile({
+              tenantId: req.tenant.id,
+              submissionId: submission.id,
+              fileName,
+              buffer,
+              contentType: mimeType
+            });
+            key = uploadResult.key;
+            url = uploadResult.url;
+          } catch (uploadError) {
+            logger.error('Error subiendo archivo a S3', { 
+              error: uploadError.message, 
+              stack: uploadError.stack,
+              fileName,
+              sizeBytes 
+            });
+            throw Object.assign(new Error('Error al subir el archivo: ' + uploadError.message), { statusCode: 500 });
+          }
 
           uploadedFiles.push({ key });
 
-          const record = await SubmissionFile.create({
-            submission_id: submission.id,
-            url,
-            storage_key: key,
-            mime_type: mimeType,
-            size_bytes: sizeBytes,
-            original_name: fileName,
-            checksum
-          }, { transaction });
+          try {
+            const record = await SubmissionFile.create({
+              tenant_id: req.tenant.id,
+              submission_id: submission.id,
+              url,
+              storage_key: key,
+              mime_type: mimeType,
+              size_bytes: sizeBytes,
+              original_name: fileName,
+              checksum
+            }, { transaction });
 
-          uploadedFiles[uploadedFiles.length - 1].recordId = record.id;
+            uploadedFiles[uploadedFiles.length - 1].recordId = record.id;
+          } catch (dbError) {
+            logger.error('Error guardando SubmissionFile en BD', { 
+              error: dbError.message, 
+              stack: dbError.stack,
+              fileName,
+              key 
+            });
+            throw Object.assign(new Error('Error al guardar el archivo: ' + dbError.message), { statusCode: 500 });
+          }
         }
       } catch (fileError) {
         fileError.uploadedFiles = uploadedFiles;
@@ -137,7 +183,13 @@ export class SubmissionsController {
         );
       }
       if (!error.statusCode || error.statusCode >= 500) {
-        logger.error('Error registrando entrega', { error: error.message });
+        logger.error('Error registrando entrega', { 
+          error: error.message, 
+          stack: error.stack,
+          taskId: req.params.taskId,
+          userId: req.user?.id,
+          tenantId: req.tenant?.id
+        });
       }
       next(error);
     }

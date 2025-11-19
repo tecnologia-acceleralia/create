@@ -11,6 +11,7 @@ type SelectOption = {
 
 type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
   placeholder?: string;
+  onValueChange?: (value: string) => void; // Nueva prop para manejar cambios de valor directamente
 };
 
 const mergeRefs = <T,>(...refs: Array<React.Ref<T> | undefined>) => {
@@ -65,6 +66,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       onBlur,
       onFocus,
       required,
+      onValueChange,
       ...rest
     },
     ref
@@ -136,8 +138,12 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           'value'
         )?.set;
         nativeSetter?.call(selectElement, nextValue);
-        const event = new Event('change', { bubbles: true });
+        // Disparar evento change para que react-hook-form lo detecte
+        const event = new Event('change', { bubbles: true, cancelable: true });
         selectElement.dispatchEvent(event);
+        // También disparar input para asegurar que se detecte
+        const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+        selectElement.dispatchEvent(inputEvent);
       },
       []
     );
@@ -159,6 +165,19 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         setInternalValue(nextValue);
       }
       syncHiddenSelect(nextValue);
+      // Si hay onValueChange, llamarlo directamente con el valor
+      if (onValueChange) {
+        onValueChange(nextValue);
+      }
+      // Cuando está controlado, también llamar al onChange si está definido
+      if (isControlled && onChange) {
+        // Crear un evento sintético para el onChange
+        const syntheticEvent = {
+          target: { value: nextValue },
+          currentTarget: { value: nextValue }
+        } as React.ChangeEvent<HTMLSelectElement>;
+        onChange(syntheticEvent);
+      }
     };
 
     const selectedOption = options.find(option => option.value === internalValue);

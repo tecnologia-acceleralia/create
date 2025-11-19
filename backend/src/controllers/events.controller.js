@@ -47,11 +47,23 @@ function normalizeEventPayload(body) {
     } else if (typeof rawSchema === 'string') {
       try {
         const parsed = JSON.parse(rawSchema);
-        payload.registration_schema = parsed;
+        // Si el objeto parseado está vacío, establecer a null
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length === 0) {
+          payload.registration_schema = null;
+        } else {
+          payload.registration_schema = parsed;
+        }
       } catch (error) {
         const parseError = new Error('El esquema de registro debe ser un JSON válido');
         parseError.statusCode = 400;
         throw parseError;
+      }
+    } else if (typeof rawSchema === 'object' && rawSchema !== null) {
+      // Si el objeto está vacío, establecer a null
+      if (Object.keys(rawSchema).length === 0) {
+        payload.registration_schema = null;
+      } else {
+        payload.registration_schema = rawSchema;
       }
     }
   }
@@ -105,7 +117,29 @@ export class EventsController {
 
     if (isManagement) {
       const events = await Event.findAll({ order: [['created_at', 'DESC']] });
-      return successResponse(res, events);
+      // Asegurar que las fechas se serialicen correctamente
+      const payload = events.map(event => {
+        const eventJson = event.toJSON();
+        // Convertir fechas a ISO string si existen
+        if (eventJson.start_date) {
+          if (eventJson.start_date instanceof Date) {
+            eventJson.start_date = eventJson.start_date.toISOString();
+          } else if (typeof eventJson.start_date === 'string' && eventJson.start_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+            eventJson.start_date = `${eventJson.start_date}T00:00:00.000Z`;
+          }
+        }
+        if (eventJson.end_date) {
+          if (eventJson.end_date instanceof Date) {
+            eventJson.end_date = eventJson.end_date.toISOString();
+          } else if (typeof eventJson.end_date === 'string' && eventJson.end_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+            eventJson.end_date = `${eventJson.end_date}T23:59:59.999Z`;
+          }
+        }
+        return eventJson;
+      });
+      return successResponse(res, payload);
     }
 
     const now = new Date();
@@ -187,6 +221,25 @@ export class EventsController {
       const firstRegistration = registrationsForUser[0] ?? null;
       delete eventJson.registrations;
       const teamInfo = teamByEventId.get(eventInstance.id);
+      
+      // Convertir fechas a ISO string si existen
+      if (eventJson.start_date) {
+        if (eventJson.start_date instanceof Date) {
+          eventJson.start_date = eventJson.start_date.toISOString();
+        } else if (typeof eventJson.start_date === 'string' && eventJson.start_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.start_date = `${eventJson.start_date}T00:00:00.000Z`;
+        }
+      }
+      if (eventJson.end_date) {
+        if (eventJson.end_date instanceof Date) {
+          eventJson.end_date = eventJson.end_date.toISOString();
+        } else if (typeof eventJson.end_date === 'string' && eventJson.end_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.end_date = `${eventJson.end_date}T23:59:59.999Z`;
+        }
+      }
+      
       return {
         ...eventJson,
         is_registered: Boolean(firstRegistration),
@@ -248,6 +301,25 @@ export class EventsController {
 
       // Resolver marcadores de assets en HTML
       const eventJson = event.toJSON();
+      
+      // Convertir fechas a ISO string si existen
+      if (eventJson.start_date) {
+        if (eventJson.start_date instanceof Date) {
+          eventJson.start_date = eventJson.start_date.toISOString();
+        } else if (typeof eventJson.start_date === 'string' && eventJson.start_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.start_date = `${eventJson.start_date}T00:00:00.000Z`;
+        }
+      }
+      if (eventJson.end_date) {
+        if (eventJson.end_date instanceof Date) {
+          eventJson.end_date = eventJson.end_date.toISOString();
+        } else if (typeof eventJson.end_date === 'string' && eventJson.end_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
+          eventJson.end_date = `${eventJson.end_date}T23:59:59.999Z`;
+        }
+      }
+      
       if (eventJson.description_html) {
         eventJson.description_html = await resolveAssetMarkers(
           eventJson.description_html,

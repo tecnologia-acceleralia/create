@@ -20,7 +20,9 @@
     "yes": "Sí",
     "no": "No",
     "export": "Exportar CSV",
-    "viewAll": "Ver todos"
+    "viewAll": "Ver todos",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña"
   },
   "navigation": {
     "brand": "Create",
@@ -66,6 +68,8 @@
     "loginForTenant": "Estás accediendo al espacio de {{tenant}}",
     "forgotPassword": "¿Olvidaste tu contraseña?",
     "backToLogin": "Volver a iniciar sesión",
+    "dontHaveAccount": "¿No tienes una cuenta?",
+    "goToRegister": "Crear cuenta",
     "passwordReset": {
       "requestTitle": "Recupera tu contraseña",
       "requestDescription": "Ingresa tu correo y te enviaremos un código de 6 dígitos.",
@@ -284,6 +288,7 @@
     "uploadAsset": "Subir archivo",
     "uploadedAssets": "Archivos subidos",
     "copyUrl": "Copiar URL",
+    "url": "URL",
     "urlCopied": "URL copiada al portapapeles",
     "confirmDeleteAsset": "¿Eliminar este archivo?",
     "noAssets": "No hay archivos subidos",
@@ -596,6 +601,7 @@
     "maxFilesReached": "Alcanzaste el máximo de {{count}} archivos permitidos.",
     "fileTooLarge": "{{name}} supera el tamaño máximo de {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} tiene un tipo de archivo no permitido.",
+    "fileRequired": "Debes subir al menos un archivo para esta entrega.",
     "onlyCaptainCanSubmit": "Solo el capitán del equipo puede hacer entregas.",
     "notTeamCaptain": "No eres capitán de un equipo en este evento. Solo los capitanes pueden registrar entregas."
   },
@@ -785,6 +791,7 @@
         "dates": "Ventana temporal",
         "links": "Enlaces",
         "content": "Contenido",
+        "registration": "Esquema de registro",
         "admin": "Administrador inicial"
       },
       "fields": {

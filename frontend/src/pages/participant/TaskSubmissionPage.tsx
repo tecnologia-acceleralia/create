@@ -289,10 +289,19 @@ function TaskSubmissionPage() {
   }
 
   const onSubmit = (values: SubmissionFormValues) => {
+    // Validar que no se suban archivos si el tipo de entrega es 'text'
     if (files.length > 0 && task?.delivery_type === 'text') {
       toast.error(t('submissions.filesNotAllowed'));
       return;
     }
+    
+    // Validar que se suba al menos un archivo si el tipo de entrega lo requiere
+    const requiresFiles = task?.delivery_type && ['file', 'zip', 'audio', 'video'].includes(task.delivery_type);
+    if (requiresFiles && files.length === 0) {
+      toast.error(t('submissions.fileRequired'));
+      return;
+    }
+    
     createSubmissionMutation.mutate(values);
   };
 
@@ -404,7 +413,13 @@ function TaskSubmissionPage() {
                       </label>
                     </div>
                   </FormField>
-                  <Button type="submit" disabled={createSubmissionMutation.isPending}>
+                  <Button 
+                    type="submit" 
+                    disabled={
+                      createSubmissionMutation.isPending || 
+                      (task?.delivery_type && ['file', 'zip', 'audio', 'video'].includes(task.delivery_type) && files.length === 0)
+                    }
+                  >
                     {createSubmissionMutation.isPending ? t('common.loading') : t('submissions.submit')}
                   </Button>
                 </form>

@@ -77,10 +77,6 @@ export function EventModel(sequelize) {
       publish_end_at: {
         type: DataTypes.DATE,
         allowNull: true
-      },
-      registration_schema: {
-        type: DataTypes.JSON,
-        allowNull: true
       }
     },
     {

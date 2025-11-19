@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { isAxiosError } from 'axios';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
-import { PageContainer, Spinner, AuthCard, ErrorDisplay } from '@/components/common';
+import { PageContainer, AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
 import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,20 +15,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/form';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { getPublicEvents, type RegistrationSchemaField, type RegistrationSchema } from '@/services/public';
+import { type RegistrationSchema } from '@/services/public';
 import { registerUser } from '@/services/auth';
 import { useAuth } from '@/context/AuthContext';
 
-type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const baseSchema = z
   .object({
     firstName: z.string().trim().min(1).max(150),
     lastName: z.string().trim().min(1).max(150),
-    email: z.string().email(),
+    email: z
+      .string()
+      .trim()
+      .refine((value) => emailPattern.test(value), {
+        message: 'register.invalidEmail'
+      }),
     password: z.string().min(8),
     confirmPassword: z.string().min(8),
-    grade: z.string().optional(),
     acceptPrivacyPolicy: z.boolean().refine(val => val === true, {
       message: 'register.privacyPolicyRequired'
     })
@@ -41,7 +45,15 @@ const baseSchema = z
 type BaseFormValues = z.infer<typeof baseSchema>;
 type FormValues = BaseFormValues & Record<string, string | boolean | undefined>;
 
-type GradeOption = {
+type NormalizedSchemaField = {
+  id: string;
+  label?: Record<string, string> | string;
+  required: boolean;
+  options?: Array<{ value: string; label?: Record<string, string> | string }>;
+  type: 'text' | 'select' | 'textarea';
+};
+
+type SchemaFieldOption = {
   value: string;
   label: string;
 };
@@ -67,36 +79,85 @@ function resolveSchemaLabel(
   return label.es ?? label.en ?? label.ca ?? fallback;
 }
 
-function getFieldLabel(
-  field: RegistrationSchemaField,
-  language: string,
-  fallback: string
-): string {
-  if (!field.label) {
-    return fallback;
+/**
+ * Normaliza todos los campos del schema dinámicamente, sin asumir nombres específicos
+ */
+function normalizeSchemaFields(schema: RegistrationSchema | null, language: string): NormalizedSchemaField[] {
+  if (!schema || typeof schema !== 'object') {
+    return [];
   }
-  if (typeof field.label === 'string') {
-    return field.label;
+
+  const fields: NormalizedSchemaField[] = [];
+
+  // Procesar todos los campos del nivel raíz del schema (excepto additionalFields)
+  for (const [key, value] of Object.entries(schema)) {
+    // Ignorar additionalFields, lo procesaremos por separado
+    if (key === 'additionalFields') {
+      continue;
+    }
+
+    // Verificar que el valor sea un objeto con estructura de campo
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const fieldValue = value as {
+        label?: Record<string, string> | string;
+        required?: boolean;
+        options?: Array<{ value: string; label?: Record<string, string> | string }>;
+      };
+
+      // Determinar el tipo basado en si tiene opciones
+      const hasOptions = Array.isArray(fieldValue.options) && fieldValue.options.length > 0;
+      const type: 'text' | 'select' | 'textarea' = hasOptions ? 'select' : 'text';
+
+      fields.push({
+        id: key,
+        label: fieldValue.label,
+        required: Boolean(fieldValue.required),
+        options: hasOptions ? (fieldValue.options as Array<{ value: string; label?: Record<string, string> | string }>) : undefined,
+        type
+      });
+    }
   }
-  const normalized = language?.split('-')[0]?.toLowerCase();
-  if (normalized && field.label[normalized]) {
-    return field.label[normalized] ?? fallback;
+
+  // Procesar additionalFields si existen
+  if (Array.isArray(schema.additionalFields)) {
+    for (const field of schema.additionalFields) {
+      if (field && typeof field === 'object' && field.id) {
+        fields.push({
+          id: field.id.trim() || `custom_field_${fields.length + 1}`,
+          label: field.label,
+          required: Boolean(field.required),
+          options: field.type === 'select' && Array.isArray(field.options) ? field.options : undefined,
+          type: field.type || 'text'
+        });
+      }
+    }
   }
-  return field.label.es ?? field.label.en ?? field.label.ca ?? fallback;
+
+  return fields;
 }
 
-function normalizeAdditionalFields(fields: RegistrationSchemaField[] = []): RegistrationSchemaField[] {
-  return fields.map((field, index) => ({
-    ...field,
-    id: field.id?.trim() ?? `custom_field_${index + 1}`
-  }));
-}
-
-function isEventOpen(event: PublicEvent | null) {
-  if (!event) {
-    return false;
+/**
+ * Procesa las opciones de un campo para el renderizado
+ */
+function processFieldOptions(
+  options: Array<{ value: string; label?: Record<string, string> | string }> | undefined,
+  language: string
+): SchemaFieldOption[] {
+  if (!options || !Array.isArray(options)) {
+    return [];
   }
-  return event.allow_open_registration !== false;
+
+  return options
+    .map(option => {
+      if (!option?.value) {
+        return null;
+      }
+      return {
+        value: option.value,
+        label: resolveSchemaLabel(option.label, language, option.value)
+      };
+    })
+    .filter((option): option is SchemaFieldOption => option !== null);
 }
 
 export default function RegisterPage() {
@@ -105,60 +166,85 @@ export default function RegisterPage() {
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
   const { hydrateSession } = useAuth();
-  const [searchParams] = useSearchParams();
 
-  const [events, setEvents] = useState<PublicEvent[]>([]);
-  const [checkingRegistration, setCheckingRegistration] = useState(true);
-  const [registrationAvailable, setRegistrationAvailable] = useState<boolean | null>(null);
-  const [loadError, setLoadError] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-  const additionalFieldsRef = useRef<RegistrationSchemaField[]>([]);
-  const gradeConfigRef = useRef<{ required: boolean; options: string[] }>({
-    required: false,
-    options: []
-  });
+  const schemaFieldsRef = useRef<NormalizedSchemaField[]>([]);
+
+  const { registrationSchema: tenantRegistrationSchema } = useTenant();
+  
+  // El schema de registro siempre viene del tenant, no del evento
+  const registrationSchema = tenantRegistrationSchema;
 
   const schema = useMemo(
     () =>
       baseSchema.superRefine((values, ctx) => {
-        const gradeValue =
-          typeof values.grade === 'string' ? values.grade.trim() : '';
-        const { required, options } = gradeConfigRef.current;
-
-        if (required && !gradeValue) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['grade'],
-            message: 'register.gradeRequired'
-          });
-        } else if (gradeValue && options.length && !options.includes(gradeValue)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['grade'],
-            message: 'register.gradeInvalid'
-          });
-        }
-
-        additionalFieldsRef.current.forEach(field => {
+        // Validar todos los campos del schema dinámicamente
+        const fields = schemaFieldsRef.current;
+        for (const field of fields) {
           if (!field.required) {
-            return;
+            continue;
           }
-          const rawValue = (values as Record<string, unknown>)[field.id ?? ''];
-          if (typeof rawValue !== 'string' || !rawValue.trim()) {
+
+          let rawValue = (values as Record<string, unknown>)[field.id];
+          let stringValue = typeof rawValue === 'string' ? rawValue.trim() : '';
+          
+          // Si el valor no está en react-hook-form, intentar leerlo del select oculto directamente
+          // Esto puede ocurrir cuando el componente Select no sincroniza correctamente con react-hook-form
+          if (!stringValue && typeof globalThis.window !== 'undefined') {
+            try {
+              // Buscar el select oculto por name o id
+              const selectElement = document.querySelector<HTMLSelectElement>(`select[name="${field.id}"], select#${field.id}`);
+              if (selectElement?.value) {
+                stringValue = selectElement.value.trim();
+              } else {
+                // Fallback: leer del FormData
+                const formElement = document.querySelector<HTMLFormElement>('form');
+                if (formElement) {
+                  const formData = new FormData(formElement);
+                  const formDataValue = formData.get(field.id);
+                  if (formDataValue && typeof formDataValue === 'string') {
+                    stringValue = formDataValue.trim();
+                  }
+                }
+              }
+            } catch (error) {
+              // Si hay un error accediendo al DOM, continuar con la validación normal
+              console.warn('Error reading select value in validation:', error);
+            }
+          }
+
+          if (!stringValue) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: [field.id ?? ''],
+              code: 'custom',
+              path: [field.id],
               message: 'register.dynamicFieldRequired'
             });
+            continue;
           }
-        });
+
+          // Si el campo tiene opciones definidas, validar que el valor sea una de ellas
+          if (field.options && field.options.length > 0) {
+            const validValues = field.options.map(opt => opt.value);
+            if (!validValues.includes(stringValue)) {
+              ctx.addIssue({
+                code: 'custom',
+                path: [field.id],
+                message: 'register.dynamicFieldInvalid'
+              });
+            }
+          }
+        }
       }),
-    []
+    [registrationSchema, i18n.language]
   );
 
-  const eventIdParam = searchParams.get('eventId');
-  const numericEventId = eventIdParam ? Number(eventIdParam) : null;
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      acceptPrivacyPolicy: false
+    }
+  });
 
   const {
     register,
@@ -166,87 +252,26 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
     getValues,
     reset,
-    watch,
-    setValue
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      acceptPrivacyPolicy: false
+    setValue,
+    trigger
+  } = form;
+
+  // Normalizar todos los campos del schema dinámicamente
+  const schemaFields = useMemo(() => {
+    // Si el schema viene como string (JSON sin parsear), parsearlo
+    let parsedSchema = registrationSchema;
+    if (typeof registrationSchema === 'string') {
+      try {
+        parsedSchema = JSON.parse(registrationSchema);
+      } catch {
+        parsedSchema = null;
+      }
     }
-  });
-
-  useEffect(() => {
-    if (!tenantSlug) {
-      return;
-    }
-
-    let mounted = true;
-    setCheckingRegistration(true);
-    setLoadError(false);
-
-    getPublicEvents(tenantSlug)
-      .then(fetchedEvents => {
-        if (!mounted) {
-          return;
-        }
-        setEvents(fetchedEvents);
-        const selected = fetchedEvents.find(event => event.id === numericEventId) ?? null;
-        if (numericEventId && !selected) {
-          setRegistrationAvailable(false);
-          return;
-        }
-        const hasOpenRegistration = fetchedEvents.some(event => isEventOpen(event));
-        setRegistrationAvailable(hasOpenRegistration);
-      })
-      .catch(() => {
-        if (mounted) {
-          setLoadError(true);
-          setRegistrationAvailable(false);
-        }
-      })
-      .finally(() => {
-        if (mounted) {
-          setCheckingRegistration(false);
-        }
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [tenantSlug, numericEventId]);
-
-  const selectedEvent = useMemo(() => {
-    if (!numericEventId) {
-      return null;
-    }
-    return events.find(event => event.id === numericEventId) ?? null;
-  }, [events, numericEventId]);
-
-  const registrationSchema = selectedEvent?.registration_schema ?? null;
-
-  const gradeOptions: GradeOption[] = useMemo(() => {
-    const rawOptions = registrationSchema?.grade?.options ?? [];
-    return rawOptions
-      .map(option => {
-        if (!option?.value) {
-          return null;
-        }
-        return {
-          value: option.value,
-          label: resolveSchemaLabel(option.label, i18n.language ?? 'es', option.value)
-        };
-      })
-      .filter((option): option is GradeOption => Boolean(option));
+    return normalizeSchemaFields(parsedSchema, i18n.language ?? 'es');
   }, [registrationSchema, i18n.language]);
 
-  const additionalFields = useMemo(() => normalizeAdditionalFields(registrationSchema?.additionalFields), [registrationSchema]);
-
   useEffect(() => {
-    additionalFieldsRef.current = additionalFields;
-    gradeConfigRef.current = {
-      required: Boolean(registrationSchema?.grade?.required),
-      options: gradeOptions.map(option => option.value)
-    };
+    schemaFieldsRef.current = schemaFields;
 
     const currentValues = getValues();
     const nextValues: FormValues = {
@@ -255,50 +280,65 @@ export default function RegisterPage() {
       email: currentValues.email ?? '',
       password: currentValues.password ?? '',
       confirmPassword: currentValues.confirmPassword ?? '',
-      grade: '',
       acceptPrivacyPolicy: currentValues.acceptPrivacyPolicy ?? false
     };
 
-    additionalFields.forEach(field => {
-      nextValues[field.id] = '';
-    });
+    // Inicializar todos los campos del schema con valores vacíos solo si no tienen valor
+    // Mantener los valores existentes si el usuario ya ha interactuado con el formulario
+    for (const field of schemaFields) {
+      if (!(field.id in currentValues) || currentValues[field.id] === undefined || currentValues[field.id] === null) {
+        nextValues[field.id] = '';
+      } else {
+        // Preservar el valor existente, incluso si es una cadena vacía (para mantener el estado del formulario)
+        nextValues[field.id] = currentValues[field.id];
+      }
+    }
 
+    // Solo resetear si hay cambios en los campos del schema, pero preservar valores existentes
     reset(nextValues, {
-      keepDirtyValues: false,
+      keepDirtyValues: true,
       keepErrors: false,
-      keepTouched: false
+      keepTouched: true // Mantener el estado touched para no perder la interacción del usuario
     });
-  }, [additionalFields, gradeOptions, registrationSchema, getValues, reset]);
+  }, [schemaFields, getValues, reset]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       setSubmissionError(null);
+      
       const language = i18n.language?.split('-')[0]?.toLowerCase();
       const answersPayload: Record<string, string> = {};
-      const gradeValue = typeof values.grade === 'string' ? values.grade.trim() : '';
 
-      if (gradeValue) {
-        answersPayload.grade = gradeValue;
+      // Procesar todos los campos del schema dinámicamente
+      // Leer valores de react-hook-form, con fallback al FormData si no están disponibles
+      const formElement = document.querySelector<HTMLFormElement>('form');
+      const formData = formElement ? new FormData(formElement) : null;
+      
+      for (const field of schemaFields) {
+        let value = values[field.id];
+        
+        // Si el valor no está en react-hook-form, leerlo del FormData como fallback
+        if ((!value || (typeof value === 'string' && !value.trim())) && formData) {
+          const formDataValue = formData.get(field.id);
+          if (formDataValue && typeof formDataValue === 'string') {
+            value = formDataValue;
+          }
+        }
+        
+        if (typeof value === 'string') {
+          const trimmedValue = value.trim();
+          if (trimmedValue) {
+            answersPayload[field.id] = trimmedValue;
+          }
+        }
       }
 
-      additionalFields.forEach(field => {
-        const value = values[field.id];
-        if (typeof value !== 'string') {
-          return;
-        }
-        const trimmedValue = value.trim();
-        if (trimmedValue) {
-          answersPayload[field.id] = trimmedValue;
-        }
-      });
       const response = await registerUser({
         first_name: values.firstName.trim(),
         last_name: values.lastName.trim(),
         email: values.email.toLowerCase(),
         password: values.password,
         language: language === 'es' || language === 'en' || language === 'ca' ? language : 'es',
-        event_id: selectedEvent?.id ?? undefined,
-        grade: gradeValue || undefined,
         registration_answers: Object.keys(answersPayload).length ? answersPayload : undefined
       });
 
@@ -335,31 +375,15 @@ export default function RegisterPage() {
     );
   }
 
-  if (checkingRegistration) {
-    return <Spinner fullHeight />;
-  }
-
-  if (loadError || registrationAvailable === false || (selectedEvent && !isEventOpen(selectedEvent))) {
-    return (
-      <PageContainer className="flex flex-col items-center gap-4 text-center">
-        <p className="text-sm text-muted-foreground">{t('register.closed')}</p>
-        <Button asChild variant="outline">
-          <Link to={tenantPath('')}>{t('register.backToLanding')}</Link>
-        </Button>
-      </PageContainer>
-    );
-  }
-
   return (
     <AuthCard
       maxWidth="xl"
       title={t('register.title')}
       subtitle={t('register.subtitle')}
-      badge={selectedEvent ? t('register.eventTag', { name: selectedEvent.name }) : undefined}
       footer={
         <div className="flex flex-col items-center gap-2">
           <p>{t('register.alreadyHaveAccount')}</p>
-          <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
+          <Button variant="ghost" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
             <Link to={tenantPath('login')}>{t('register.goToLogin')}</Link>
           </Button>
         </div>
@@ -406,62 +430,75 @@ export default function RegisterPage() {
               <Input id="email" type="email" autoComplete="email" {...register('email')} />
             </FormField>
 
-            <FormField
-              label={
-                registrationSchema?.grade?.label
-                  ? resolveSchemaLabel(registrationSchema.grade.label, i18n.language ?? 'es', t('register.gradeLabel'))
-                  : t('register.gradeLabel')
-              }
-              htmlFor="grade"
-              error={
-                errors.grade ? t(errors.grade.message ?? '', { defaultValue: errors.grade.message }) : undefined
-              }
-            required={Boolean(registrationSchema?.grade?.required)}
-            >
-              {gradeOptions.length ? (
-                <Select id="grade" defaultValue="" {...register('grade')}>
-                  <option value="" disabled>
-                    {t('register.gradePlaceholder')}
-                  </option>
-                  {gradeOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                    {option.label}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input
-                  id="grade"
-                  placeholder={t('register.gradePlaceholder')}
-                {...register('grade')}
-                />
-              )}
-            </FormField>
-
-            {additionalFields.length ? (
+            {/* Renderizar todos los campos del schema dinámicamente */}
+            {schemaFields.length > 0 ? (
               <div className="space-y-4">
-                {additionalFields.map(field => {
-                  const fieldLabel = getFieldLabel(field, i18n.language ?? 'es', field.id);
+                {schemaFields.map(field => {
+                  const fieldLabel = resolveSchemaLabel(
+                    field.label,
+                    i18n.language ?? 'es',
+                    field.id
+                  );
                   const errorMessage = errors[field.id]?.message
                     ? t(errors[field.id]?.message ?? '', { defaultValue: errors[field.id]?.message })
                     : undefined;
 
-                  const selectOptions =
-                    field.type === 'select'
-                      ? (field.options ?? [])
-                          .map(option => {
-                            if (!option?.value) {
-                              return null;
-                            }
-                            return {
-                              value: option.value,
-                              label: resolveSchemaLabel(option.label, i18n.language ?? 'es', option.value)
-                            };
-                          })
-                          .filter(
-                            (option): option is { value: string; label: string } => Boolean(option)
-                          )
-                      : [];
+                  const processedOptions = processFieldOptions(field.options, i18n.language ?? 'es');
+
+                  const renderFieldInput = () => {
+                    if (field.type === 'textarea') {
+                      return <Textarea id={field.id} {...register(field.id)} />;
+                    }
+                    if (field.type === 'select' && processedOptions.length > 0) {
+                      // Usar Controller con el componente Select para asegurar sincronización correcta
+                      return (
+                        <Controller
+                          name={field.id}
+                          control={form.control}
+                          rules={{
+                            required: field.required
+                              ? t('register.dynamicFieldRequired', { defaultValue: 'Este campo es obligatorio' })
+                              : false
+                          }}
+                          render={({ field: controllerField }) => {
+                            const currentValue = typeof controllerField.value === 'string' ? controllerField.value : '';
+                            return (
+                              <Select
+                                id={field.id}
+                                name={controllerField.name}
+                                value={currentValue}
+                                onValueChange={(value) => {
+                                  // Establecer el valor directamente en react-hook-form
+                                  controllerField.onChange(value);
+                                  // Forzar validación después de establecer el valor
+                                  setValue(field.id, value, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                                  trigger(field.id);
+                                }}
+                                onChange={(e) => {
+                                  // Manejar también el onChange del select oculto
+                                  const value = e.target.value;
+                                  controllerField.onChange(value);
+                                  // Asegurar que react-hook-form detecte el cambio
+                                  setValue(field.id, value, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                                  trigger(field.id);
+                                }}
+                                onBlur={controllerField.onBlur}
+                                ref={controllerField.ref}
+                                placeholder={t('register.selectPlaceholder', { defaultValue: 'Selecciona una opción' })}
+                              >
+                                {processedOptions.map(option => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Select>
+                            );
+                          }}
+                        />
+                      );
+                    }
+                    return <Input id={field.id} {...register(field.id)} />;
+                  };
 
                   return (
                     <FormField
@@ -469,24 +506,9 @@ export default function RegisterPage() {
                       label={fieldLabel}
                       htmlFor={field.id}
                       error={errorMessage}
-                      required={Boolean(field.required)}
+                      required={field.required}
                     >
-                      {field.type === 'textarea' ? (
-                        <Textarea id={field.id} {...register(field.id)} />
-                      ) : field.type === 'select' && selectOptions.length ? (
-                        <Select id={field.id} defaultValue="" {...register(field.id)}>
-                          <option value="" disabled>
-                            {t('register.selectPlaceholder')}
-                          </option>
-                          {selectOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </Select>
-                      ) : (
-                        <Input id={field.id} {...register(field.id)} />
-                      )}
+                      {renderFieldInput()}
                     </FormField>
                   );
                 })}
@@ -505,9 +527,8 @@ export default function RegisterPage() {
               required
             >
               <div className="flex gap-2">
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   autoComplete="new-password"
                   className="flex-1"
                   {...register('password')}
@@ -534,12 +555,14 @@ export default function RegisterPage() {
               }
               required
             >
-              <Input
-                id="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                {...register('confirmPassword')}
-              />
+              <div className="flex gap-2">
+                <PasswordInput
+                  id="confirmPassword"
+                  autoComplete="new-password"
+                  className="flex-1"
+                  {...register('confirmPassword')}
+                />
+              </div>
             </FormField>
 
             <div className="space-y-2">

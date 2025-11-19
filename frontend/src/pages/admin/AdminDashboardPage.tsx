@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Calendar, Users, FolderKanban, FileText, ClipboardCheck, UserPlus, Archive, Info } from 'lucide-react';
+import { Users, FolderKanban, FileText, ClipboardCheck, UserPlus, Archive, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -13,7 +13,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner, ErrorDisplay } from '@/components/common';
-import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { getTenantOverview, type TenantOverview } from '@/services/tenants';
@@ -24,13 +23,13 @@ import { EventCreateModal } from '@/components/events/modals';
 import { formatDate } from '@/utils/date';
 
 type StatsCardProps = {
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  onClick?: () => void;
-  secondaryLabel?: string;
-  secondaryValue?: number | string;
-  tooltip?: string;
+  readonly label: string;
+  readonly value: number | string;
+  readonly icon: React.ReactNode;
+  readonly onClick?: () => void;
+  readonly secondaryLabel?: string;
+  readonly secondaryValue?: number | string;
+  readonly tooltip?: string;
 };
 
 function StatsCard({ label, value, icon, onClick, secondaryLabel, secondaryValue, tooltip }: StatsCardProps) {
@@ -73,7 +72,6 @@ function StatsCard({ label, value, icon, onClick, secondaryLabel, secondaryValue
 
 function AdminDashboardPage() {
   const { t, i18n } = useTranslation();
-  const { user } = useAuth();
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
@@ -157,10 +155,23 @@ function AdminDashboardPage() {
     const current: Event[] = [];
     const future: Event[] = [];
 
-    allEvents.forEach(event => {
+    for (const event of allEvents) {
+      // Manejar fechas null o undefined
+      if (!event.start_date || !event.end_date) {
+        // Si no hay fechas, no clasificar el evento
+        continue;
+      }
+      
       const startDate = new Date(event.start_date);
-      startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(event.end_date);
+      
+      // Verificar que las fechas sean válidas
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        // Si las fechas son inválidas, no clasificar el evento
+        continue;
+      }
+      
+      startDate.setHours(0, 0, 0, 0);
       endDate.setHours(23, 59, 59, 999);
 
       if (endDate < now) {
@@ -170,13 +181,17 @@ function AdminDashboardPage() {
       } else if (startDate > now) {
         future.push(event);
       }
-    });
+    }
+
+    const sortedPast = past.toSorted((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime());
+    const sortedCurrent = current.toSorted((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    const sortedFuture = future.toSorted((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
 
     return {
       allEventsList: allEvents,
-      pastEvents: past.sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime()),
-      currentEvents: current.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()),
-      futureEvents: future.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+      pastEvents: sortedPast,
+      currentEvents: sortedCurrent,
+      futureEvents: sortedFuture
     };
   }, [allEvents]);
 
@@ -194,10 +209,7 @@ function AdminDashboardPage() {
   if (overviewQuery.isError || !overviewQuery.data) {
     return (
       <DashboardLayout title={t('dashboard.tenantAdmin')} subtitle={tenantName}>
-        <ErrorDisplay
-          message={t('dashboard.overview.error')}
-          onRetry={() => overviewQuery.refetch()}
-        />
+        <ErrorDisplay error={t('dashboard.overview.error')} />
       </DashboardLayout>
     );
   }
@@ -225,9 +237,10 @@ function AdminDashboardPage() {
     return (
       <div className="space-y-3">
         {events.map(event => (
-          <div
+          <button
             key={event.id}
-            className="flex flex-col rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+            type="button"
+            className="w-full text-left flex flex-col rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             onClick={() => navigate(tenantPath(`dashboard/events/${event.id}`))}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -251,7 +264,7 @@ function AdminDashboardPage() {
                 {formatDate(locale, event.end_date) ?? '—'}
               </span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     );
@@ -407,7 +420,7 @@ function AdminDashboardPage() {
 
       <EventCreateModal
         open={isCreateModalOpen}
-        onOpenChange={openState => (!openState ? handleCloseDialog() : null)}
+        onOpenChange={openState => (openState ? null : handleCloseDialog())}
         form={eventForm}
         onSubmit={onSubmit}
         isSubmitting={createMutation.isPending}

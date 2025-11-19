@@ -633,7 +633,7 @@ function New-Backup {
     try {
         $shouldDumpDatabase = $false
         try {
-            $runningServices = Invoke-CliOutput "docker" @("compose", "ps", "--services", "--filter", "status=running")
+            $runningServices = Invoke-CliOutput "docker" @("compose", "--profile", "dev", "ps", "--services", "--filter", "status=running")
             $runningServices = @($runningServices)
             if ($runningServices -contains "database") {
                 $shouldDumpDatabase = $true
@@ -744,48 +744,17 @@ function Test-RebuildRequired {
 }
 
 function Stop-DockerContainers {
-    Write-Info "Verificando contenedores Docker que puedan estar bloqueando archivos..."
+    Write-Info "Deteniendo contenedores Docker para evitar bloqueos..."
     try {
-        $runningContainers = @()
-        try {
-            $rawOutput = & docker compose ps --services --filter "status=running" 2>$null
-            if ($rawOutput) {
-                if ($rawOutput -is [System.Array]) {
-                    $runningContainers = $rawOutput | Where-Object { $_ -and $_.Trim() -ne "" }
-                } else {
-                    $runningContainers = @($rawOutput) | Where-Object { $_ -and $_.Trim() -ne "" }
-                }
-            }
-        } catch {
-            # Ignorar errores al verificar contenedores
-        }
-        
-        if ($runningContainers -and $runningContainers.Count -gt 0) {
-            Write-Info "Detectados $($runningContainers.Count) contenedor(es) ejecutandose. Deteniendolos para evitar bloqueos..."
-            try {
-                & docker compose down --remove-orphans 2>&1 | Out-Null
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Info "Contenedores Docker detenidos exitosamente"
-                } else {
-                    Write-Info "docker compose down completo con codigo $LASTEXITCODE. Intentando detener individualmente..."
-                    foreach ($service in $runningContainers) {
-                        try {
-                            & docker compose stop $service 2>&1 | Out-Null
-                        } catch {
-                            # Ignorar errores individuales
-                        }
-                    }
-                }
-                Start-Sleep -Seconds 2
-            } catch {
-                Write-Info "No se pudieron detener todos los contenedores: $($_.Exception.Message)"
-                Write-Info "Continuando con la instalacion de dependencias..."
-            }
+        & docker compose --profile dev down --remove-orphans 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Info "Contenedores Docker detenidos exitosamente"
         } else {
-            Write-Info "No hay contenedores Docker ejecutandose"
+            Write-Info "docker compose down completo con codigo $LASTEXITCODE"
         }
+        Start-Sleep -Seconds 2
     } catch {
-        Write-Info "No se pudieron verificar contenedores Docker: $($_.Exception.Message)"
+        Write-Info "No se pudieron detener todos los contenedores: $($_.Exception.Message)"
         Write-Info "Continuando con la instalacion de dependencias..."
     }
 }
@@ -1012,10 +981,10 @@ try {
         
         if ($ResetDB) {
             Write-Info "ResetDB activado: se eliminara el volumen de la base de datos"
-            Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
+            Invoke-Cli "docker" @("compose", "--profile", "dev", "down", "--volumes", "--remove-orphans")
         } else {
             Write-Info "ResetDB no activado: se preserva el volumen de la base de datos"
-            Invoke-Cli "docker" @("compose", "down", "--remove-orphans")
+            Invoke-Cli "docker" @("compose", "--profile", "dev", "down", "--remove-orphans")
             try {
                 $dbVolumeName = "${projectName}_mysql_data"
                 $dbVolumeExists = Test-DockerVolumeExists -VolumeName "mysql_data" -ProjectName $projectName
@@ -1035,11 +1004,11 @@ try {
         
         # Construir imágenes primero antes de ejecutar comandos
         Write-Info "Construyendo imágenes Docker"
-        Invoke-Cli "docker" @("compose", "build", "backend", "frontend")
+        Invoke-Cli "docker" @("compose", "--profile", "dev", "build", "backend", "frontend")
         
-        Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "backend", "pnpm", "install")
-        Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "frontend", "pnpm", "install")
-        Invoke-Cli "docker" @("compose", "up", "-d")
+        Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "--profile", "dev", "run", "--build", "--rm", "backend", "pnpm", "install")
+        Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "--profile", "dev", "run", "--build", "--rm", "frontend", "pnpm", "install")
+        Invoke-Cli "docker" @("compose", "--profile", "dev", "up", "-d")
         
         if ($ResetDB) {
             Reset-Database -EnvValues $envValues
@@ -1051,7 +1020,7 @@ try {
             Invoke-SeedersIfPending
         }
         
-        Invoke-Cli "docker" @("compose", "ps")
+        Invoke-Cli "docker" @("compose", "--profile", "dev", "ps")
         Write-Info "Fresh setup completed"
         Write-EnvironmentSummary
         exit 0
@@ -1100,8 +1069,8 @@ try {
     }
     $allChanges = $allChanges | Where-Object { $_ } | Sort-Object -Unique
 
-    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "backend", "pnpm", "install", "--frozen-lockfile")
-    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
+    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "--profile", "dev", "run", "--build", "--rm", "backend", "pnpm", "install", "--frozen-lockfile")
+    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "--profile", "dev", "run", "--build", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
 
     if ($ForceBuild -or (Test-RebuildRequired -Paths $allChanges)) {
         if ($ForceBuild) {
@@ -1109,10 +1078,10 @@ try {
         } else {
             Write-Info "Changes require rebuild"
         }
-        Invoke-Cli "docker" @("compose", "up", "--build", "-d")
+        Invoke-Cli "docker" @("compose", "--profile", "dev", "up", "--build", "-d")
     } else {
         Write-Info "No rebuild required, starting containers"
-        Invoke-Cli "docker" @("compose", "up", "-d")
+        Invoke-Cli "docker" @("compose", "--profile", "dev", "up", "-d")
     }
 
     if ($ResetDB) {
@@ -1126,7 +1095,7 @@ try {
         Invoke-SeedersIfPending
     }
 
-    Invoke-Cli "docker" @("compose", "ps")
+    Invoke-Cli "docker" @("compose", "--profile", "dev", "ps")
     Write-Info "Setup completed"
     Write-EnvironmentSummary
 } catch {

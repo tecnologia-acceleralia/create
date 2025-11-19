@@ -41,6 +41,7 @@ export async function up(queryInterface) {
       status: 'active',
       start_date: '2025-09-01',
       end_date: '2026-06-30',
+      registration_schema: null,
       tenant_css: `:root {
   --radius: 0.85rem;
   --background: 204 100% 97%;
@@ -485,99 +486,7 @@ export async function up(queryInterface) {
       allow_open_registration: true,
       publish_start_at: new Date('2025-07-01T00:00:00.000Z'),
       publish_end_at: eventEnd,
-      registration_schema: JSON.stringify({
-        grade: {
-          label: {
-            es: 'Grado',
-            ca: 'Grau',
-            en: 'Degree'
-          },
-          required: true,
-          options: [
-            {
-              value: 'ade',
-              label: {
-                es: 'Grado en Administración y Dirección de Empresas',
-                ca: "Grau en Administració i Direcció d'Empreses",
-                en: 'Degree in Business Administration and Management'
-              }
-            },
-            {
-              value: 'arquitectura',
-              label: {
-                es: 'Grado en Arquitectura',
-                ca: 'Grau en Arquitectura',
-                en: 'Degree in Architecture'
-              }
-            },
-            {
-              value: 'bioenginyeria',
-              label: {
-                es: 'Grado en Bioingeniería',
-                ca: 'Grau en Bioenginyeria',
-                en: 'Degree in Bioengineering'
-              }
-            },
-            {
-              value: 'ciencies_biomediques',
-              label: {
-                es: 'Grado en Ciencias Biomédicas',
-                ca: 'Grau en Ciències Biomèdiques',
-                en: 'Degree in Biomedical Sciences'
-              }
-            },
-            {
-              value: 'dret',
-              label: {
-                es: 'Grado en Derecho',
-                ca: 'Grau en Dret',
-                en: 'Degree in Law'
-              }
-            },
-            {
-              value: 'fisioterapia',
-              label: {
-                es: 'Grado en Fisioterapia',
-                ca: 'Grau en Fisioteràpia',
-                en: 'Degree in Physiotherapy'
-              }
-            },
-            {
-              value: 'humanitats',
-              label: {
-                es: 'Grado en Humanidades y Estudios Culturales',
-                ca: 'Grau en Humanitats i Estudis Culturals',
-                en: 'Degree in Humanities and Cultural Studies'
-              }
-            },
-            {
-              value: 'medicina',
-              label: {
-                es: 'Grado en Medicina',
-                ca: 'Grau en Medicina',
-                en: 'Degree in Medicine'
-              }
-            },
-            {
-              value: 'odontologia',
-              label: {
-                es: 'Grado en Odontología',
-                ca: 'Grau en Odontologia',
-                en: 'Degree in Dentistry'
-              }
-            },
-            {
-              value: 'publicitat',
-              label: {
-                es: 'Grado en Publicidad y Relaciones Públicas',
-                ca: 'Grau en Publicitat i Relacions Públiques',
-                en: 'Degree in Advertising and Public Relations'
-              }
-            }
-          ]
-        },
-        additionalFields: []
-      }),
+      registration_schema: null,
       created_at: new Date(),
       updated_at: new Date()
     }
@@ -1183,7 +1092,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recurso recomendado</strong>
     <ul>
-      <li><a href="{{asset:Como-hacer-un-analisis-pestal.pdf}}" target="_blank" rel="noopener">Cómo hacer un análisis PESTEL</a></li>
+      <li><a href="{{asset:Como-hacer-un-analisis-pestel.pdf}}" target="_blank" rel="noopener">Cómo hacer un análisis PESTEL</a></li>
     </ul>
   </div>
 

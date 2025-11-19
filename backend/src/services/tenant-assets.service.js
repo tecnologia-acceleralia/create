@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client
@@ -47,7 +48,7 @@ function resolvePublicBaseUrl(endpoint, bucket, overrideBaseUrl) {
   }
 }
 
-function getSettings() {
+export function getSettings() {
   const endpoint = process.env.SPACES_ENDPOINT;
   const bucket = process.env.SPACES_BUCKET;
   const region = process.env.SPACES_REGION || 'fra1';
@@ -98,9 +99,9 @@ function buildTenantPrefixById(tenantId) {
   return `tenants/${tenantId}/`;
 }
 
-function buildLogoKey(slug, extension) {
+function buildLogoKey(tenantId, extension) {
   const safeExtension = extension || 'png';
-  return `${buildTenantPrefix(slug)}branding/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+  return `${buildTenantPrefixById(tenantId)}branding/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
 }
 
 function buildProjectLogoKey(tenantId, projectId, extension) {
@@ -108,9 +109,10 @@ function buildProjectLogoKey(tenantId, projectId, extension) {
   return `${buildTenantPrefixById(tenantId)}projects/${projectId}/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
 }
 
-function buildSubmissionFileKey(slug, submissionId, fileName) {
+function buildSubmissionFileKey(tenantId, submissionId, fileName) {
   const normalizedName = fileName?.replace?.(/[^\w.\-]+/g, '_') ?? 'file.bin';
-  return `${buildTenantPrefix(slug)}submissions/${submissionId}/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
+  // Usa tenant_id en lugar de slug para evitar problemas si el slug cambia
+  return `${buildTenantPrefixById(tenantId)}submissions/${submissionId}/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
 }
 
 function buildEventAssetKey(tenantId, eventId, fileName) {
@@ -121,7 +123,7 @@ function buildEventAssetKey(tenantId, eventId, fileName) {
   return `${buildTenantPrefixById(tenantId)}events/${eventId}/assets/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
 }
 
-function extractKeyFromUrl(url, settings) {
+export function extractKeyFromUrl(url, settings) {
   if (!url) {
     return null;
   }
@@ -138,13 +140,25 @@ function extractKeyFromUrl(url, settings) {
 
   try {
     const parsedUrl = new URL(normalizedUrl);
-    if (parsedUrl.hostname === settings.bucket && parsedUrl.pathname.startsWith('/')) {
+    
+    // Manejar formato de DigitalOcean Spaces: https://{bucket}.{region}.digitaloceanspaces.com/{key}
+    // Ejemplo: https://acc-create-test.fra1.digitaloceanspaces.com/tenants/1/events/1/assets/...
+    if (parsedUrl.hostname && parsedUrl.hostname.includes('.digitaloceanspaces.com')) {
+      // El pathname incluye el key completo después del dominio
+      return parsedUrl.pathname.startsWith('/') ? parsedUrl.pathname.slice(1) : parsedUrl.pathname;
+    }
+    
+    // Manejar formato estándar: https://{bucket}.{endpoint}/{key}
+    if (settings.bucket && parsedUrl.hostname === settings.bucket && parsedUrl.pathname.startsWith('/')) {
       return parsedUrl.pathname.slice(1);
     }
+    
+    // Fallback: extraer el pathname
     return parsedUrl.pathname.startsWith('/') ? parsedUrl.pathname.slice(1) : parsedUrl.pathname;
   } catch (error) {
     logger.warn('No se pudo extraer la clave del objeto desde la URL proporcionada', {
-      error: error.message
+      error: error.message,
+      url: normalizedUrl
     });
     return null;
   }
@@ -186,12 +200,12 @@ export function decodeBase64File(base64) {
 
 /**
  * Sube un logo de tenant a DigitalOcean Spaces.
- * @param {{ tenantSlug: string; buffer: Buffer; contentType: string; extension?: string }} options
+ * @param {{ tenantId: number; buffer: Buffer; contentType: string; extension?: string }} options
  * @returns {Promise<{ url: string; key: string }>}
  */
-export async function uploadTenantLogo({ tenantSlug, buffer, contentType, extension }) {
+export async function uploadTenantLogo({ tenantId, buffer, contentType, extension }) {
   const { client, settings } = ensureClient();
-  const objectKey = buildLogoKey(tenantSlug, extension);
+  const objectKey = buildLogoKey(tenantId, extension);
 
   await client.send(
     new PutObjectCommand({
@@ -246,9 +260,9 @@ export async function uploadProjectLogo({ tenantId, projectId, buffer, contentTy
   };
 }
 
-export async function uploadSubmissionFile({ tenantSlug, submissionId, fileName, buffer, contentType }) {
+export async function uploadSubmissionFile({ tenantId, submissionId, fileName, buffer, contentType }) {
   const { client, settings } = ensureClient();
-  const objectKey = buildSubmissionFileKey(tenantSlug, submissionId, fileName);
+  const objectKey = buildSubmissionFileKey(tenantId, submissionId, fileName);
   await client.send(
     new PutObjectCommand({
       Bucket: settings.bucket,
@@ -298,6 +312,39 @@ export async function deleteObjectByKey(key) {
       Key: key
     })
   );
+}
+
+/**
+ * Verifica si un objeto existe en S3
+ * @param {string} key - Clave del objeto en S3
+ * @returns {Promise<boolean>} - true si existe, false si no existe o hay error
+ */
+export async function checkObjectExists(key) {
+  if (!key) {
+    return false;
+  }
+
+  try {
+    const { client, settings } = ensureClient();
+    await client.send(
+      new HeadObjectCommand({
+        Bucket: settings.bucket,
+        Key: key
+      })
+    );
+    return true;
+  } catch (error) {
+    // Si el error es 404 (NotFound), el objeto no existe
+    if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+      return false;
+    }
+    // Para otros errores, loguear y retornar false
+    logger.warn('Error al verificar existencia de objeto en S3', {
+      error: error.message,
+      key
+    });
+    return false;
+  }
 }
 
 export async function deleteTenantAssetsBySlug(slug) {

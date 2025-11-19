@@ -51,6 +51,7 @@ type TenantContextValue = {
   tenantSlug: string | null;
   branding: Branding;
   phases: TenantPhase[];
+  registrationSchema: import('@/services/public').RegistrationSchema | null;
   setTenantSlug: (slug: string | null) => void;
   refreshBranding: () => Promise<void>;
   loading: boolean;
@@ -85,6 +86,7 @@ type CachedTenantBranding = {
   branding: Branding;
   tenantCss: string | null;
   accessWindow: TenantAccessWindow;
+  registrationSchema: import('@/services/public').RegistrationSchema | null;
   timestamp: number;
 };
 
@@ -201,6 +203,7 @@ function loadCachedBranding(slug: string | null): CachedTenantBranding | null {
         ...defaultAccessWindow,
         ...(parsed.accessWindow ?? defaultAccessWindow)
       },
+      registrationSchema: parsed.registrationSchema ?? null,
       timestamp: parsed.timestamp ?? Date.now()
     };
   } catch {
@@ -222,6 +225,7 @@ function persistCachedBranding(slug: string, payload: CachedTenantBranding) {
         branding: payload.branding,
         tenantCss: payload.tenantCss,
         accessWindow: payload.accessWindow,
+        registrationSchema: payload.registrationSchema,
         timestamp: payload.timestamp
       })
     );
@@ -257,6 +261,7 @@ export function TenantProvider({ children }: Props) {
   const [loading, setLoading] = useState(false);
   const [tenantCss, setTenantCss] = useState<string | null>(initialCachedBranding?.tenantCss ?? null);
   const [accessWindow, setAccessWindow] = useState<TenantAccessWindow>(initialCachedBranding?.accessWindow ?? defaultAccessWindow);
+  const [registrationSchema, setRegistrationSchema] = useState<import('@/services/public').RegistrationSchema | null>(initialCachedBranding?.registrationSchema ?? null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
 
   const refreshBranding = useCallback(async () => {
@@ -312,14 +317,18 @@ export function TenantProvider({ children }: Props) {
         isActiveNow
       };
 
+      const nextRegistrationSchema = data?.registration_schema ?? null;
+
       setBranding(nextBranding);
       setTenantCss(nextTenantCss);
       setAccessWindow(nextAccessWindow);
+      setRegistrationSchema(nextRegistrationSchema);
 
       persistCachedBranding(tenantSlug, {
         branding: nextBranding,
         tenantCss: nextTenantCss,
         accessWindow: nextAccessWindow,
+        registrationSchema: nextRegistrationSchema,
         timestamp: Date.now()
       });
 
@@ -362,6 +371,7 @@ export function TenantProvider({ children }: Props) {
       setPhases([]);
       setTenantCss(null);
       setAccessWindow(defaultAccessWindow);
+      setRegistrationSchema(null);
       clearCachedBranding(tenantSlug);
     } finally {
       setLoading(false);
@@ -381,11 +391,13 @@ export function TenantProvider({ children }: Props) {
         setBranding(cached.branding);
         setTenantCss(cached.tenantCss);
         setAccessWindow(cached.accessWindow);
+        setRegistrationSchema(cached.registrationSchema ?? null);
         setTenantNotFound(false);
       } else {
         setBranding(defaultBranding);
         setTenantCss(null);
         setAccessWindow(defaultAccessWindow);
+        setRegistrationSchema(null);
       }
       setPhases([]);
       void refreshBranding();
@@ -394,6 +406,7 @@ export function TenantProvider({ children }: Props) {
       setPhases([]);
       setTenantCss(null);
       setAccessWindow(defaultAccessWindow);
+      setRegistrationSchema(null);
       setTenantNotFound(false);
     }
   }, [tenantSlug, refreshBranding]);
@@ -403,6 +416,7 @@ export function TenantProvider({ children }: Props) {
       tenantSlug,
       branding,
       phases,
+      registrationSchema,
       setTenantSlug,
       refreshBranding,
       loading,
@@ -410,7 +424,7 @@ export function TenantProvider({ children }: Props) {
       accessWindow,
       tenantNotFound
     }),
-    [tenantSlug, branding, phases, setTenantSlug, refreshBranding, loading, tenantCss, accessWindow, tenantNotFound]
+    [tenantSlug, branding, phases, registrationSchema, setTenantSlug, refreshBranding, loading, tenantCss, accessWindow, tenantNotFound]
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

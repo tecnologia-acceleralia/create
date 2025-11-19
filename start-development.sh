@@ -629,7 +629,7 @@ new_backup() {
     local should_dump_database=false
     
     # Verificar si el contenedor de base de datos está corriendo
-    if docker compose ps --services --filter "status=running" 2>/dev/null | grep -q "^database$"; then
+    if docker compose --profile dev ps --services --filter "status=running" 2>/dev/null | grep -q "^database$"; then
         should_dump_database=true
     else
         write_info "El contenedor 'database' no esta en ejecucion. Se omitira el backup de la base de datos."
@@ -755,30 +755,14 @@ test_rebuild_required() {
 }
 
 stop_docker_containers() {
-    write_info "Verificando contenedores Docker que puedan estar bloqueando archivos..."
+    write_info "Deteniendo contenedores Docker para evitar bloqueos..."
     
-    local running_containers
-    running_containers=$(docker compose ps --services --filter "status=running" 2>/dev/null || echo "")
-    
-    if [[ -n "$running_containers" ]]; then
-        local count
-        count=$(echo "$running_containers" | grep -c . || echo "0")
-        write_info "Detectados $count contenedor(es) ejecutandose. Deteniendolos para evitar bloqueos..."
-        
-        if docker compose down --remove-orphans >/dev/null 2>&1; then
-            write_info "Contenedores Docker detenidos exitosamente"
-        else
-            write_info "docker compose down completo con codigo $?. Intentando detener individualmente..."
-            while IFS= read -r service; do
-                if [[ -n "$service" ]]; then
-                    docker compose stop "$service" >/dev/null 2>&1 || true
-                fi
-            done <<< "$running_containers"
-        fi
-        sleep 2
+    if docker compose --profile dev down --remove-orphans >/dev/null 2>&1; then
+        write_info "Contenedores Docker detenidos exitosamente"
     else
-        write_info "No hay contenedores Docker ejecutandose"
+        write_info "docker compose down completo con codigo $?"
     fi
+    sleep 2
 }
 
 stop_pnpm_processes() {
@@ -940,10 +924,10 @@ main() {
         
         if [[ "$RESET_DB" == true ]]; then
             write_info "ResetDB activado: se eliminara el volumen de la base de datos"
-            invoke_cli docker compose down --volumes --remove-orphans
+            invoke_cli docker compose --profile dev down --volumes --remove-orphans
         else
             write_info "ResetDB no activado: se preserva el volumen de la base de datos"
-            invoke_cli docker compose down --remove-orphans
+            invoke_cli docker compose --profile dev down --remove-orphans
             if test_docker_volume_exists "mysql_data" "$PROJECT_NAME"; then
                 write_info "Preservando volumen de base de datos: ${PROJECT_NAME}_mysql_data"
             fi
@@ -956,11 +940,11 @@ main() {
         install_dependencies "$SCRIPT_ROOT/frontend" pnpm install
         
         write_info "Construyendo imágenes Docker"
-        invoke_cli docker compose build backend frontend
+        invoke_cli docker compose --profile dev build backend frontend
         
-        update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose run --build --rm backend pnpm install
-        update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose run --build --rm frontend pnpm install
-        invoke_cli docker compose up -d
+        update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose --profile dev run --build --rm backend pnpm install
+        update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose --profile dev run --build --rm frontend pnpm install
+        invoke_cli docker compose --profile dev up -d
         
         if [[ "$RESET_DB" == true ]]; then
             reset_database
@@ -972,7 +956,7 @@ main() {
             invoke_seeders_if_pending false
         fi
         
-        invoke_cli docker compose ps
+        invoke_cli docker compose --profile dev ps
         write_info "Fresh setup completed"
         write_environment_summary
         exit 0
@@ -1016,8 +1000,8 @@ main() {
     # Eliminar duplicados y ordenar
     all_changes=($(printf '%s\n' "${all_changes[@]}" | sort -u))
     
-    update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose run --build --rm backend pnpm install --frozen-lockfile
-    update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose run --build --rm frontend pnpm install --frozen-lockfile
+    update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose --profile dev run --build --rm backend pnpm install --frozen-lockfile
+    update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose --profile dev run --build --rm frontend pnpm install --frozen-lockfile
     
     if [[ "$FORCE_BUILD" == true ]] || test_rebuild_required "${all_changes[@]}"; then
         if [[ "$FORCE_BUILD" == true ]]; then
@@ -1025,10 +1009,10 @@ main() {
         else
             write_info "Changes require rebuild"
         fi
-        invoke_cli docker compose up --build -d
+        invoke_cli docker compose --profile dev up --build -d
     else
         write_info "No rebuild required, starting containers"
-        invoke_cli docker compose up -d
+        invoke_cli docker compose --profile dev up -d
     fi
     
     if [[ "$RESET_DB" == true ]]; then
@@ -1042,7 +1026,7 @@ main() {
         invoke_seeders_if_pending false
     fi
     
-    invoke_cli docker compose ps
+    invoke_cli docker compose --profile dev ps
     write_info "Setup completed"
     write_environment_summary
 }

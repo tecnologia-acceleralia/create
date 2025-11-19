@@ -15,7 +15,7 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
     return html || '';
   }
 
-  const markerRegex = /\{\{asset:([a-zA-Z0-9_-]+)\}\}/g;
+  const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
   const matches = [...html.matchAll(markerRegex)];
 
   if (matches.length === 0) {
@@ -42,14 +42,25 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
     assetMap.set(asset.name, asset.url);
   });
 
-  // Reemplazar cada marcador por su URL
+  // Reemplazar cada marcador por su URL (reemplazar todas las ocurrencias)
   let resolvedHtml = html;
+  // Procesar solo marcadores únicos para evitar trabajo duplicado
+  const uniqueMarkers = new Map();
   matches.forEach(match => {
     const [fullMatch, assetName] = match;
+    if (!uniqueMarkers.has(fullMatch)) {
+      uniqueMarkers.set(fullMatch, assetName);
+    }
+  });
+
+  uniqueMarkers.forEach((assetName, fullMatch) => {
     const url = assetMap.get(assetName);
 
     if (url) {
-      resolvedHtml = resolvedHtml.replace(fullMatch, url);
+      // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
+      const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const globalRegex = new RegExp(escapedMatch, 'g');
+      resolvedHtml = resolvedHtml.replace(globalRegex, url);
     } else {
       logger.warn('Marcador de asset no encontrado', {
         assetName,
@@ -57,7 +68,9 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
         tenantId
       });
       // Dejar el marcador sin reemplazar o reemplazar por una cadena vacía
-      resolvedHtml = resolvedHtml.replace(fullMatch, '');
+      const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const globalRegex = new RegExp(escapedMatch, 'g');
+      resolvedHtml = resolvedHtml.replace(globalRegex, '');
     }
   });
 
@@ -76,7 +89,7 @@ export function extractAssetNames(html) {
     return [];
   }
 
-  const markerRegex = /\{\{asset:([a-zA-Z0-9_-]+)\}\}/g;
+  const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
   const matches = [...html.matchAll(markerRegex)];
   return [...new Set(matches.map(match => match[1]))];
 }

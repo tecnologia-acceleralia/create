@@ -549,7 +549,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
       allow_open_registration: Boolean(values.allow_open_registration),
       publish_start_at: values.publish_start_at || undefined,
       publish_end_at: values.publish_end_at || undefined,
-      registration_schema: values.registration_schema || undefined
+      registration_schema: values.registration_schema !== undefined ? values.registration_schema : undefined
     };
     updateEventMutation.mutate(payload);
   };

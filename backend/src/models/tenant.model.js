@@ -106,6 +106,10 @@ export function TenantModel(sequelize) {
       status: {
         type: DataTypes.ENUM('active', 'suspended', 'trial', 'cancelled'),
         defaultValue: 'trial'
+      },
+      registration_schema: {
+        type: DataTypes.JSON,
+        allowNull: true
       }
     },
     {

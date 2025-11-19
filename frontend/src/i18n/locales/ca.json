@@ -20,7 +20,9 @@
     "yes": "Sí",
     "no": "No",
     "export": "Exportar CSV",
-    "viewAll": "Veure tots"
+    "viewAll": "Veure tots",
+    "showPassword": "Mostrar contrasenya",
+    "hidePassword": "Ocultar contrasenya"
   },
   "navigation": {
     "brand": "Create",
@@ -66,6 +68,8 @@
     "loginForTenant": "Estàs accedint a l'espai de {{tenant}}",
     "forgotPassword": "Has oblidat la contrasenya?",
     "backToLogin": "Torna a iniciar sessió",
+    "dontHaveAccount": "No tens un compte?",
+    "goToRegister": "Crear compte",
     "passwordReset": {
       "requestTitle": "Recupera la teva contrasenya",
       "requestDescription": "Introdueix el teu correu i t'enviarem un codi de 6 dígits.",
@@ -284,6 +288,7 @@
     "uploadAsset": "Pujar fitxer",
     "uploadedAssets": "Fitxers pujats",
     "copyUrl": "Copiar URL",
+    "url": "URL",
     "urlCopied": "URL copiada al porta-retalls",
     "confirmDeleteAsset": "Eliminar aquest fitxer?",
     "noAssets": "No hi ha fitxers pujats",
@@ -596,6 +601,7 @@
     "maxFilesReached": "Has arribat al màxim de {{count}} arxius permesos.",
     "fileTooLarge": "{{name}} supera la mida màxima de {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} té un tipus d'arxiu no permès.",
+    "fileRequired": "Has de pujar almenys un arxiu per a aquesta entrega.",
     "onlyCaptainCanSubmit": "Només el capità de l'equip pot fer entregues.",
     "notTeamCaptain": "No ets capità d'un equip en aquest esdeveniment. Només els capitans poden registrar entregues."
   },
@@ -785,6 +791,7 @@
         "dates": "Finestra temporal",
         "links": "Enllaços",
         "content": "Contingut",
+        "registration": "Esquema de registre",
         "admin": "Administrador inicial"
       },
       "fields": {

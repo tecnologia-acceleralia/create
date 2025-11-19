@@ -137,6 +137,7 @@ export type SuperAdminTenant = {
   end_date: string;
   hero_content?: unknown;
   tenant_css: string | null;
+  registration_schema?: import('./public').RegistrationSchema | null;
   created_at: string;
   updated_at: string;
   user_count: number;

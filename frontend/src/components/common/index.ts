@@ -2,6 +2,7 @@
 export { PageHeader } from './PageHeader';
 export { PageContainer } from './PageContainer';
 export { PasswordGeneratorButton } from './PasswordGeneratorButton';
+export { PasswordInput } from './PasswordInput';
 export { ErrorDisplay } from './ErrorDisplay';
 export { EmptyState } from './EmptyState';
 export { ExpandableSection } from './ExpandableSection';

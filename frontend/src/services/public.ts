@@ -20,12 +20,8 @@ export type RegistrationSchemaField = {
   options?: RegistrationSchemaOption[];
 };
 
-export type RegistrationSchema = {
-  grade?: {
-    label?: Record<string, string> | string;
-    required?: boolean;
-    options?: RegistrationSchemaOption[];
-  } | null;
+// Schema completamente dinámico - puede tener cualquier estructura
+export type RegistrationSchema = Record<string, unknown> & {
   additionalFields?: RegistrationSchemaField[];
 };
 

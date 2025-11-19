@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuthCard, ErrorDisplay } from '@/components/common';
+import { AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { requestPasswordResetCode, verifyPasswordResetCode, confirmPasswordReset } from '@/services/auth';
 import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
@@ -202,9 +202,8 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
           {t('auth.passwordReset.newPassword')}
         </label>
         <div className="flex gap-2">
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             className="flex-1"
             {...register('password')}
@@ -228,9 +227,8 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
         <label className="text-sm font-medium" htmlFor="confirmPassword">
           {t('auth.passwordReset.confirmPassword')}
         </label>
-        <Input
+        <PasswordInput
           id="confirmPassword"
-          type="password"
           autoComplete="new-password"
           {...register('confirmPassword')}
         />

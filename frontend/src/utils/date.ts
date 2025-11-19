@@ -6,6 +6,11 @@ const DEFAULT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric'
 };
 
+const DEFAULT_DATETIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  dateStyle: 'short',
+  timeStyle: 'short'
+};
+
 /**
  * Returns a valid Date instance or null if the input cannot be parsed.
  */
@@ -14,7 +19,35 @@ export function parseDate(value: DateInput): Date | null {
     return null;
   }
 
-  const date = value instanceof Date ? value : new Date(value);
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  // Si es un string, intentar parsearlo
+  if (typeof value === 'string') {
+    // Manejar strings vacíos
+    const trimmed = value.trim();
+    if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') {
+      return null;
+    }
+    
+    // Manejar strings en formato YYYY-MM-DD (sin hora) para evitar problemas de zona horaria
+    const dateOnlyRegex = /^(\d{4})-(\d{2})-(\d{2})(?:\s|$)/;
+    const dateOnlyMatch = dateOnlyRegex.exec(trimmed);
+    if (dateOnlyMatch) {
+      // Crear fecha en UTC para evitar problemas de zona horaria
+      const [, year, month, day] = dateOnlyMatch;
+      const date = new Date(Date.UTC(Number.parseInt(year, 10), Number.parseInt(month, 10) - 1, Number.parseInt(day, 10)));
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+    
+    // Para otros formatos, usar el constructor estándar
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  // Para números (timestamps)
+  const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -61,7 +94,7 @@ export function formatDateRange(
 export function formatDateTime(
   locale: string,
   value: DateInput,
-  options: Intl.DateTimeFormatOptions = { dateStyle: 'short', timeStyle: 'short' },
+  options: Intl.DateTimeFormatOptions = DEFAULT_DATETIME_OPTIONS,
   emptyFallback = '—'
 ): string {
   if (value === null || value === undefined || value === '') {

@@ -348,14 +348,19 @@ export class SuperAdminController {
         start_date: payload.start_date ?? new Date().toISOString().slice(0, 10),
         end_date: payload.end_date ?? '2099-12-31',
         hero_content: heroContent,
-        tenant_css: coerceNullableString(payload.tenant_css)
+        tenant_css: coerceNullableString(payload.tenant_css),
+        registration_schema: payload.registration_schema
+          ? typeof payload.registration_schema === 'string'
+            ? JSON.parse(payload.registration_schema)
+            : payload.registration_schema
+          : null
       });
 
       if (typeof payload.logo === 'string' && payload.logo.startsWith('data:')) {
         try {
           const { buffer, mimeType, extension } = decodeBase64Image(payload.logo);
           const uploadResult = await uploadTenantLogo({
-            tenantSlug: slug,
+            tenantId: tenant.id,
             buffer,
             contentType: mimeType,
             extension
@@ -364,7 +369,7 @@ export class SuperAdminController {
         } catch (uploadError) {
           logger.warn('No se pudo subir el logo durante la creación del tenant', {
             error: uploadError.message,
-            slug
+            tenantId: tenant.id
           });
         }
       }
@@ -561,7 +566,8 @@ export class SuperAdminController {
         'youtube_url',
         'tenant_css',
         'start_date',
-        'end_date'
+        'end_date',
+        'registration_schema'
       ];
 
       for (const field of allowedFields) {
@@ -589,6 +595,34 @@ export class SuperAdminController {
         updates.hero_content = payload.hero_content ? parseHeroContent(payload.hero_content) : null;
       }
 
+      if (Object.prototype.hasOwnProperty.call(payload, 'registration_schema')) {
+        const rawSchema = payload.registration_schema;
+        if (rawSchema === undefined) {
+          delete updates.registration_schema;
+        } else if (rawSchema === null || rawSchema === '') {
+          updates.registration_schema = null;
+        } else if (typeof rawSchema === 'string') {
+          try {
+            const parsed = JSON.parse(rawSchema);
+            // Si el objeto parseado está vacío, establecer a null
+            if (parsed && typeof parsed === 'object' && Object.keys(parsed).length === 0) {
+              updates.registration_schema = null;
+            } else {
+              updates.registration_schema = parsed;
+            }
+          } catch (error) {
+            return res.status(400).json({ success: false, message: 'El esquema de registro debe ser un JSON válido' });
+          }
+        } else if (typeof rawSchema === 'object' && rawSchema !== null) {
+          // Si el objeto está vacío, establecer a null
+          if (Object.keys(rawSchema).length === 0) {
+            updates.registration_schema = null;
+          } else {
+            updates.registration_schema = rawSchema;
+          }
+        }
+      }
+
       const wantsToRemoveLogo =
         Object.prototype.hasOwnProperty.call(payload, 'logo') && payload.logo === null;
 
@@ -599,7 +633,7 @@ export class SuperAdminController {
         try {
           const { buffer, mimeType, extension } = decodeBase64Image(payload.logo);
           uploadResult = await uploadTenantLogo({
-            tenantSlug: tenant.slug,
+            tenantId: tenant.id,
             buffer,
             contentType: mimeType,
             extension

@@ -20,7 +20,9 @@
     "yes": "Yes",
     "no": "No",
     "export": "Export CSV",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "navigation": {
     "brand": "Create",
@@ -66,6 +68,8 @@
     "loginForTenant": "You are accessing the space for {{tenant}}",
     "forgotPassword": "Forgot your password?",
     "backToLogin": "Back to sign in",
+    "dontHaveAccount": "Don't have an account?",
+    "goToRegister": "Create account",
     "passwordReset": {
       "requestTitle": "Recover your password",
       "requestDescription": "Enter your email and we'll send you a 6-digit code.",
@@ -284,6 +288,7 @@
     "uploadAsset": "Upload file",
     "uploadedAssets": "Uploaded files",
     "copyUrl": "Copy URL",
+    "url": "URL",
     "urlCopied": "URL copied to clipboard",
     "confirmDeleteAsset": "Delete this file?",
     "noAssets": "No files uploaded",
@@ -596,6 +601,7 @@
     "maxFilesReached": "You reached the maximum of {{count}} files allowed.",
     "fileTooLarge": "{{name}} exceeds the maximum size of {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} has a file type that is not allowed.",
+    "fileRequired": "You must upload at least one file for this submission.",
     "onlyCaptainCanSubmit": "Only the team captain can submit deliverables.",
     "notTeamCaptain": "You are not a team captain in this event. Only captains can register submissions."
   },
@@ -785,6 +791,7 @@
         "dates": "Time window",
         "links": "Links",
         "content": "Content",
+        "registration": "Registration schema",
         "admin": "Initial administrator"
       },
       "fields": {

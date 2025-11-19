@@ -10,6 +10,8 @@ export type EventAsset = {
   uploaded_by: number;
   created_at: string;
   updated_at: string;
+  s3_key?: string;
+  exists?: boolean; // Estado de validación (si existe en S3)
 };
 
 export async function getEventAssets(eventId: number): Promise<EventAsset[]> {
@@ -17,10 +19,13 @@ export async function getEventAssets(eventId: number): Promise<EventAsset[]> {
   return response.data.data as EventAsset[];
 }
 
-export async function uploadEventAsset(eventId: number, file: File, name: string): Promise<EventAsset> {
+export async function uploadEventAsset(eventId: number, file: File, name: string, overwrite = false): Promise<EventAsset> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('name', name);
+  if (overwrite) {
+    formData.append('overwrite', 'true');
+  }
 
   const response = await apiClient.post(`/events/${eventId}/assets`, formData, {
     headers: {
@@ -28,6 +33,42 @@ export async function uploadEventAsset(eventId: number, file: File, name: string
     }
   });
   return response.data.data as EventAsset;
+}
+
+export type AssetValidationResult = {
+  id: number;
+  name: string;
+  s3_key: string;
+  url?: string;
+  checkedKey?: string;
+  exists: boolean;
+};
+
+export async function validateEventAssets(eventId: number): Promise<AssetValidationResult[]> {
+  const response = await apiClient.get(`/events/${eventId}/assets/validate`);
+  return response.data.data as AssetValidationResult[];
+}
+
+export type InvalidMarker = {
+  type: 'phase' | 'task' | 'event';
+  id: number;
+  name?: string;
+  title?: string;
+  phaseId?: number;
+  phaseName?: string;
+  marker: string;
+  assetName: string;
+};
+
+export type CheckMarkersResult = {
+  invalidMarkers: InvalidMarker[];
+  totalInvalid: number;
+  totalAssets: number;
+};
+
+export async function checkMarkers(eventId: number): Promise<CheckMarkersResult> {
+  const response = await apiClient.get(`/events/${eventId}/assets/check-markers`);
+  return response.data.data as CheckMarkersResult;
 }
 
 export async function deleteEventAsset(eventId: number, assetId: number): Promise<void> {

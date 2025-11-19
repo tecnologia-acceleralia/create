@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { AuthCard, ErrorDisplay } from '@/components/common';
+import { AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
 import { FormField } from '@/components/form';
 
 const schema = z.object({
@@ -55,9 +55,17 @@ function LoginPage() {
   return (
     <AuthCard
       footer={
-        <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
-          {t('auth.forgotPassword')}
-        </Link>
+        <div className="flex flex-col items-center gap-3">
+          <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
+            {t('auth.forgotPassword')}
+          </Link>
+          <div className="flex flex-col items-center gap-2">
+            <p className="text-sm text-muted-foreground">{t('auth.dontHaveAccount')}</p>
+            <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
+              <Link to={tenantPath('register')}>{t('auth.goToRegister')}</Link>
+            </Button>
+          </div>
+        </div>
       }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -76,7 +84,7 @@ function LoginPage() {
           error={errors.password ? t(errors.password.message ?? '', { defaultValue: errors.password.message }) : undefined}
           required
         >
-          <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
+          <PasswordInput id="password" autoComplete="current-password" {...register('password')} />
         </FormField>
 
         <ErrorDisplay error={error} />
