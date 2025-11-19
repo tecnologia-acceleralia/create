@@ -218,10 +218,21 @@ if [ "$NEEDS_REBUILD" = true ]; then
     done
     
 else
-    log "ℹ️  No hay cambios en código o archivos de Docker. Solo reiniciando servicios..."
-    if ! docker-compose --profile prod restart; then
-        error "Error al reiniciar servicios"
-        exit 1
+    log "ℹ️  No hay cambios en código o archivos de Docker."
+    
+    # Verificar si el contenedor frontend-prod existe
+    if ! docker ps -a --format '{{.Names}}' | grep -q "^create-frontend-prod$"; then
+        log "🔨 Contenedor frontend-prod no existe. Construyendo y levantando servicios..."
+        if ! docker-compose --profile prod up -d --build frontend-prod; then
+            error "Error al construir y levantar frontend-prod"
+            exit 1
+        fi
+    else
+        log "🔄 Reiniciando servicios existentes..."
+        if ! docker-compose --profile prod restart; then
+            error "Error al reiniciar servicios"
+            exit 1
+        fi
     fi
 fi
 
