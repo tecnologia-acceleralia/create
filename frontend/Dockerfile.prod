@@ -22,8 +22,11 @@ COPY . .
 # Las variables de entorno deben estar disponibles en tiempo de build
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
+ENV NODE_ENV=production
+ENV MODE=production
 
-RUN pnpm run build
+# Ejecutar build explícitamente en modo producción
+RUN pnpm run build --mode production
 
 # Etapa 2: Servir con servidor HTTP simple
 FROM node:22-alpine

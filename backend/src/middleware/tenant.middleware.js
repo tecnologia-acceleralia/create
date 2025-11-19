@@ -120,8 +120,8 @@ export async function tenantMiddleware(req, res, next) {
       });
     }
 
-    // Si el tenant no existe o está inactivo, verificar si es superadmin
-    if (!tenant || tenant.status !== 'active') {
+    // Si el tenant no existe o no está activo/en prueba, verificar si es superadmin
+    if (!tenant || !['active', 'trial'].includes(tenant.status)) {
       const isSuperAdmin = await isSuperAdminFromToken(req);
       if (isSuperAdmin) {
         // Superadmin puede acceder incluso si el tenant no existe o está inactivo

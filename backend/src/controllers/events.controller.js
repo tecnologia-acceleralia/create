@@ -98,6 +98,11 @@ export class EventsController {
     const isManagement =
       isSuperAdmin || roleScopes.has('tenant_admin') || roleScopes.has('organizer') || roleScopes.has('evaluator');
 
+    // Para usuarios no administradores, verificar que el tenant esté activo o en prueba
+    if (!isManagement && req.tenant && !['active', 'trial'].includes(req.tenant.status)) {
+      return res.json({ success: true, data: [] });
+    }
+
     if (isManagement) {
       const events = await Event.findAll({ order: [['created_at', 'DESC']] });
       return successResponse(res, events);
@@ -219,6 +224,19 @@ export class EventsController {
 
   static async detail(req, res, next) {
     try {
+      const roleScopes = new Set(req.auth?.roleScopes ?? req.user?.roleScopes ?? []);
+      const isSuperAdmin = Boolean(req.auth?.isSuperAdmin ?? req.user?.is_super_admin);
+      const isManagement =
+        isSuperAdmin || roleScopes.has('tenant_admin') || roleScopes.has('organizer') || roleScopes.has('evaluator');
+
+      // Para usuarios no administradores, verificar que el tenant esté activo o en prueba
+      if (!isManagement && req.tenant && !['active', 'trial'].includes(req.tenant.status)) {
+        return res.status(403).json({
+          success: false,
+          message: 'El tenant no está activo'
+        });
+      }
+
       const event = await findEventOr404(req.params.eventId);
       if (Array.isArray(event.rubrics)) {
         event.rubrics.forEach(rubric => {

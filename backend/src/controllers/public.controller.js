@@ -143,6 +143,11 @@ export class PublicController {
       return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
     }
 
+    // Verificar que el tenant esté activo o en prueba
+    if (!['active', 'trial'].includes(tenant.status)) {
+      return res.json({ success: true, data: [] });
+    }
+
     const now = new Date();
     const events = await Event.findAll({
       where: {
@@ -207,7 +212,6 @@ export class PublicController {
         ]
       },
       order: [['start_date', 'ASC']],
-      attributes: ['id', 'name', 'description', 'start_date', 'end_date', 'status', 'video_url', 'tenant_id'],
       attributes: [
         'id',
         'name',
@@ -223,36 +227,42 @@ export class PublicController {
         {
           model: Tenant,
           as: 'tenant',
-          attributes: ['id', 'name', 'slug', 'logo_url', 'primary_color', 'secondary_color']
+          attributes: ['id', 'name', 'slug', 'logo_url', 'primary_color', 'secondary_color', 'status']
         }
       ]
     });
 
-    const payload = events.map(event => {
-      const plain = event.get({ plain: true });
-      const tenant = plain.tenant
-        ? {
-            id: plain.tenant.id,
-            name: plain.tenant.name,
-            slug: plain.tenant.slug,
-            logo_url: plain.tenant.logo_url,
-            primary_color: plain.tenant.primary_color,
-            secondary_color: plain.tenant.secondary_color
-          }
-        : null;
+    // Filtrar eventos de tenants activos o en prueba
+    const payload = events
+      .filter(event => {
+        const plain = event.get({ plain: true });
+        return plain.tenant && ['active', 'trial'].includes(plain.tenant.status);
+      })
+      .map(event => {
+        const plain = event.get({ plain: true });
+        const tenant = plain.tenant
+          ? {
+              id: plain.tenant.id,
+              name: plain.tenant.name,
+              slug: plain.tenant.slug,
+              logo_url: plain.tenant.logo_url,
+              primary_color: plain.tenant.primary_color,
+              secondary_color: plain.tenant.secondary_color
+            }
+          : null;
 
-      return {
-        id: plain.id,
-        name: plain.name,
-        description: plain.description,
-        start_date: plain.start_date,
-        end_date: plain.end_date,
-        status: plain.status,
-        video_url: plain.video_url,
-        allow_open_registration: plain.allow_open_registration,
-        tenant
-      };
-    });
+        return {
+          id: plain.id,
+          name: plain.name,
+          description: plain.description,
+          start_date: plain.start_date,
+          end_date: plain.end_date,
+          status: plain.status,
+          video_url: plain.video_url,
+          allow_open_registration: plain.allow_open_registration,
+          tenant
+        };
+      });
 
     return res.json({ success: true, data: payload });
   }
@@ -269,6 +279,11 @@ static async listPhases(req, res) {
 
     if (!tenant) {
       return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
+    }
+
+    // Verificar que el tenant esté activo o en prueba
+    if (!['active', 'trial'].includes(tenant.status)) {
+      return res.json({ success: true, data: [] });
     }
 
     // Verificar si el usuario es administrador (opcional)

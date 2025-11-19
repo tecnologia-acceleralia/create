@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -28,5 +28,14 @@ export default defineConfig({
       'localhost',
       '127.0.0.1',
     ],
+    // Deshabilitar HMR en producción
+    hmr: mode === 'development',
   },
-})
+  // Asegurar que el build de producción no incluya código de desarrollo
+  build: {
+    // Eliminar comentarios y código muerto en producción
+    minify: 'esbuild',
+    // No incluir source maps en producción (opcional, mejora el rendimiento)
+    sourcemap: false,
+  },
+}))
