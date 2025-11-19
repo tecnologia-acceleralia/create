@@ -2,6 +2,7 @@
 import jwt from 'jsonwebtoken';
 import { appConfig } from '../config/env.js';
 import { getModels } from "../models/index.js";
+import { resolveAssetMarkers } from '../utils/asset-markers.js';
 
 /**
  * Verifica opcionalmente si hay un usuario autenticado y si es administrador
@@ -185,9 +186,19 @@ export class PublicController {
       ]
     });
 
-    // Asegurar que las fechas se serialicen correctamente
-    const payload = events.map(event => {
+    // Asegurar que las fechas se serialicen correctamente y resolver marcadores
+    const payload = await Promise.all(events.map(async (event) => {
       const eventJson = event.toJSON();
+      
+      // Resolver marcadores de assets en description_html antes de devolver
+      if (eventJson.description_html) {
+        eventJson.description_html = await resolveAssetMarkers(
+          eventJson.description_html,
+          event.id,
+          tenant.id
+        );
+      }
+      
       // Convertir fechas a ISO string si existen
       if (eventJson.start_date) {
         if (eventJson.start_date instanceof Date) {
@@ -206,7 +217,7 @@ export class PublicController {
         }
       }
       return eventJson;
-    });
+    }));
 
     return res.json({ success: true, data: payload });
   }

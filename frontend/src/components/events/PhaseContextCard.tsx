@@ -1,10 +1,6 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
 import { ExpandableSection } from '@/components/common';
 import { formatDateRange } from '@/utils/date';
-import { resolveAssetMarkers } from '@/utils/asset-markers';
-import { getEventAssets } from '@/services/event-assets';
 import type { Phase } from '@/services/events';
 
 type PhaseContextCardProps = {
@@ -19,27 +15,11 @@ export function PhaseContextCard({
   phase,
   locale = 'es',
   defaultExpanded = true,
-  className,
-  eventId
+  className
 }: PhaseContextCardProps) {
   const { t } = useTranslation();
 
-  // Cargar assets del evento para resolver marcadores
-  const { data: assets = [] } = useQuery({
-    queryKey: ['eventAssets', eventId],
-    queryFn: () => (eventId ? getEventAssets(eventId) : Promise.resolve([])),
-    enabled: Boolean(eventId && phase.intro_html)
-  });
-
-  // Resolver marcadores de assets en el HTML antes de renderizar
-  const resolvedIntroHtml = useMemo(() => {
-    if (!phase.intro_html || !assets.length) {
-      return phase.intro_html;
-    }
-    return resolveAssetMarkers(phase.intro_html, assets);
-  }, [phase.intro_html, assets]);
-
-  if (!resolvedIntroHtml) {
+  if (!phase.intro_html) {
     return null;
   }
 
@@ -63,7 +43,7 @@ export function PhaseContextCard({
         }
         contentClassName="prose prose-sm max-w-none mt-3"
       >
-        <div dangerouslySetInnerHTML={{ __html: resolvedIntroHtml }} />
+        <div dangerouslySetInnerHTML={{ __html: phase.intro_html }} />
       </ExpandableSection>
     </div>
   );

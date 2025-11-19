@@ -90,6 +90,7 @@ export class TeamsController {
       }, { transaction });
 
       await TeamMember.create({
+        tenant_id: req.tenant.id,
         team_id: team.id,
         user_id: captainId,
         role: 'captain'
@@ -145,6 +146,7 @@ export class TeamsController {
       await ensureUserNotInOtherTeam(userId, team.event_id);
 
       const member = await TeamMember.create({
+        tenant_id: req.tenant.id,
         team_id: team.id,
         user_id: userId,
         role: req.body.role ?? 'member',
@@ -381,6 +383,7 @@ export class TeamsController {
 
       // Unirse al nuevo equipo como miembro
       const newMember = await TeamMember.create({
+        tenant_id: req.tenant.id,
         team_id: team.id,
         user_id: userId,
         role: 'member',

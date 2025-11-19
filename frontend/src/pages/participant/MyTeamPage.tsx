@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -10,8 +10,9 @@ import { InfoTooltip, Spinner } from '@/components/common';
 
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
+import { useTenantPath } from '@/hooks/useTenantPath';
 import { DashboardLayout } from '@/components/layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,7 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { getMyTeams, addTeamMember, removeTeamMember, setCaptain, joinTeam, leaveTeam, getTeamsByEvent } from '@/services/teams';
+import { getMyTeams, addTeamMember, removeTeamMember, setCaptain, leaveTeam } from '@/services/teams';
 import { updateProject, type Project } from '@/services/projects';
 import { fileToBase64 } from '@/utils/files';
 
@@ -79,6 +80,7 @@ function MyTeamPage() {
   const { t } = useTranslation();
   const { user, isSuperAdmin, activeMembership } = useAuth();
   const { branding } = useTenant();
+  const tenantPath = useTenantPath();
   const queryClient = useQueryClient();
   const primaryColor = branding.primaryColor || '#0ea5e9';
   const { data: memberships, isLoading } = useQuery({
@@ -101,19 +103,9 @@ function MyTeamPage() {
   const addMemberForm = useForm<AddMemberValues>({ resolver: zodResolver(addMemberSchema) });
   const projectForm = useForm<ProjectValues>({ resolver: zodResolver(projectSchema) });
 
-  const {
-    data: availableTeams,
-    isLoading: isTeamsLoading
-  } = useQuery({
-    queryKey: ['event-teams', numericEventId],
-    queryFn: () => getTeamsByEvent(numericEventId),
-    enabled: !Number.isNaN(numericEventId) && !myMembership
-  });
-
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [removeLogo, setRemoveLogo] = useState(false);
-  const [joiningTeamId, setJoiningTeamId] = useState<number | null>(null);
 
   useEffect(() => {
     if (myMembership?.team.project) {
@@ -171,34 +163,12 @@ function MyTeamPage() {
     onSuccess: () => {
       toast.success(t('teams.leftTeam'));
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
-      void queryClient.invalidateQueries({ queryKey: ['event-teams', numericEventId] });
       // Recargar la página para actualizar la vista
       globalThis.location.reload();
     },
     onError: (error: any) => {
       const message = error?.response?.data?.message || t('common.error');
       toast.error(message);
-    }
-  });
-
-  const joinTeamMutation = useMutation({
-    mutationFn: (teamId: number) => joinTeam(teamId),
-    onMutate: (teamId: number) => {
-      setJoiningTeamId(teamId);
-    },
-    onSuccess: () => {
-      toast.success(t('teams.joinedTeam'));
-      void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
-      void queryClient.invalidateQueries({ queryKey: ['event-teams', numericEventId] });
-      // Recargar la página para actualizar la vista
-      globalThis.location.reload();
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || t('common.error');
-      toast.error(message);
-    },
-    onSettled: () => {
-      setJoiningTeamId(null);
     }
   });
 
@@ -279,42 +249,11 @@ function MyTeamPage() {
 
         {myMembership ? (
           <>
-            <Card>
+            <Card className="flex flex-col">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{t('teams.members')}</CardTitle>
-                  {myMembership && (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="sm" disabled={leaveTeamMutation.isPending}>
-                          {t('teams.leaveTeam')}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>{t('teams.leaveTeamConfirmTitle')}</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {isCaptain
-                              ? t('teams.leaveTeamConfirmDescriptionCaptain')
-                              : t('teams.leaveTeamConfirmDescription')}
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => leaveTeamMutation.mutate()}
-                            disabled={leaveTeamMutation.isPending}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            {leaveTeamMutation.isPending ? t('common.loading') : t('teams.leaveTeam')}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                </div>
+                <CardTitle>{t('teams.members')}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 flex-1">
                 <ul className="space-y-2 text-sm">
                   {myMembership.team.members.map(member => {
                     const isMemberCaptain = member.user_id === myMembership.team.captain_id;
@@ -359,9 +298,10 @@ function MyTeamPage() {
                     );
                   })}
                 </ul>
-
+              </CardContent>
+              <CardFooter className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 {isCaptain ? (
-                  <form onSubmit={addMemberForm.handleSubmit(handleAddMember)} className="flex flex-col gap-3 md:flex-row">
+                  <form onSubmit={addMemberForm.handleSubmit(handleAddMember)} className="flex flex-col gap-3 md:flex-row md:flex-1 md:items-end">
                     <FormField
                       className="flex-1"
                       label={t('teams.memberEmail')}
@@ -370,21 +310,53 @@ function MyTeamPage() {
                     >
                       <Input id="member-email" type="email" {...addMemberForm.register('user_email')} />
                     </FormField>
-                    <Button type="submit" className="md:self-end md:whitespace-nowrap" disabled={addMemberMutation.isPending}>
-                      {addMemberMutation.isPending ? t('common.loading') : t('teams.addMember')}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <InfoTooltip content={t('teams.addMemberInfo')} />
+                      <Button type="submit" className="md:whitespace-nowrap" disabled={addMemberMutation.isPending}>
+                        {addMemberMutation.isPending ? t('common.loading') : t('teams.addMember')}
+                      </Button>
+                    </div>
                   </form>
                 ) : null}
-              </CardContent>
+                {myMembership && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" disabled={leaveTeamMutation.isPending} className={isCaptain ? 'md:ml-auto md:self-end' : ''}>
+                        {t('teams.leaveTeam')}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{t('teams.leaveTeamConfirmTitle')}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {isCaptain
+                            ? t('teams.leaveTeamConfirmDescriptionCaptain')
+                            : t('teams.leaveTeamConfirmDescription')}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => leaveTeamMutation.mutate()}
+                          disabled={leaveTeamMutation.isPending}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          {leaveTeamMutation.isPending ? t('common.loading') : t('teams.leaveTeam')}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </CardFooter>
             </Card>
 
             {myMembership.team.project ? (
-              <Card>
+              <Card className="flex flex-col">
                 <CardHeader>
                   <CardTitle>{t('teams.project')}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={projectForm.handleSubmit(handleUpdateProject)} className="space-y-4">
+                <CardContent className="flex-1">
+                  <form id="project-form" onSubmit={projectForm.handleSubmit(handleUpdateProject)} className="space-y-4">
                     <FormField
                       label={t('teams.projectName')}
                       htmlFor="project-name"
@@ -519,97 +491,32 @@ function MyTeamPage() {
                         ) : null;
                       })()
                     )}
-                    {isCaptain ? (
-                      <Button type="submit" disabled={projectMutation.isPending}>
-                        {projectMutation.isPending ? t('common.loading') : t('teams.save')}
-                      </Button>
-                    ) : null}
                   </form>
                 </CardContent>
+                {isCaptain ? (
+                  <CardFooter>
+                    <Button type="submit" form="project-form" disabled={projectMutation.isPending} className="w-full md:w-auto">
+                      {projectMutation.isPending ? t('common.loading') : t('teams.save')}
+                    </Button>
+                  </CardFooter>
+                ) : null}
               </Card>
             ) : null}
           </>
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>{t('teams.availableTeams')}</CardTitle>
-              <p className="text-sm text-muted-foreground">{t('teams.availableTeamsDescription')}</p>
+              <CardTitle>{t('teams.title')}</CardTitle>
             </CardHeader>
-            <CardContent>
-              {(() => {
-                if (isTeamsLoading) {
-                  return (
-                    <div className="flex justify-center py-6">
-                      <Spinner />
-                    </div>
-                  );
-                }
-                if (availableTeams && availableTeams.length > 0) {
-                  return (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {availableTeams
-                    .filter(team => team.status === 'open')
-                    .map(team => {
-                      const isMember = team.members?.some(m => m.user_id === user?.id);
-                      const isJoiningThisTeam = joinTeamMutation.isPending && joiningTeamId === team.id;
-                      const isJoiningAnyTeam = joinTeamMutation.isPending;
-                      return (
-                        <Card key={team.id} className="border-border/70">
-                          <CardHeader>
-                            <CardTitle className="text-lg">{team.name}</CardTitle>
-                            {team.description && (
-                              <p className="text-sm text-muted-foreground">{team.description}</p>
-                            )}
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            {team.members && team.members.length > 0 && (
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-2">
-                                  {t('teams.members')} ({team.members.length})
-                                </p>
-                                <ul className="space-y-1">
-                                  {team.members.slice(0, 3).map(member => (
-                                    <li key={member.id} className="text-xs text-muted-foreground">
-                                      {member.user?.first_name} {member.user?.last_name}
-                                      {member.role === 'captain' && (
-                                        <span className="ml-1 text-primary">({t('teams.captain')})</span>
-                                      )}
-                                    </li>
-                                  ))}
-                                  {team.members.length > 3 && (
-                                    <li className="text-xs text-muted-foreground">
-                                      +{team.members.length - 3} {t('teams.moreMembers')}
-                                    </li>
-                                  )}
-                                </ul>
-                              </div>
-                            )}
-                            <Button
-                              size="sm"
-                              variant={isMember ? 'outline' : 'default'}
-                              disabled={isMember || isJoiningAnyTeam}
-                              onClick={() => joinTeamMutation.mutate(team.id)}
-                              className="w-full"
-                            >
-                              {(() => {
-                                if (isMember) {
-                                  return t('teams.alreadyMember');
-                                }
-                                if (isJoiningThisTeam) {
-                                  return t('teams.joining');
-                                }
-                                return t('teams.joinTeam');
-                              })()}
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                </div>
-                  );
-                }
-                return <p className="text-sm text-muted-foreground">{t('teams.noTeamsAvailable')}</p>;
-              })()}
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <p className="text-sm text-muted-foreground mb-4 text-center">
+                {t('teams.noTeamMessage')}
+              </p>
+              <Button asChild>
+                <Link to={tenantPath(`dashboard/events/${numericEventId}/projects`)}>
+                  {t('projects.viewProjects')}
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         )}

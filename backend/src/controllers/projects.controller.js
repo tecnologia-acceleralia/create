@@ -6,6 +6,7 @@ import { getRoleScopes, canEditProject, canViewProject } from '../utils/authoriz
 import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 import { decodeBase64Image, uploadProjectLogo, deleteObjectByUrl } from '../services/tenant-assets.service.js';
 import { ensureParticipantRole } from '../utils/role-management.js';
+import { Op } from 'sequelize';
 
 function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
   const team = project.team;
@@ -310,7 +311,53 @@ export class ProjectsController {
         return conflictResponse(res, 'Ya perteneces a este equipo');
       }
 
-      await ensureUserNotInOtherTeam(req.user.id, eventId);
+      // Verificar si el usuario está en otro equipo del mismo evento
+      const existingMembership = await TeamMember.findOne({
+        where: { user_id: req.user.id },
+        include: [
+          {
+            model: Team,
+            as: 'team',
+            attributes: ['id', 'event_id', 'captain_id'],
+            where: { event_id: eventId }
+          }
+        ]
+      });
+
+      if (existingMembership) {
+        const previousTeam = existingMembership.team;
+        
+        // Si el usuario es capitán del equipo anterior, validar restricciones
+        if (previousTeam.captain_id === req.user.id) {
+          const otherMembers = await TeamMember.findAll({
+            where: {
+              team_id: previousTeam.id,
+              user_id: { [Op.ne]: req.user.id },
+              status: 'active'
+            }
+          });
+
+          // Si es el único miembro, no puede salirse
+          if (otherMembers.length === 0) {
+            await transaction.rollback();
+            return conflictResponse(res, 'projects.cannotChangeTeamOnlyMember');
+          }
+
+          // Si hay otros miembros, debe asignar otro capitán primero
+          await transaction.rollback();
+          return conflictResponse(res, 'projects.mustAssignCaptainBeforeChange');
+        }
+
+        // Si no es capitán, eliminarlo automáticamente del equipo anterior
+        await existingMembership.destroy({ transaction });
+        
+        logger.info('Usuario eliminado automáticamente de equipo anterior al unirse a nuevo proyecto', {
+          previousTeamId: previousTeam.id,
+          newTeamId: team.id,
+          userId: req.user.id,
+          tenantId: req.tenant.id
+        });
+      }
 
       await TeamMember.create(
         {

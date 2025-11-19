@@ -2,13 +2,35 @@ import { getModels } from '../models/index.js';
 import { logger } from './logger.js';
 
 /**
- * Reemplaza los marcadores de assets en HTML por sus URLs reales.
+ * Escapa caracteres especiales HTML para prevenir XSS.
+ */
+function escapeHtml(text) {
+  if (!text || typeof text !== 'string') {
+    return '';
+  }
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+/**
+ * Escapa caracteres especiales para usar en regex de reemplazo.
+ */
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Reemplaza los marcadores de assets en HTML por links HTML.
  * Los marcadores tienen el formato: {{asset:nombre-del-recurso}}
  *
  * @param {string} html - Contenido HTML que puede contener marcadores
  * @param {number} eventId - ID del evento
  * @param {number} tenantId - ID del tenant
- * @returns {Promise<string>} HTML con los marcadores reemplazados por URLs
+ * @returns {Promise<string>} HTML con los marcadores reemplazados por links HTML
  */
 export async function resolveAssetMarkers(html, eventId, tenantId) {
   if (!html || typeof html !== 'string') {
@@ -36,13 +58,15 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
     }
   });
 
-  // Crear un mapa de nombre -> URL
-  const assetMap = new Map();
+  // Crear mapas de búsqueda por name (exacto y case-insensitive)
+  const assetMapByName = new Map();
+  const assetMapByNameLower = new Map();
   assets.forEach(asset => {
-    assetMap.set(asset.name, asset.url);
+    assetMapByName.set(asset.name, asset);
+    assetMapByNameLower.set(asset.name.toLowerCase(), asset);
   });
 
-  // Reemplazar cada marcador por su URL (reemplazar todas las ocurrencias)
+  // Reemplazar cada marcador por un link HTML
   let resolvedHtml = html;
   // Procesar solo marcadores únicos para evitar trabajo duplicado
   const uniqueMarkers = new Map();
@@ -54,21 +78,33 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
   });
 
   uniqueMarkers.forEach((assetName, fullMatch) => {
-    const url = assetMap.get(assetName);
+    // Buscar por name (exacto, luego case-insensitive)
+    let asset = assetMapByName.get(assetName);
+    if (!asset) {
+      asset = assetMapByNameLower.get(assetName.toLowerCase());
+    }
 
-    if (url) {
+    if (asset) {
+      // Usar descripción si existe, sino usar el nombre original del archivo o el nombre del asset
+      const linkText = asset.description || asset.original_filename || asset.name;
+      const escapedText = escapeHtml(linkText);
+      const escapedUrl = escapeHtml(asset.url);
+      
+      // Crear link HTML que se abre en nueva pestaña
+      const linkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+      
       // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
-      const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedMatch = escapeRegex(fullMatch);
       const globalRegex = new RegExp(escapedMatch, 'g');
-      resolvedHtml = resolvedHtml.replace(globalRegex, url);
+      resolvedHtml = resolvedHtml.replace(globalRegex, linkHtml);
     } else {
       logger.warn('Marcador de asset no encontrado', {
         assetName,
         eventId,
         tenantId
       });
-      // Dejar el marcador sin reemplazar o reemplazar por una cadena vacía
-      const escapedMatch = fullMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Dejar el marcador sin reemplazar (eliminar el marcador)
+      const escapedMatch = escapeRegex(fullMatch);
       const globalRegex = new RegExp(escapedMatch, 'g');
       resolvedHtml = resolvedHtml.replace(globalRegex, '');
     }

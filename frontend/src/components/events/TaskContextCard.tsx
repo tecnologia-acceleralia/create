@@ -1,14 +1,10 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
 import { ExpandableSection } from '@/components/common';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateRange } from '@/utils/date';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { resolveAssetMarkers } from '@/utils/asset-markers';
-import { getEventAssets } from '@/services/event-assets';
 import type { Task, Phase } from '@/services/events';
 
 type TaskContextCardProps = {
@@ -40,21 +36,6 @@ export function TaskContextCard({
   const { t } = useTranslation();
   const tenantPath = useTenantPath();
 
-  // Cargar assets del evento para resolver marcadores
-  const { data: assets = [] } = useQuery({
-    queryKey: ['eventAssets', eventId],
-    queryFn: () => (eventId ? getEventAssets(eventId) : Promise.resolve([])),
-    enabled: Boolean(eventId && task.intro_html)
-  });
-
-  // Resolver marcadores de assets en el HTML antes de renderizar
-  const resolvedIntroHtml = useMemo(() => {
-    if (!task.intro_html || !assets.length) {
-      return task.intro_html;
-    }
-    return resolveAssetMarkers(task.intro_html, assets);
-  }, [task.intro_html, assets]);
-
   const hasValidDates = phase?.start_date || phase?.end_date;
 
   return (
@@ -85,10 +66,10 @@ export function TaskContextCard({
         }
       >
         <div className="space-y-3 mt-3">
-          {resolvedIntroHtml ? (
+          {task.intro_html ? (
             <div
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: resolvedIntroHtml }}
+              dangerouslySetInnerHTML={{ __html: task.intro_html }}
             />
           ) : null}
           {showActions && !isPhaseZero && eventId && task.delivery_type !== 'none' && (

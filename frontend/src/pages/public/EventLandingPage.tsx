@@ -11,8 +11,6 @@ import { getPublicEvents } from '@/services/public';
 import { PublicHero } from '@/components/public';
 import { useAuth } from '@/context/AuthContext';
 import { formatDateRange } from '@/utils/date';
-import { resolveAssetMarkers } from '@/utils/asset-markers';
-import { getEventAssets } from '@/services/event-assets';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
@@ -152,22 +150,6 @@ function EventLandingPage() {
   }, [effectiveTenantSlug, eventId]);
 
   const locale = i18n.language ?? 'es';
-  const numericEventId = eventId ? Number(eventId) : null;
-
-  // Cargar assets del evento para resolver marcadores
-  const { data: assets = [] } = useQuery({
-    queryKey: ['eventAssets', numericEventId],
-    queryFn: () => (numericEventId ? getEventAssets(numericEventId) : Promise.resolve([])),
-    enabled: Boolean(numericEventId && eventDetail?.description_html)
-  });
-
-  // Resolver marcadores de assets en el HTML antes de renderizar
-  const resolvedDescriptionHtml = useMemo(() => {
-    if (!eventDetail?.description_html || !assets.length) {
-      return eventDetail?.description_html;
-    }
-    return resolveAssetMarkers(eventDetail.description_html, assets);
-  }, [eventDetail?.description_html, assets]);
 
   const formattedDates = useMemo(() => {
     if (!eventDetail) {
@@ -298,10 +280,10 @@ function EventLandingPage() {
         </div>
       ) : null}
 
-      {resolvedDescriptionHtml ? (
+      {eventDetail?.description_html ? (
         <div className="mx-auto w-full max-w-4xl">
           <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
-            <div dangerouslySetInnerHTML={{ __html: resolvedDescriptionHtml }} />
+            <div dangerouslySetInnerHTML={{ __html: eventDetail.description_html }} />
           </div>
         </div>
       ) : null}

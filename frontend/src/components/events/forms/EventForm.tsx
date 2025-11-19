@@ -64,11 +64,9 @@ export function EventForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPr
           <HtmlFieldWithPreview
             id={`${idPrefix}-description-html`}
             register={register('description_html')}
-            watch={watch}
             fieldName="description_html"
             rows={showBasic ? 10 : 30}
             placeholder={t('events.descriptionHtmlPlaceholder')}
-            previewTitle={t('events.descriptionHtmlPreview')}
             eventId={eventId}
           />
         </FormField>

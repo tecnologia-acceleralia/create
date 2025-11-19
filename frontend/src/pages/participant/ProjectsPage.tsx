@@ -108,7 +108,13 @@ function ProjectsPage() {
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
     },
-    onError: () => toast.error(t('common.error')),
+    onError: (error: any) => {
+      const backendMessage = error?.response?.data?.message;
+      const message = backendMessage 
+        ? t(backendMessage, { defaultValue: backendMessage })
+        : t('common.error');
+      toast.error(message);
+    },
     onSettled: () => {
       setJoiningProjectId(null);
     }

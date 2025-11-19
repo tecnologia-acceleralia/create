@@ -97,8 +97,9 @@ export async function archiveEvent(eventId: number) {
   await apiClient.delete(`/events/${eventId}`);
 }
 
-export async function getEventDetail(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}`);
+export async function getEventDetail(eventId: number, rawHtml = false) {
+  const url = `/events/${eventId}${rawHtml ? '?raw=true' : ''}`;
+  const response = await apiClient.get(url);
   return response.data.data as Event & { phases: Phase[]; tasks: Task[]; rubrics: PhaseRubric[] };
 }
 

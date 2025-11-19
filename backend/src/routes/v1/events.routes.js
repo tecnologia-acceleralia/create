@@ -296,7 +296,11 @@ eventsRouter.delete(
 eventsRouter.get(
   '/:eventId/assets',
   authorizeRoles('tenant_admin', 'organizer'),
-  [param('eventId').isInt()],
+  [
+    param('eventId')
+      .customSanitizer(value => parseInt(value, 10))
+      .isInt()
+  ],
   validateRequest,
   EventAssetsController.list
 );
@@ -321,13 +325,15 @@ eventsRouter.post(
   '/:eventId/assets',
   authorizeRoles('tenant_admin'),
   [
-    param('eventId').isInt(),
+    param('eventId')
+      .customSanitizer(value => parseInt(value, 10))
+      .isInt(),
     body('name')
+      .optional({ checkFalsy: true })
       .isString()
-      .notEmpty()
       .customSanitizer(value => {
         // Normalizar el nombre (eliminar acentos) antes de validar
-        if (typeof value === 'string') {
+        if (typeof value === 'string' && value.trim().length > 0) {
           return value
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -335,11 +341,19 @@ eventsRouter.post(
         }
         return value;
       })
-      .matches(/^[a-zA-Z0-9._-]+$/)
-      .withMessage('El nombre solo puede contener letras, números, guiones, puntos y guiones bajos')
+      .custom((value) => {
+        // Si se proporciona un nombre, debe cumplir el formato
+        if (value && typeof value === 'string' && value.trim().length > 0) {
+          const nameRegex = /^[a-zA-Z0-9._-]+$/;
+          if (!nameRegex.test(value.trim())) {
+            throw new Error('El nombre solo puede contener letras, números, guiones, puntos y guiones bajos');
+          }
+        }
+        return true;
+      })
   ],
+  uploadMiddleware, // Multer debe ejecutarse antes de validateRequest para parsear multipart/form-data
   validateRequest,
-  uploadMiddleware,
   EventAssetsController.upload
 );
 

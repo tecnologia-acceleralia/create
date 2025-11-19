@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { FileIcon, FileText, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { Spinner } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
@@ -13,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { FormField, FormGrid, FileUploadList } from '@/components/form';
 import { TaskContextCard } from '@/components/events';
 import { getEventDetail, type Phase } from '@/services/events';
@@ -344,6 +347,69 @@ function TaskSubmissionPage() {
     setFiles(prev => prev.filter((_, idx) => idx !== index));
   };
 
+  const getFileIcon = (mimeType: string, fileName: string): { icon: LucideIcon; color: string } => {
+    const extension = fileName.split('.').pop()?.toLowerCase() || '';
+    const mime = mimeType.toLowerCase();
+
+    // PDF - debe ir primero porque algunos PDFs pueden tener mime types genéricos
+    if (extension === 'pdf' || mime === 'application/pdf') {
+      return { icon: FileText, color: '#dc2626' }; // red-600
+    }
+
+    // PowerPoint - verificar extensión primero
+    if (extension === 'ppt' || extension === 'pptx' || 
+        mime.includes('presentation') || mime.includes('powerpoint')) {
+      return { icon: FileText, color: '#ea580c' }; // orange-600
+    }
+
+    // Word - verificar extensión primero
+    if (extension === 'doc' || extension === 'docx' || 
+        mime.includes('word') || mime === 'application/msword') {
+      return { icon: FileText, color: '#2563eb' }; // blue-600
+    }
+
+    // Excel - verificar extensión primero
+    if (extension === 'xls' || extension === 'xlsx' || 
+        mime.includes('spreadsheet') || mime.includes('excel')) {
+      return { icon: FileSpreadsheet, color: '#16a34a' }; // green-600
+    }
+
+    // Imágenes
+    if (mime.startsWith('image/')) {
+      return { icon: FileImage, color: '#9333ea' }; // purple-600
+    }
+
+    // Videos
+    if (mime.startsWith('video/')) {
+      return { icon: FileVideo, color: '#db2777' }; // pink-600
+    }
+
+    // Audio
+    if (mime.startsWith('audio/')) {
+      return { icon: FileAudio, color: '#4f46e5' }; // indigo-600
+    }
+
+    // Archivos comprimidos
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension) ||
+        mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
+      return { icon: FileArchive, color: '#ca8a04' }; // yellow-600
+    }
+
+    // Código
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension) ||
+        (mime.includes('text/') && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension))) {
+      return { icon: FileCode, color: '#0891b2' }; // cyan-600
+    }
+
+    // Texto plano
+    if (extension === 'txt' || mime.startsWith('text/')) {
+      return { icon: FileText, color: '#4b5563' }; // gray-600
+    }
+
+    // Por defecto
+    return { icon: FileIcon, color: '#6b7280' }; // gray-500
+  };
+
   return (
     <DashboardLayout title={eventDetail?.name ?? ''} subtitle={layoutSubtitle}>
       <div className="space-y-6">
@@ -438,18 +504,34 @@ function TaskSubmissionPage() {
               {submissions?.length ? submissions.map(submission => (
               <div key={submission.id} className="rounded-md border border-border p-4">
                 <div className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
+                    <Badge variant={submission.status === 'final' ? 'success' : 'secondary'}>
+                      {submission.status === 'final' ? t('submissions.final') : t('submissions.draft')}
+                    </Badge>
+                  </div>
                   {submission.content ? <span>{submission.content}</span> : null}
                   {submission.files?.length ? (
                     <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      {submission.files.map(file => (
-                        <li key={file.id}>
-                          <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
-                            {file.original_name}
-                          </a>{' '}
-                          · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB · {file.mime_type}
-                        </li>
-                      ))}
+                      {submission.files.map(file => {
+                        const { icon: FileTypeIcon, color } = getFileIcon(file.mime_type, file.original_name);
+                        return (
+                          <li key={file.id} className="flex items-center gap-2">
+                            <span title={file.mime_type} className="flex-shrink-0">
+                              <FileTypeIcon 
+                                className="h-4 w-4"
+                                style={{ color }}
+                              />
+                            </span>
+                            <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
+                              {file.original_name}
+                            </a>
+                            <span className="text-muted-foreground">
+                              · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   ) : null}
                 </div>

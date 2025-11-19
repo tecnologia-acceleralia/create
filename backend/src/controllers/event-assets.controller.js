@@ -22,13 +22,18 @@ export class EventAssetsController {
       const { tenant } = req;
 
       const { EventAsset } = getModels();
+      const { sequelize } = EventAsset;
 
       const assets = await EventAsset.findAll({
         where: {
           tenant_id: tenant.id,
           event_id: eventId
         },
-        order: [['created_at', 'DESC']]
+        order: [
+          // Ordenar alfabéticamente por el campo que se muestra en el combo: original_filename || name
+          // Maneja tanto NULL como cadenas vacías para coincidir con el comportamiento del frontend
+          [sequelize.literal('LOWER(COALESCE(NULLIF(original_filename, ""), name))'), 'ASC']
+        ]
       });
 
       return res.json({

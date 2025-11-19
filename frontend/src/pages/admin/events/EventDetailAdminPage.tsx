@@ -82,9 +82,10 @@ function EventDetailAdminPage() {
   const tenantPath = useTenantPath();
 
   // Ejecutar todos los hooks antes de cualquier return condicional
+  // Usar raw=true para obtener HTML crudo (necesario para edición)
   const { data: eventDetail, isLoading } = useQuery({
-    queryKey: ['events', numericId],
-    queryFn: () => getEventDetail(numericId),
+    queryKey: ['events', numericId, 'raw'],
+    queryFn: () => getEventDetail(numericId, true),
     enabled: Number.isInteger(numericId)
   });
 

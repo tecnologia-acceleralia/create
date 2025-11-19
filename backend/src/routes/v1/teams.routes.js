@@ -9,6 +9,7 @@ export const teamsRouter = Router();
 
 teamsRouter.use(authenticate);
 
+// Rutas específicas primero (más segmentos de ruta)
 teamsRouter.get(
   '/events/:eventId',
   authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
@@ -19,24 +20,12 @@ teamsRouter.get(
 
 teamsRouter.get('/my', TeamsController.myTeams);
 
-teamsRouter.post(
-  '/',
-  authorizeRoles('tenant_admin', 'participant', 'team_captain'),
-  [
-    body('event_id').isInt(),
-    body('name').isString().notEmpty(),
-    body('captain_user_id').optional().isInt()
-  ],
+teamsRouter.delete(
+  '/:teamId/members/:userId',
+  authorizeRoles('tenant_admin', 'team_captain'),
+  [param('teamId').isInt(), param('userId').isInt()],
   validateRequest,
-  TeamsController.create
-);
-
-teamsRouter.get(
-  '/:teamId',
-  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
-  [param('teamId').isInt()],
-  validateRequest,
-  TeamsController.detail
+  TeamsController.removeMember
 );
 
 teamsRouter.post(
@@ -45,14 +34,6 @@ teamsRouter.post(
   [param('teamId').isInt(), body('user_id').optional().isInt(), body('user_email').optional().isEmail()],
   validateRequest,
   TeamsController.addMember
-);
-
-teamsRouter.delete(
-  '/:teamId/members/:userId',
-  authorizeRoles('tenant_admin', 'team_captain'),
-  [param('teamId').isInt(), param('userId').isInt()],
-  validateRequest,
-  TeamsController.removeMember
 );
 
 teamsRouter.patch(
@@ -85,5 +66,26 @@ teamsRouter.post(
   [param('teamId').isInt()],
   validateRequest,
   TeamsController.leaveTeam
+);
+
+// Rutas genéricas al final (menos segmentos de ruta)
+teamsRouter.post(
+  '/',
+  authorizeRoles('tenant_admin', 'participant', 'team_captain'),
+  [
+    body('event_id').isInt(),
+    body('name').isString().notEmpty(),
+    body('captain_user_id').optional().isInt()
+  ],
+  validateRequest,
+  TeamsController.create
+);
+
+teamsRouter.get(
+  '/:teamId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [param('teamId').isInt()],
+  validateRequest,
+  TeamsController.detail
 );
 

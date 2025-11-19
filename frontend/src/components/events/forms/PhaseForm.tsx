@@ -61,10 +61,8 @@ export function PhaseForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPr
           <HtmlFieldWithPreview
             id={`${idPrefix}-intro-html`}
             register={register('intro_html')}
-            watch={watch}
             fieldName="intro_html"
             rows={showBasic ? 4 : 30}
-            previewTitle={t('events.phaseIntroHtmlPreview')}
             eventId={eventId}
           />
         </FormField>

@@ -4,6 +4,7 @@ import { logger } from '../utils/logger.js';
 import { toInt, toDateOrNull, toHtmlOrNull } from '../utils/parsers.js';
 import { findEventOr404 } from '../utils/finders.js';
 import { successResponse, badRequestResponse, notFoundResponse } from '../utils/response.js';
+import { resolveAssetMarkers } from '../utils/asset-markers.js';
 
 function normalizeEventPayload(body) {
   const payload = { ...body };
@@ -298,9 +299,47 @@ export class EventsController {
         });
       }
 
-      // Los marcadores de assets se mantienen sin convertir en la BD
-      // La conversión a URLs solo se hace en el frontend al renderizar para visualización
       const eventJson = event.toJSON();
+      
+      // Resolver marcadores de assets antes de devolver
+      // Solo si no se solicita HTML crudo (para edición)
+      const rawHtml = req.query.raw === 'true';
+      if (!rawHtml && event.id && req.tenant?.id) {
+        // Resolver marcadores en description_html del evento
+        if (eventJson.description_html) {
+          eventJson.description_html = await resolveAssetMarkers(
+            eventJson.description_html,
+            event.id,
+            req.tenant.id
+          );
+        }
+        
+        // Resolver marcadores en intro_html de cada fase
+        if (Array.isArray(eventJson.phases)) {
+          for (const phaseJson of eventJson.phases) {
+            if (phaseJson.intro_html) {
+              phaseJson.intro_html = await resolveAssetMarkers(
+                phaseJson.intro_html,
+                event.id,
+                req.tenant.id
+              );
+            }
+          }
+        }
+        
+        // Resolver marcadores en intro_html de cada tarea
+        if (Array.isArray(eventJson.tasks)) {
+          for (const taskJson of eventJson.tasks) {
+            if (taskJson.intro_html) {
+              taskJson.intro_html = await resolveAssetMarkers(
+                taskJson.intro_html,
+                event.id,
+                req.tenant.id
+              );
+            }
+          }
+        }
+      }
       
       // Convertir fechas a ISO string si existen
       if (eventJson.start_date) {
@@ -349,12 +388,30 @@ export class EventsController {
 
   static async listPhases(req, res, next) {
     try {
-      await findEventOr404(req.params.eventId);
+      const event = await findEventOr404(req.params.eventId);
       const { Phase } = getModels();
       const phases = await Phase.findAll({
         where: { event_id: req.params.eventId },
         order: [['order_index', 'ASC']]
       });
+      
+      // Resolver marcadores de assets en intro_html de cada fase antes de devolver
+      // Solo si no se solicita HTML crudo (para edición)
+      const rawHtml = req.query.raw === 'true';
+      if (!rawHtml && req.tenant?.id) {
+        const phasesJson = phases.map(phase => phase.toJSON());
+        for (const phaseJson of phasesJson) {
+          if (phaseJson.intro_html) {
+            phaseJson.intro_html = await resolveAssetMarkers(
+              phaseJson.intro_html,
+              event.id,
+              req.tenant.id
+            );
+          }
+        }
+        return successResponse(res, phasesJson);
+      }
+      
       return successResponse(res, phases);
     } catch (error) {
       next(error);
@@ -485,12 +542,30 @@ export class EventsController {
 
   static async listTasks(req, res, next) {
     try {
-      await findEventOr404(req.params.eventId);
+      const event = await findEventOr404(req.params.eventId);
       const { Task } = getModels();
       const tasks = await Task.findAll({
         where: { event_id: req.params.eventId },
         order: [['created_at', 'ASC']]
       });
+      
+      // Resolver marcadores de assets en intro_html de cada tarea antes de devolver
+      // Solo si no se solicita HTML crudo (para edición)
+      const rawHtml = req.query.raw === 'true';
+      if (!rawHtml && req.tenant?.id) {
+        const tasksJson = tasks.map(task => task.toJSON());
+        for (const taskJson of tasksJson) {
+          if (taskJson.intro_html) {
+            taskJson.intro_html = await resolveAssetMarkers(
+              taskJson.intro_html,
+              event.id,
+              req.tenant.id
+            );
+          }
+        }
+        return successResponse(res, tasksJson);
+      }
+      
       return successResponse(res, tasks);
     } catch (error) {
       next(error);

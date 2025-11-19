@@ -58,4 +58,9 @@
     @apply min-h-screen bg-background font-sans text-foreground;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
+
+  /* Estilo para el botón "Elegir archivo" en inputs de tipo file */
+  input[type="file"]::file-selector-button {
+    font-weight: 700;
+  }
 }
