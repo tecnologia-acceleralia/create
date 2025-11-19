@@ -72,13 +72,14 @@ function StatsCard({ label, value, icon, onClick, secondaryLabel, secondaryValue
 }
 
 function AdminDashboardPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const locale = i18n.language ?? 'es';
 
   const overviewQuery = useQuery<TenantOverview>({
     queryKey: ['tenant', 'overview'],
@@ -243,11 +244,11 @@ function AdminDashboardPage() {
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span>
                 <span className="font-medium">{t('events.start')}:</span>{' '}
-                {formatDateTime(event.start_date)}
+                {formatDateTime(locale, event.start_date)}
               </span>
               <span>
                 <span className="font-medium">{t('events.end')}:</span>{' '}
-                {formatDateTime(event.end_date)}
+                {formatDateTime(locale, event.end_date)}
               </span>
             </div>
           </div>

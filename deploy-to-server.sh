@@ -320,6 +320,52 @@ fi
 echo -e "${YELLOW}🔍 Verifying migrations...${NC}"
 docker-compose exec -T backend pnpm run migrate:status
 
+# Handle database seeders (master data only)
+echo -e "${YELLOW}🌱 Setting up database seeders (master data)...${NC}"
+
+# Check seeder status
+echo -e "${YELLOW}🔍 Checking seeder status...${NC}"
+SEEDER_STATUS=$(docker-compose exec -T backend pnpm run seed:status 2>&1 || echo "error")
+
+# Check if there are pending master seeders
+# Format: "Seeders master:" followed by "Pendientes (N)" where N > 0, or lines with "✖" after "Seeders master:"
+if echo "$SEEDER_STATUS" | grep -q "Seeders master:"; then
+    # Check for pending count in master section (look for "Pendientes (N)" after "Seeders master:")
+    # Extract lines between "Seeders master:" and "Seeders test:" (or end of output)
+    MASTER_SECTION=$(echo "$SEEDER_STATUS" | awk '/Seeders master:/{flag=1} flag{print} /Seeders test:/{flag=0}')
+    
+    # Check if there are pending seeders
+    PENDING_COUNT=$(echo "$MASTER_SECTION" | grep "Pendientes" | grep -oE '[0-9]+' | head -1 || echo "0")
+    HAS_PENDING_MARKS=$(echo "$MASTER_SECTION" | grep -c "✖" || echo "0")
+    
+    if ([ "$PENDING_COUNT" != "0" ] && [ ! -z "$PENDING_COUNT" ]) || ([ "$HAS_PENDING_MARKS" != "0" ] && [ "$HAS_PENDING_MARKS" != "" ]); then
+        echo -e "${YELLOW}🌱 Running pending master seeders...${NC}"
+        if docker-compose exec -T backend pnpm run seed:master; then
+            echo -e "${GREEN}✅ Master seeders completed successfully${NC}"
+        else
+            echo -e "${RED}❌ Master seeders failed${NC}"
+            echo -e "${YELLOW}Please check the logs and fix manually:${NC}"
+            echo "  docker-compose logs backend"
+            echo "  docker-compose exec backend pnpm run seed:status"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}✅ Master seeders are already up to date${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Could not determine seeder status. Attempting to run master seeders...${NC}"
+    if docker-compose exec -T backend pnpm run seed:master; then
+        echo -e "${GREEN}✅ Master seeders completed${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Master seeders may have already been executed or there was an error${NC}"
+        echo -e "${YELLOW}This is not critical if seeders were already run previously${NC}"
+    fi
+fi
+
+# Verify seeders were applied correctly
+echo -e "${YELLOW}🔍 Verifying seeders...${NC}"
+docker-compose exec -T backend pnpm run seed:status
+
 # Test database connectivity
 echo -e "${YELLOW}🧪 Testing database connectivity...${NC}"
 # Load database credentials from .env file
