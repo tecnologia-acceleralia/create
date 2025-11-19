@@ -263,10 +263,14 @@ fi
 
 # Mostrar migraciones pendientes si las hay
 if echo "$MIGRATION_STATUS" | grep -q "Migraciones pendientes:"; then
-    PENDING_COUNT=$(echo "$MIGRATION_STATUS" | grep -A 100 "Migraciones pendientes:" | grep -c "✖" || echo "0")
-    if [ "$PENDING_COUNT" -gt 0 ]; then
-        log "📋 Se encontraron $PENDING_COUNT migración(es) pendiente(s):"
-        echo "$MIGRATION_STATUS" | grep -A 100 "Migraciones pendientes:" | grep "✖" | sed 's/^/     /'
+    PENDING_LINES=$(echo "$MIGRATION_STATUS" | grep -A 100 "Migraciones pendientes:" | grep "✖" || true)
+    if [ -n "$PENDING_LINES" ]; then
+        PENDING_COUNT=$(echo "$PENDING_LINES" | wc -l)
+        PENDING_COUNT=$((PENDING_COUNT + 0))  # Forzar conversión a número
+        if [ "$PENDING_COUNT" -gt 0 ] 2>/dev/null; then
+            log "📋 Se encontraron $PENDING_COUNT migración(es) pendiente(s):"
+            echo "$PENDING_LINES" | sed 's/^/     /'
+        fi
     fi
 fi
 
@@ -279,12 +283,20 @@ if docker-compose --profile prod exec -T backend pnpm run migrate:up; then
     log "✅ Verificando estado final de migraciones..."
     FINAL_STATUS=$(docker-compose --profile prod exec -T backend pnpm run migrate:status 2>&1)
     if echo "$FINAL_STATUS" | grep -q "Migraciones pendientes:"; then
-        REMAINING_PENDING=$(echo "$FINAL_STATUS" | grep -A 100 "Migraciones pendientes:" | grep -c "✖" || echo "0")
-        if [ "$REMAINING_PENDING" -gt 0 ]; then
-            warning "Aún quedan $REMAINING_PENDING migración(es) pendiente(s)"
+        REMAINING_LINES=$(echo "$FINAL_STATUS" | grep -A 100 "Migraciones pendientes:" | grep "✖" || true)
+        if [ -n "$REMAINING_LINES" ]; then
+            REMAINING_PENDING=$(echo "$REMAINING_LINES" | wc -l)
+            REMAINING_PENDING=$((REMAINING_PENDING + 0))  # Forzar conversión a número
+            if [ "$REMAINING_PENDING" -gt 0 ] 2>/dev/null; then
+                warning "Aún quedan $REMAINING_PENDING migración(es) pendiente(s)"
+            else
+                success "Todas las migraciones están aplicadas"
+            fi
         else
             success "Todas las migraciones están aplicadas"
         fi
+    else
+        success "Todas las migraciones están aplicadas"
     fi
 else
     error "Error ejecutando migraciones"
@@ -378,4 +390,3 @@ echo "  - Backend API: http://localhost:5100"
 echo "  - Frontend: http://localhost:3100"
 echo "  - MySQL: localhost:3406"
 echo ""
-echo "📝 Nota: Las credenciales se encuentran en el archivo .env"
