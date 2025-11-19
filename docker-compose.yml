@@ -59,7 +59,7 @@ services:
       retries: 5
     command: pnpm run dev
 
-  # Frontend React App
+  # Frontend React App (Development)
   frontend:
     build:
       context: ./frontend
@@ -82,6 +82,27 @@ services:
     networks:
       - create-network
     command: pnpm run dev --host --port 3100
+    profiles:
+      - dev
+
+  # Frontend React App (Production)
+  frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: create-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - create-network
+    profiles:
+      - prod
 
 volumes:
   mysql_data:
