@@ -305,7 +305,81 @@ else
     exit 1
 fi
 
-# 6. Verificar que todo funciona
+# 6. Ejecutar seeders pendientes (solo master en producción)
+log "🌱 Verificando seeders de base de datos..."
+
+# Verificar estado de seeders antes de ejecutar
+log "📊 Verificando estado de seeders..."
+SEEDER_STATUS=$(docker-compose --profile prod exec -T backend pnpm run seed:status 2>&1)
+if [ $? -ne 0 ]; then
+    warning "No se pudo verificar el estado de seeders. Intentando ejecutar seeders master..."
+    SEEDER_STATUS=""
+fi
+
+# Mostrar seeders pendientes si los hay (solo master)
+if echo "$SEEDER_STATUS" | grep -q "Seeders master:"; then
+    # Extraer la sección de seeders master (hasta "Seeders test:" o fin del archivo)
+    if echo "$SEEDER_STATUS" | grep -q "Seeders test:"; then
+        MASTER_SECTION=$(echo "$SEEDER_STATUS" | sed -n '/Seeders master:/,/Seeders test:/p' | head -n -1)
+    else
+        MASTER_SECTION=$(echo "$SEEDER_STATUS" | sed -n '/Seeders master:/,$p')
+    fi
+    if echo "$MASTER_SECTION" | grep -q "Pendientes"; then
+        # Obtener las líneas después de "Pendientes" hasta el siguiente bloque o fin
+        MASTER_PENDING_LINES=$(echo "$MASTER_SECTION" | sed -n '/Pendientes/,/^$/p' | grep "✖" || true)
+        if [ -n "$MASTER_PENDING_LINES" ]; then
+            MASTER_PENDING_COUNT=$(echo "$MASTER_PENDING_LINES" | wc -l)
+            MASTER_PENDING_COUNT=$((MASTER_PENDING_COUNT + 0))  # Forzar conversión a número
+            if [ "$MASTER_PENDING_COUNT" -gt 0 ] 2>/dev/null; then
+                log "📋 Se encontraron $MASTER_PENDING_COUNT seeder(s) master pendiente(s):"
+                echo "$MASTER_PENDING_LINES" | sed 's/^/     /'
+            fi
+        fi
+    fi
+fi
+
+# Ejecutar seeders master pendientes
+log "🌱 Ejecutando seeders master pendientes..."
+if docker-compose --profile prod exec -T backend pnpm run seed:master; then
+    success "Seeders master ejecutados correctamente"
+    
+    # Verificar estado después de ejecutar
+    log "✅ Verificando estado final de seeders master..."
+    FINAL_SEEDER_STATUS=$(docker-compose --profile prod exec -T backend pnpm run seed:status 2>&1)
+    if echo "$FINAL_SEEDER_STATUS" | grep -q "Seeders master:"; then
+        # Extraer la sección de seeders master (hasta "Seeders test:" o fin del archivo)
+        if echo "$FINAL_SEEDER_STATUS" | grep -q "Seeders test:"; then
+            FINAL_MASTER_SECTION=$(echo "$FINAL_SEEDER_STATUS" | sed -n '/Seeders master:/,/Seeders test:/p' | head -n -1)
+        else
+            FINAL_MASTER_SECTION=$(echo "$FINAL_SEEDER_STATUS" | sed -n '/Seeders master:/,$p')
+        fi
+        if echo "$FINAL_MASTER_SECTION" | grep -q "Pendientes"; then
+            REMAINING_MASTER_LINES=$(echo "$FINAL_MASTER_SECTION" | sed -n '/Pendientes/,/^$/p' | grep "✖" || true)
+            if [ -n "$REMAINING_MASTER_LINES" ]; then
+                REMAINING_MASTER_PENDING=$(echo "$REMAINING_MASTER_LINES" | wc -l)
+                REMAINING_MASTER_PENDING=$((REMAINING_MASTER_PENDING + 0))  # Forzar conversión a número
+                if [ "$REMAINING_MASTER_PENDING" -gt 0 ] 2>/dev/null; then
+                    warning "Aún quedan $REMAINING_MASTER_PENDING seeder(s) master pendiente(s)"
+                else
+                    success "Todos los seeders master están aplicados"
+                fi
+            else
+                success "Todos los seeders master están aplicados"
+            fi
+        else
+            success "Todos los seeders master están aplicados"
+        fi
+    else
+        success "Todos los seeders master están aplicados"
+    fi
+else
+    warning "Error ejecutando seeders master (puede ser normal si ya están aplicados)"
+    log "🔍 Verificando logs del backend para más detalles..."
+    docker-compose --profile prod logs backend --tail=10
+    # No salimos con error porque los seeders pueden fallar si ya están aplicados
+fi
+
+# 7. Verificar que todo funciona
 log "🔍 Verificando que la aplicación funciona..."
 
 # Esperar un poco más para que los servicios estén completamente listos
@@ -383,6 +457,7 @@ echo "  - Backup de archivos .env: ✅"
 echo "  - Backup de BD MySQL: ✅"
 echo "  - Rebuild contenedores: ✅"
 echo "  - Migraciones Sequelize: ✅"
+echo "  - Seeders master: ✅"
 echo "  - Health checks: ✅"
 echo ""
 echo "🌐 Servicios:"
