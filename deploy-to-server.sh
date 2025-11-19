@@ -115,11 +115,11 @@ sed -i "s/admin@your-domain.com/${EMAIL}/g" .env
 # Check if SSL certificate already exists
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
 if [ ! -f "$CERT_PATH" ]; then
-    echo -e "${YELLOW}⚙️  Configuring Nginx for Certbot...${NC}"
+    echo -e "${YELLOW}⚙️  Configuring Nginx for Certbot (wildcard)...${NC}"
     sudo tee /etc/nginx/sites-available/${PROJECT_NAME} > /dev/null <<EOF
 server {
     listen 80;
-    server_name ${DOMAIN_NAME};
+    server_name ${DOMAIN_NAME} *.${DOMAIN_NAME};
 }
 EOF
 
@@ -132,26 +132,103 @@ EOF
     sudo nginx -t
     sudo systemctl reload nginx
 
-    # Get SSL certificate
-    echo -e "${YELLOW}📜 Obtaining SSL certificate from Let's Encrypt...${NC}"
-    sudo certbot --nginx -d ${DOMAIN_NAME} --email ${EMAIL} --agree-tos --non-interactive
-
-    # Certbot renombra automáticamente la configuración al nombre del dominio
-    # Eliminar la configuración antigua si existe (tanto el symlink como el archivo)
-    if [ -L "/etc/nginx/sites-enabled/${PROJECT_NAME}" ] || [ -f "/etc/nginx/sites-enabled/${PROJECT_NAME}" ]; then
-        echo -e "${YELLOW}🧹 Eliminando symlink antiguo '${PROJECT_NAME}' de sites-enabled...${NC}"
-        sudo rm -f /etc/nginx/sites-enabled/${PROJECT_NAME}
-        echo -e "${GREEN}✅ Symlink antiguo eliminado${NC}"
-    fi
+    # Get SSL certificate (wildcard para soportar subdominios)
+    echo -e "${YELLOW}📜 Obtaining wildcard SSL certificate from Let's Encrypt...${NC}"
+    echo -e "${BLUE}ℹ️  Se obtendrá un certificado wildcard para ${DOMAIN_NAME} y *.${DOMAIN_NAME}${NC}"
+    echo -e "${BLUE}ℹ️  Esto requiere validación DNS (registro TXT).${NC}"
     
-    if [ -f "/etc/nginx/sites-available/${PROJECT_NAME}" ]; then
-        echo -e "${YELLOW}🧹 Eliminando configuración antigua '${PROJECT_NAME}' de sites-available...${NC}"
-        sudo rm -f /etc/nginx/sites-available/${PROJECT_NAME}
-        echo -e "${GREEN}✅ Configuración antigua eliminada${NC}"
+    # Intentar obtener certificado wildcard
+    WILDCARD_CERT_PATH="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
+    if [ ! -f "$WILDCARD_CERT_PATH" ]; then
+        echo -e "${YELLOW}🔐 Obteniendo certificado wildcard con validación DNS...${NC}"
+        echo -e "${YELLOW}   Certbot te pedirá agregar un registro TXT en tu DNS.${NC}"
+        echo -e "${YELLOW}   Cuando aparezca el prompt, agrega el registro y presiona Enter.${NC}"
+        echo ""
+        
+        # Obtener certificado wildcard con validación DNS manual
+        # Usamos certonly en lugar de --nginx para tener más control
+        sudo certbot certonly \
+            --manual \
+            --preferred-challenges dns \
+            -d ${DOMAIN_NAME} \
+            -d *.${DOMAIN_NAME} \
+            --email ${EMAIL} \
+            --agree-tos \
+            --no-eff-email \
+            --manual-public-ip-logging-ok || {
+            echo ""
+            echo -e "${RED}❌ No se pudo obtener el certificado wildcard.${NC}"
+            echo -e "${YELLOW}⚠️  Posibles causas:${NC}"
+            echo -e "   1. No se agregó el registro TXT en DNS a tiempo"
+            echo -e "   2. El registro TXT no se propagó correctamente"
+            echo -e "   3. Error de conexión con Let's Encrypt"
+            echo ""
+            echo -e "${YELLOW}💡 Puedes reintentar ejecutando:${NC}"
+            echo -e "${BLUE}   sudo certbot certonly --manual --preferred-challenges dns -d ${DOMAIN_NAME} -d *.${DOMAIN_NAME}${NC}"
+            echo ""
+            echo -e "${YELLOW}⚠️  Continuando sin certificado SSL. Deberás configurarlo manualmente.${NC}"
+            exit 1
+        }
+        
+        echo ""
+        echo -e "${GREEN}✅ Certificado wildcard obtenido exitosamente${NC}"
+        
+        # Configurar Nginx para usar el certificado wildcard
+        echo -e "${YELLOW}⚙️  Configurando Nginx para usar el certificado wildcard...${NC}"
+        sudo tee /etc/nginx/sites-available/${DOMAIN_NAME} > /dev/null <<EOF
+# Redirección HTTP a HTTPS
+server {
+    listen 80;
+    server_name ${DOMAIN_NAME} *.${DOMAIN_NAME};
+    return 301 https://\$host\$request_uri;
+}
+
+# Servidor HTTPS con certificado wildcard
+server {
+    server_name ${DOMAIN_NAME} *.${DOMAIN_NAME};
+    listen 443 ssl http2;
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+    
+    # Placeholder - será reemplazado por nginx-create.conf más adelante
+    location / {
+        return 200 "SSL configured";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+        
+        # Habilitar el sitio
+        sudo ln -sf /etc/nginx/sites-available/${DOMAIN_NAME} /etc/nginx/sites-enabled/${DOMAIN_NAME}
+        
+        # Verificar y recargar Nginx
+        if sudo nginx -t; then
+            sudo systemctl reload nginx
+            echo -e "${GREEN}✅ Nginx configurado con certificado wildcard${NC}"
+        else
+            echo -e "${RED}❌ Error en la configuración de Nginx${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}✅ Certificado wildcard ya existe${NC}"
     fi
 
-    # Certbot has now updated the Nginx config, reload Nginx to apply changes
-    sudo systemctl reload nginx
+    # Limpiar configuraciones antiguas si existen (solo si usan el nombre del proyecto, no el dominio)
+    if [ "${PROJECT_NAME}" != "${DOMAIN_NAME}" ]; then
+        if [ -L "/etc/nginx/sites-enabled/${PROJECT_NAME}" ] || [ -f "/etc/nginx/sites-enabled/${PROJECT_NAME}" ]; then
+            echo -e "${YELLOW}🧹 Eliminando symlink antiguo '${PROJECT_NAME}' de sites-enabled...${NC}"
+            sudo rm -f /etc/nginx/sites-enabled/${PROJECT_NAME}
+            echo -e "${GREEN}✅ Symlink antiguo eliminado${NC}"
+        fi
+        
+        if [ -f "/etc/nginx/sites-available/${PROJECT_NAME}" ]; then
+            echo -e "${YELLOW}🧹 Eliminando configuración antigua '${PROJECT_NAME}' de sites-available...${NC}"
+            sudo rm -f /etc/nginx/sites-available/${PROJECT_NAME}
+            echo -e "${GREEN}✅ Configuración antigua eliminada${NC}"
+        fi
+    fi
 else
     echo -e "${GREEN}✅ SSL certificate already exists. Skipping certificate request.${NC}"
     # If certificate exists, ensure Nginx config is up to date
@@ -337,28 +414,6 @@ chmod +x backup.sh
 echo -e "${YELLOW}🕰️ Configuring cron job for backups and renewal...${NC}"
 (crontab -l 2>/dev/null | grep -v "${PROJECT_NAME}"; echo "0 2 * * * /home/$USER/${PROJECT_NAME}/backup.sh") | crontab -
 
-echo ""
-echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
-echo ""
-echo -e "${BLUE}📋 Next steps:${NC}"
-echo -e "  1. Update your DNS to point ${DOMAIN_NAME} to this server's IP"
-echo -e "  2. Wait for DNS propagation (5-30 minutes)"
-echo -e "  3. Visit https://${DOMAIN_NAME} to access your application"
-echo ""
-echo -e "${BLUE}🔧 Management commands:${NC}"
-echo -e "  Start:   docker-compose --profile prod up -d"
-echo -e "  Stop:    docker-compose down"
-echo -e "  Logs:    docker-compose logs -f"
-echo -e "  Status:  docker-compose ps"
-echo -e "  Backup:  ./backup.sh"
-echo ""
-echo -e "${BLUE}📁 Important files:${NC}"
-echo -e "  Config:  ~/${PROJECT_NAME}/.env"
-echo -e "  Logs:    ~/${PROJECT_NAME}/logs/"
-echo -e "  Backups: ~/backups/"
-echo ""
-echo -e "${GREEN}✅ Your Create platform is now live!${NC}"
-
 # Actualizar configuración de nginx
 echo ""
 echo -e "${YELLOW}🔧 Updating nginx configuration to fix file upload limits...${NC}"
@@ -408,7 +463,6 @@ if [ -f "nginx-create.conf" ]; then
         echo -e "${BLUE}📋 File upload limits updated:${NC}"
         echo -e "   • Maximum file size: 50MB"
         echo -e "   • Timeout for file uploads: 300s"
-        echo -e "   • Error 413 should now be resolved"
     else
         echo -e "${RED}❌ Nginx configuration error${NC}"
         echo -e "${YELLOW}⚠️  Please check nginx configuration manually${NC}"
@@ -416,3 +470,25 @@ if [ -f "nginx-create.conf" ]; then
 else
     echo -e "${YELLOW}⚠️  nginx-create.conf not found, skipping nginx update${NC}"
 fi
+
+echo ""
+echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
+echo ""
+echo -e "${BLUE}📋 Next steps:${NC}"
+echo -e "  1. Update your DNS to point ${DOMAIN_NAME} to this server's IP"
+echo -e "  2. Wait for DNS propagation (5-30 minutes)"
+echo -e "  3. Visit https://${DOMAIN_NAME} to access your application"
+echo ""
+echo -e "${BLUE}🔧 Management commands:${NC}"
+echo -e "  Start:   docker-compose --profile prod up -d"
+echo -e "  Stop:    docker-compose down"
+echo -e "  Logs:    docker-compose logs -f"
+echo -e "  Status:  docker-compose ps"
+echo -e "  Backup:  ./backup.sh"
+echo ""
+echo -e "${BLUE}📁 Important files:${NC}"
+echo -e "  Config:  ~/${PROJECT_NAME}/.env"
+echo -e "  Logs:    ~/${PROJECT_NAME}/logs/"
+echo -e "  Backups: ~/backups/"
+echo ""
+echo -e "${GREEN}✅ Your Create platform is now live!${NC}"
