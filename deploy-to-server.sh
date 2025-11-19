@@ -89,7 +89,7 @@ fi
 
 # Create production environment file
 echo -e "${YELLOW}⚙️  Verifying environment configuration...${NC}"
-if [ ! -f ".env.dev.prod" ]; then
+if [ ! -f ".env.dev" ]; then
     echo -e "${RED}❌ Error: .env.dev file not found.${NC}"
     echo -e "${YELLOW}Please ensure the repository is cloned and the .env.dev file exists and is configured correctly.${NC}"
     exit 1
