@@ -7,15 +7,6 @@ const nodeEnv = process.env.NODE_ENV ?? 'development';
 
 const candidateFiles = [];
 
-if (nodeEnv === 'test') {
-  candidateFiles.push('.env.test');
-} else {
-  candidateFiles.push(`.env.${nodeEnv}`);
-  if (nodeEnv === 'development') {
-    candidateFiles.push('.env.dev');
-  }
-}
-
 candidateFiles.push('.env');
 
 const resolvedEnvPath = candidateFiles

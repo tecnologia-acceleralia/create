@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${BACKEND_DIR}/.." && pwd)"
 
-ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env.dev}"
+ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
 
 echo "==> Comprobando servicios externos (DigitalOcean Spaces)"
 echo "    - Backend dir: ${BACKEND_DIR}"

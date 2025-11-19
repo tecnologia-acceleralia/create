@@ -89,28 +89,28 @@ fi
 
 # Create production environment file
 echo -e "${YELLOW}⚙️  Verifying environment configuration...${NC}"
-if [ ! -f ".env.dev" ]; then
-    echo -e "${RED}❌ Error: .env.dev file not found.${NC}"
-    echo -e "${YELLOW}Please ensure the repository is cloned and the .env.dev file exists and is configured correctly.${NC}"
+if [ ! -f ".env" ]; then
+    echo -e "${RED}❌ Error: .env file not found.${NC}"
+    echo -e "${YELLOW}Please ensure the repository is cloned and the .env file exists and is configured correctly.${NC}"
     exit 1
 fi
 
 # Generate secure JWT secrets if not changed
-if grep -q "CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION" .env.dev; then
+if grep -q "CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION" .env; then
     echo -e "${YELLOW}🔐 Generating secure JWT secrets...${NC}"
     JWT_SECRET=$(openssl rand -base64 32)
     JWT_REFRESH_SECRET=$(openssl rand -base64 32)
     
-    sed -i "s|CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION|$JWT_SECRET|g" .env.dev
-    sed -i "s|CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION|$JWT_REFRESH_SECRET|g" .env.dev
+    sed -i "s|CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION|$JWT_SECRET|g" .env
+    sed -i "s|CHANGE-THIS-TO-A-SECURE-RANDOM-STRING-IN-PRODUCTION|$JWT_REFRESH_SECRET|g" .env
     
     echo -e "${GREEN}✅ JWT secrets generated${NC}"
 fi
 
-# Update domain in .env.dev file
+# Update domain in .env file
 echo -e "${YELLOW}🌐 Updating domain configuration...${NC}"
-sed -i "s/your-domain.com/${DOMAIN_NAME}/g" .env.dev
-sed -i "s/admin@your-domain.com/${EMAIL}/g" .env.dev
+sed -i "s/your-domain.com/${DOMAIN_NAME}/g" .env
+sed -i "s/admin@your-domain.com/${EMAIL}/g" .env
 
 # Check if SSL certificate already exists
 CERT_PATH="/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem"
@@ -415,7 +415,7 @@ echo -e "  Status:  docker-compose ps"
 echo -e "  Backup:  ./backup.sh"
 echo ""
 echo -e "${BLUE}📁 Important files:${NC}"
-echo -e "  Config:  ~/${PROJECT_NAME}/.env.dev"
+echo -e "  Config:  ~/${PROJECT_NAME}/.env"
 echo -e "  Logs:    ~/${PROJECT_NAME}/logs/"
 echo -e "  Backups: ~/backups/"
 echo ""

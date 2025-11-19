@@ -226,7 +226,7 @@ invoke_cli() {
         done
         
         if [[ "$has_env_file" == false ]]; then
-            local env_file="$SCRIPT_ROOT/.env.dev"
+            local env_file="$SCRIPT_ROOT/.env"
             if [[ -f "$env_file" ]]; then
                 local remaining_args=()
                 if [[ ${#arguments[@]} -gt 1 ]]; then
@@ -258,7 +258,7 @@ invoke_cli_output() {
         done
         
         if [[ "$has_env_file" == false ]]; then
-            local env_file="$SCRIPT_ROOT/.env.dev"
+            local env_file="$SCRIPT_ROOT/.env"
             if [[ -f "$env_file" ]]; then
                 local remaining_args=()
                 if [[ ${#arguments[@]} -gt 1 ]]; then
@@ -363,10 +363,10 @@ wait_for_database() {
 }
 
 initialize_database() {
-    local env_file_path="$SCRIPT_ROOT/.env.dev"
+    local env_file_path="$SCRIPT_ROOT/.env"
     
     if [[ ! -f "$env_file_path" ]]; then
-        write_error "No se encontro el archivo .env.dev"
+        write_error "No se encontro el archivo .env"
         exit 1
     fi
     
@@ -375,13 +375,13 @@ initialize_database() {
     
     local root_password="${MYSQL_ROOT_PASSWORD:-}"
     if [[ -z "$root_password" ]]; then
-        write_error "Falta MYSQL_ROOT_PASSWORD en .env.dev"
+        write_error "Falta MYSQL_ROOT_PASSWORD en .env"
         exit 1
     fi
     
     local db_name="${DB_NAME:-${MYSQL_DATABASE:-}}"
     if [[ -z "$db_name" ]]; then
-        write_error "Falta DB_NAME o MYSQL_DATABASE en .env.dev"
+        write_error "Falta DB_NAME o MYSQL_DATABASE en .env"
         exit 1
     fi
     
@@ -407,10 +407,10 @@ FLUSH PRIVILEGES;"
 }
 
 reset_database() {
-    local env_file_path="$SCRIPT_ROOT/.env.dev"
+    local env_file_path="$SCRIPT_ROOT/.env"
     
     if [[ ! -f "$env_file_path" ]]; then
-        write_error "No se encontro el archivo .env.dev"
+        write_error "No se encontro el archivo .env"
         exit 1
     fi
     
@@ -421,13 +421,13 @@ reset_database() {
     
     local root_password="${MYSQL_ROOT_PASSWORD:-}"
     if [[ -z "$root_password" ]]; then
-        write_error "Falta MYSQL_ROOT_PASSWORD en .env.dev"
+        write_error "Falta MYSQL_ROOT_PASSWORD en .env"
         exit 1
     fi
     
     local db_name="${DB_NAME:-${MYSQL_DATABASE:-}}"
     if [[ -z "$db_name" ]]; then
-        write_error "Falta DB_NAME o MYSQL_DATABASE en .env.dev"
+        write_error "Falta DB_NAME o MYSQL_DATABASE en .env"
         exit 1
     fi
     
@@ -636,9 +636,9 @@ new_backup() {
     fi
     
     if [[ "$should_dump_database" == true ]]; then
-        local env_file_path="$SCRIPT_ROOT/.env.dev"
+        local env_file_path="$SCRIPT_ROOT/.env"
         if [[ ! -f "$env_file_path" ]]; then
-            write_info "No se pudo leer .env.dev. Se omitira el backup de la base de datos."
+            write_info "No se pudo leer .env. Se omitira el backup de la base de datos."
             should_dump_database=false
         else
             # Cargar variables de entorno
@@ -646,12 +646,12 @@ new_backup() {
             
             local root_password="${MYSQL_ROOT_PASSWORD:-}"
             if [[ -z "$root_password" ]]; then
-                write_info "Falta MYSQL_ROOT_PASSWORD en .env.dev. Se omitira el backup de la base de datos."
+                write_info "Falta MYSQL_ROOT_PASSWORD en .env. Se omitira el backup de la base de datos."
                 should_dump_database=false
             else
                 local db_name="${DB_NAME:-${MYSQL_DATABASE:-}}"
                 if [[ -z "$db_name" ]]; then
-                    write_info "Falta DB_NAME o MYSQL_DATABASE en .env.dev. Se omitira el backup de la base de datos."
+                    write_info "Falta DB_NAME o MYSQL_DATABASE en .env. Se omitira el backup de la base de datos."
                     should_dump_database=false
                 else
                     container_dump_path="/tmp/db-backup-$timestamp.sql"
@@ -911,9 +911,9 @@ main() {
         fi
     fi
     
-    local env_file_path="$SCRIPT_ROOT/.env.dev"
+    local env_file_path="$SCRIPT_ROOT/.env"
     if [[ ! -f "$env_file_path" ]]; then
-        write_error "No se encontro el archivo .env.dev"
+        write_error "No se encontro el archivo .env"
         exit 1
     fi
     

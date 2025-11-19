@@ -229,7 +229,7 @@ function Invoke-Cli {
     $processedArguments = $Arguments
 
     if ($Command -eq "docker" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "compose" -and -not ($Arguments -contains "--env-file")) {
-        $envFile = Join-Path $scriptRoot ".env.dev"
+        $envFile = Join-Path $scriptRoot ".env"
         if (Test-Path $envFile) {
             $remainingArgs = @()
             if ($Arguments.Count -gt 1) {
@@ -255,7 +255,7 @@ function Invoke-CliOutput {
     $processedArguments = $Arguments
 
     if ($Command -eq "docker" -and $Arguments.Count -gt 0 -and $Arguments[0] -eq "compose" -and -not ($Arguments -contains "--env-file")) {
-        $envFile = Join-Path $scriptRoot ".env.dev"
+        $envFile = Join-Path $scriptRoot ".env"
         if (Test-Path $envFile) {
             $remainingArgs = @()
             if ($Arguments.Count -gt 1) {
@@ -371,7 +371,7 @@ function Initialize-Database {
 
     $rootPassword = $EnvValues['MYSQL_ROOT_PASSWORD']
     if (-not $rootPassword) {
-        throw 'Falta MYSQL_ROOT_PASSWORD en .env.dev'
+        throw 'Falta MYSQL_ROOT_PASSWORD en .env'
     }
 
     $dbName = $EnvValues['DB_NAME']
@@ -379,7 +379,7 @@ function Initialize-Database {
         $dbName = $EnvValues['MYSQL_DATABASE']
     }
     if (-not $dbName) {
-        throw 'Falta DB_NAME o MYSQL_DATABASE en .env.dev'
+        throw 'Falta DB_NAME o MYSQL_DATABASE en .env'
     }
 
     $dbUser = $EnvValues['DB_USER']
@@ -420,7 +420,7 @@ function Reset-Database {
 
     $rootPassword = $EnvValues['MYSQL_ROOT_PASSWORD']
     if (-not $rootPassword) {
-        throw 'Falta MYSQL_ROOT_PASSWORD en .env.dev'
+        throw 'Falta MYSQL_ROOT_PASSWORD en .env'
     }
 
     $dbName = $EnvValues['DB_NAME']
@@ -428,7 +428,7 @@ function Reset-Database {
         $dbName = $EnvValues['MYSQL_DATABASE']
     }
     if (-not $dbName) {
-        throw 'Falta DB_NAME o MYSQL_DATABASE en .env.dev'
+        throw 'Falta DB_NAME o MYSQL_DATABASE en .env'
     }
 
     $rootPasswordSecure = ConvertTo-SecureString -String $rootPassword -AsPlainText -Force
@@ -646,18 +646,18 @@ function New-Backup {
 
         if ($shouldDumpDatabase) {
             $envValues = $null
-            $envFilePath = Join-Path $scriptRoot ".env.dev"
+            $envFilePath = Join-Path $scriptRoot ".env"
             try {
                 $envValues = Get-EnvFileValues -FilePath $envFilePath
             } catch {
-                Write-Info "No se pudo leer .env.dev. Se omitira el backup de la base de datos. Detalle: $($_.Exception.Message)"
+                Write-Info "No se pudo leer .env. Se omitira el backup de la base de datos. Detalle: $($_.Exception.Message)"
                 $shouldDumpDatabase = $false
             }
 
             if ($shouldDumpDatabase) {
                 $rootPassword = $envValues['MYSQL_ROOT_PASSWORD']
                 if (-not $rootPassword) {
-                    Write-Info "Falta MYSQL_ROOT_PASSWORD en .env.dev. Se omitira el backup de la base de datos."
+                    Write-Info "Falta MYSQL_ROOT_PASSWORD en .env. Se omitira el backup de la base de datos."
                     $shouldDumpDatabase = $false
                 }
             }
@@ -669,7 +669,7 @@ function New-Backup {
                 }
 
                 if (-not $dbName) {
-                    Write-Info "Falta DB_NAME o MYSQL_DATABASE en .env.dev. Se omitira el backup de la base de datos."
+                    Write-Info "Falta DB_NAME o MYSQL_DATABASE en .env. Se omitira el backup de la base de datos."
                     $shouldDumpDatabase = $false
                 }
             }
@@ -985,7 +985,7 @@ try {
         }
     }
 
-    $envFilePath = Join-Path $scriptRoot ".env.dev"
+    $envFilePath = Join-Path $scriptRoot ".env"
     $envValues = Get-EnvFileValues -FilePath $envFilePath
 
     $backendLockFile = Join-Path $scriptRoot "backend/pnpm-lock.yaml"
