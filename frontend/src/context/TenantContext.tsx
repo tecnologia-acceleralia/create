@@ -141,17 +141,20 @@ function detectInitialSlug(): string | null {
 
   const reservedSegments = new Set(['superadmin', 'dashboard']);
 
+  // PRIORIDAD 1: Verificar primero el pathname (para rutas como /uic)
+  // Esto permite que las redirecciones de Cloudflare funcionen correctamente
+  const firstSegment = browserWindow.location.pathname.split('/').find(Boolean);
+  if (firstSegment && !reservedSegments.has(firstSegment.toLowerCase())) {
+    return firstSegment.toLowerCase();
+  }
+
+  // PRIORIDAD 2: Si no hay segmento en pathname, usar subdominio
   const host = browserWindow.location.hostname;
   if (host.includes('.')) {
     const [subdomain] = host.split('.');
     if (subdomain && subdomain !== 'www' && !reservedSegments.has(subdomain.toLowerCase())) {
       return subdomain.toLowerCase();
     }
-  }
-
-  const firstSegment = browserWindow.location.pathname.split('/').find(Boolean);
-  if (firstSegment && !reservedSegments.has(firstSegment.toLowerCase())) {
-    return firstSegment.toLowerCase();
   }
 
   return null;

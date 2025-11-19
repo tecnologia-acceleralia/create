@@ -21,7 +21,7 @@ import { getEvents, createEvent, type Event } from '@/services/events';
 import { getPublicBranding } from '@/services/public';
 import { eventSchema, type EventFormValues } from '@/components/events/forms';
 import { EventCreateModal } from '@/components/events/modals';
-import { formatDateTime } from '@/utils/date';
+import { formatDate } from '@/utils/date';
 
 type StatsCardProps = {
   label: string;
@@ -244,11 +244,11 @@ function AdminDashboardPage() {
             <div className="flex items-center gap-4 text-xs text-muted-foreground">
               <span>
                 <span className="font-medium">{t('events.start')}:</span>{' '}
-                {formatDateTime(locale, event.start_date)}
+                {formatDate(locale, event.start_date) ?? '—'}
               </span>
               <span>
                 <span className="font-medium">{t('events.end')}:</span>{' '}
-                {formatDateTime(locale, event.end_date)}
+                {formatDate(locale, event.end_date) ?? '—'}
               </span>
             </div>
           </div>
