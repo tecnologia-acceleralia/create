@@ -14,25 +14,28 @@
 - **Framework**: React 19.2.0 + React Router 7.9.5
 - **Lenguaje**: TypeScript estricto (`.tsx`, `.ts`)
 - **Build Tool**: Vite 7.2.2
-- **Estilos**: Tailwind CSS 4.1.x + shadcn/ui (`@/components/ui`)
-- **Utilidades UI**: lucide-react, FontAwesome, Radix UI primitives, class-variance-authority, tailwind-merge
-- **Forms**: react-hook-form + zod
-- **Internacionalización**: i18next + react-i18next (recursos en `frontend/src/i18n/locales`)
-- **Estado/Networking**: Axios (`apiClient`) con cabeceras multi-tenant, soporte para react-query (disponible en dependencias)
-- **Notificaciones**: sonner
-- **Calendario/Charts**: react-big-calendar, react-calendar, recharts
-- **Animaciones**: framer-motion
+- **Estilos**: Tailwind CSS 4.1.17 + shadcn/ui (`@/components/ui`)
+- **Utilidades UI**: lucide-react 0.553.0, FontAwesome 7.1.0, Radix UI primitives (dialog 1.1.15, alert-dialog 1.1.15), class-variance-authority 0.7.1, tailwind-merge 3.3.1
+- **Forms**: react-hook-form 7.66.0 + zod 4.1.12
+- **Internacionalización**: i18next 25.6.1 + react-i18next 16.2.4 (recursos en `frontend/src/i18n/locales`) - soporta español (es), catalán (ca) e inglés (en)
+- **Estado/Networking**: Axios 1.13.2 (`apiClient`) con cabeceras multi-tenant, soporte para react-query 5.90.7 (disponible en dependencias)
+- **Notificaciones**: sonner 2.0.7
+- **Popups/Modales**: Dialog (@radix-ui/react-dialog 1.1.15) y AlertDialog (@radix-ui/react-alert-dialog 1.1.15) de shadcn/ui (basados en Radix UI) para diálogos modales y confirmaciones
+- **Calendario/Charts**: react-big-calendar 1.19.4, react-calendar 6.0.0, recharts 3.3.0
+- **Animaciones**: framer-motion 12.23.24
 
 ### Backend
 - **Runtime**: Node.js LTS (ES Modules)
 - **Framework**: Express 5.1.0
-- **Auth**: JWT (access + refresh) + bcryptjs
+- **Auth**: JWT (jsonwebtoken 9.0.2, access + refresh) + bcryptjs 3.0.3
 - **ORM**: Sequelize 6.37.7 con `AsyncLocalStorage` para scoping multi-tenant
 - **DB Driver**: mysql2 3.15.3
-- **Validación**: express-validator
-- **Seguridad**: helmet, cors, morgan, super-admin token (`x-super-admin-token`)
-- **Integraciones disponibles**: stripe, nodemailer, googleapis (no eliminar si no se usan todavía)
-- **Testing**: Jest 30 + Supertest (modo experimental ESM)
+- **Validación**: express-validator 7.3.0
+- **Seguridad**: helmet 8.1.0, cors 2.8.5, morgan 1.10.1, super-admin token (`x-super-admin-token`)
+- **Integraciones**: mailersend 2.0.1 (envío de correos electrónicos), openai 4.70.0 (evaluación asistida por IA)
+- **Testing**: Jest 29.7.0 + Supertest 7.1.4 (modo experimental ESM)
+- **Migraciones**: Umzug 3.8.2
+- **Storage**: AWS SDK S3 3.927.0, multer 2.0.2
 
 ### Base de Datos
 - **Engine**: MySQL (schema compartido)
@@ -121,12 +124,15 @@ create/
 ### Principios
 - **TypeScript obligatorio**: declara tipos/Interfaces; evita `any`.
 - **Import paths**: usa alias `@/` definido en `tsconfig.base.json`.
-- **i18n**: todos los textos visibles provienen de `useTranslation`; usa claves `namespace.key`. Mantén `es.json` y `en.json` sincronizados.
+- **i18n**: todos los textos visibles provienen de `useTranslation`; usa claves `namespace.key`. Mantén `es.json`, `ca.json` y `en.json` sincronizados. Idioma por defecto: español (`es`), fallback: español.
 - **Branding**: consume `useTenant()`; para colores personalizados puedes usar `style={{ color: branding.primaryColor }}` cuando Tailwind no cubra casos dinámicos. Documenta cuando apliques estilos inline por branding.
 - **shadcn/ui**: utiliza componentes de `@/components/ui`. Nuevas variantes → define con `cva` en el componente UI.
+- **Popups/Modales**: usa `Dialog` de `@/components/ui/dialog` para formularios/modales complejos y `AlertDialog` de `@/components/ui/alert-dialog` para confirmaciones. Controla estado con `open`/`onOpenChange`; usa `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter` para estructura.
+- **Componentes comunes**: reutiliza componentes de `@/components/common` (ver sección dedicada más abajo). No dupliques funcionalidad existente.
 - **Estado de carga**: usa `Spinner`, placeholders y fallback con `Suspense` si cargas dinámicamente. Siempre controla `loading`/`error`.
 - **Autenticación**: `AuthContext` maneja sesión. No manipules localStorage fuera de este contexto; emplea `setAuthToken` y `configureTenant`.
-- **Servicios HTTP**: crea helpers en `frontend/src/services/*.ts`. Nunca llames `axios` directo desde componentes.
+- **Servicios HTTP**: crea helpers en `frontend/src/services/*.ts`. Nunca llames `axios` directo desde componentes. Usa `apiClient` que ya incluye interceptores para tenant y auth.
+- **React Query**: usa `useQuery` y `useMutation` de `@tanstack/react-query` para gestión de estado del servidor. Organiza `queryKey` por dominio (ej: `['events']`, `['notifications']`).
 - **Formularios**: preferir react-hook-form + resolver de zod.
 - **Accesibilidad**: íconos con `aria-hidden`, botones con `aria-label` cuando apliquen.
 
@@ -144,13 +150,48 @@ create/
 - Usa `ensureSuperAdmin` para endpoints globales y valida `x-super-admin-token`.
 - `tenantContextMiddleware` + `enableTenantScoping` rellenan `tenant_id`. Si se necesita omitirlo, pasa `{ skipTenant: true }` explícitamente y justifica en comentarios.
 
+**Middleware de autenticación** (`auth.middleware.js`):
+- `authenticate` valida JWT y añade a `req.auth`: `{ user, membership, roleScopes, isSuperAdmin }`.
+- También añade `req.user` con el usuario completo.
+- Valida que el tenant del token coincida con `req.tenant`.
+- Verifica que la membresía esté activa si existe.
+
+**Middleware de validación** (`validation.middleware.js`):
+- `validateRequest` verifica resultados de `express-validator`.
+- Retorna `422` con formato `{ success: false, message: 'Validación fallida', errors: [...] }` si hay errores.
+
 ### Controladores y Servicios
 - Estructura CRUD en `controllers/*` delegando a `services/*` (crea servicios por dominio igual que en frontend).
-- Maneja errores con `try/catch` y responde `{ success: false, message }`. Centraliza fallos inesperados en `errorHandler`.
+- Maneja errores con `try/catch` y responde usando helpers de `utils/response.js` (`successResponse`, `errorResponse`, `notFoundResponse`, `unauthorizedResponse`, `forbiddenResponse`, `badRequestResponse`, `conflictResponse`).
 - Loguea con `logger`/`generalLogger`/`tenantLogger`. Nunca uses `console.*` directo en controladores.
 - Validación con `express-validator` + `validateRequest`.
 - Métodos que devuelvan usuarios deben usar `toSafeJSON()`; jamás expongas `password` u otros campos sensibles.
 - Usa `async/await`; no mezcles `.then()` en código nuevo.
+
+### Servicios Disponibles (`backend/src/services/`)
+
+- **`auth.service.js`**: Autenticación, validación de credenciales, generación de tokens JWT (`validateCredentials`, `generateTokens`).
+- **`team.service.js`**: Gestión de equipos, miembros, capitanes.
+- **`evaluation-ai.service.js`**: Servicios de evaluación asistida por IA.
+- **`mailersend.service.js`**: Envío de correos electrónicos vía MailerSend.
+- **`password-reset.service.js`**: Gestión de reseteo de contraseñas (tokens, validación).
+- **`tenant-assets.service.js`**: Gestión de assets del tenant (logos, imágenes).
+
+**Patrón**: Crea servicios por dominio. Los servicios encapsulan lógica de negocio y acceso a datos; los controladores solo orquestan requests/responses.
+
+### Utilidades Disponibles (`backend/src/utils/`)
+
+- **`response.js`**: Helpers para respuestas HTTP consistentes (`successResponse`, `errorResponse`, `notFoundResponse`, `unauthorizedResponse`, `forbiddenResponse`, `badRequestResponse`, `conflictResponse`).
+- **`pagination.js`**: Utilidades para paginación (`normalizeSort`, `mapGroupedCount`, `buildPaginationMeta`).
+- **`logger.js`**: Sistema de logging centralizado (`logger`, `generalLogger`, `tenantLogger`).
+- **`authorization.js`**: Helpers para autorización y permisos.
+- **`finders.js`**: Utilidades para búsquedas y filtros comunes.
+- **`parsers.js`**: Parsers y transformadores de datos.
+- **`tenant-scoping.js`**: Utilidades para scoping multi-tenant (`enableTenantScoping`).
+- **`s3-utils.js`**: Utilidades para almacenamiento S3 (subida de archivos).
+- **`asset-markers.js`**: Utilidades para marcadores de assets.
+
+**Uso**: Importa y reutiliza estas utilidades en controladores y servicios. Evita duplicar lógica ya implementada.
 
 ### Sequelize
 - Declara asociaciones en `models/index.js` (ya definidas). Nuevos modelos deben habilitar `enableTenantScoping`.
@@ -164,10 +205,28 @@ create/
 - Documenta dependencias entre seeders con comentarios al inicio del archivo.
 - Resets locales: `npm run db:reset` (drop + migrate + seed master).
 
+### Variables de Entorno y Configuración
+
+**Backend** (`backend/src/config/env.js`):
+- Carga archivos `.env` según `NODE_ENV`: `.env.test`, `.env.development`, `.env.production`, `.env.dev` (dev), `.env` (fallback).
+- Configuración centralizada en `appConfig` exportado desde `env.js`.
+- Variables principales: `PORT`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `DATABASE_URL`, `DB_*`, `OPENAI_*`, `MAILERSEND_*`, `SPACES_*`.
+- Ver `env.example` para lista completa de variables.
+
+**Frontend**:
+- Variables con prefijo `VITE_` accesibles vía `import.meta.env.VITE_*`.
+- Principal: `VITE_API_URL` (default: `http://localhost:5100/api`).
+- `import.meta.env.DEV` para detectar desarrollo.
+
+**Reglas**:
+- Nunca commitees archivos `.env` (están en `.gitignore`).
+- Usa `env.example` como plantilla.
+- Documenta nuevas variables en `env.example` y aquí si son críticas.
+
 ### Seguridad
 - JWT access token estándar; refresh token firmado con secreto distinto (`JWT_REFRESH_SECRET`). Si introduces endpoints que generen tokens, reutiliza `AuthService.generateTokens`.
 - Requiere HTTPS en producción (config en proxy/reverse).
-- Almacena API keys (Stripe, Google) en variables de entorno; nunca en el repo.
+- Almacena API keys (OpenAI, MailerSend, AWS S3) en variables de entorno; nunca en el repo.
 - El middleware `auth.middleware` lee `Authorization: Bearer`; úsalo en rutas privadas.
 
 ## Flujo Super-Admin
@@ -177,6 +236,42 @@ create/
 - Permite crear/listar tenants, inicializar branding y planes.
 
 ## Frontend: Patrones Comunes
+
+### Componentes Comunes Disponibles
+
+Los siguientes componentes están disponibles en `@/components/common` y deben reutilizarse:
+
+- **`PageHeader`**: Encabezado de página con título, descripción opcional y acciones (botones, breadcrumbs).
+- **`PageContainer`**: Contenedor principal de página con padding y max-width consistentes.
+- **`Spinner`**: Indicador de carga circular (usa `size` prop: `sm`, `md`, `lg`).
+- **`ErrorDisplay`**: Muestra errores de forma consistente con opción de retry.
+- **`EmptyState`**: Estado vacío con ícono, título, descripción y acción opcional.
+- **`DataTable`**: Tabla de datos con ordenamiento, paginación y filtros integrados.
+- **`CardWithActions`**: Card con acciones (botones, menús) en header o footer.
+- **`FilterCard`**: Card para filtros con estado colapsable.
+- **`ExpandableSection`**: Sección expandible/colapsable con animación.
+- **`AuthCard`**: Card especializado para formularios de autenticación.
+- **`PasswordGeneratorButton`**: Botón que genera contraseñas seguras.
+
+**Uso**: Importa desde `@/components/common` (barrel export). Ejemplo: `import { PageHeader, Spinner } from '@/components/common';`
+
+### Popups y Modales
+
+- **`Dialog`** (`@/components/ui/dialog`): Para formularios, detalles expandidos, modales complejos.
+  - Componentes: `Dialog`, `DialogTrigger`, `DialogContent`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose`.
+  - Controla estado con `open` y `onOpenChange`.
+  - Ejemplo: formularios de creación/edición, vistas detalladas.
+
+- **`AlertDialog`** (`@/components/ui/alert-dialog`): Para confirmaciones, acciones destructivas, alertas críticas.
+  - Componentes: `AlertDialog`, `AlertDialogTrigger`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogAction`, `AlertDialogCancel`.
+  - Usa para confirmaciones de eliminación, acciones irreversibles.
+  - Ejemplo: "¿Estás seguro de eliminar este elemento?"
+
+**Reglas**:
+- Usa `Dialog` para contenido interactivo (formularios, tablas, contenido complejo).
+- Usa `AlertDialog` para confirmaciones simples (sí/no, aceptar/cancelar).
+- Siempre incluye `DialogTitle` o `AlertDialogTitle` para accesibilidad.
+- Traduce todos los textos con `useTranslation`; no hardcodees strings en popups.
 
 ### Página conectada a Tenant
 
@@ -197,6 +292,47 @@ const { branding, tenantSlug } = useTenant();
 - Definido en `App.tsx` a través de `useRoutes`. Mantén rutas protegidas con `Navigate` y `useAuth`.
 - `DashboardRouter` decide layout según `user.role.scope` (`tenant_admin`, `organizer`, `evaluator`, etc.).
 
+### Contextos y Hooks Disponibles
+
+**Contextos** (`frontend/src/context/`):
+- **`TenantContext`**: Proporciona `useTenant()` con `tenantSlug`, `branding`, `heroContent`, `accessWindow`. Detecta tenant desde subdominio o ruta.
+- **`AuthContext`**: Proporciona `useAuth()` con `user`, `memberships`, `activeMembership`, `tokens`, `isSuperAdmin`, `loading`, `login()`, `logout()`, `hydrateSession()`.
+- **`SuperAdminContext`**: Proporciona `useSuperAdmin()` para funcionalidades de super-admin.
+
+**Hooks personalizados** (`frontend/src/hooks/`):
+- **`useTenantPath()`**: Genera rutas con prefijo del tenant. Retorna función `(path: string) => string`.
+- **`useExpandableEventTasks()`**: Hook para manejar expansión/colapso de tareas de eventos con carga lazy.
+
+**Uso**: Importa hooks desde `@/hooks/` y contextos desde `@/context/`. Ejemplo: `import { useTenantPath } from '@/hooks/useTenantPath';`
+
+### React Query (TanStack Query)
+
+- **Configuración**: `QueryClient` configurado en `main.tsx` con `QueryClientProvider`.
+- **Patrones**:
+  - Usa `useQuery` para datos de lectura. Ejemplo: `useQuery({ queryKey: ['events'], queryFn: getEvents })`.
+  - Usa `useMutation` para operaciones de escritura. Ejemplo: `useMutation({ mutationFn: createEvent, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['events'] }) })`.
+  - Organiza `queryKey` por dominio y jerarquía: `['events']`, `['events', eventId]`, `['notifications']`.
+  - Invalida queries relacionadas después de mutaciones exitosas.
+- **Servicios**: Los servicios HTTP en `frontend/src/services/*.ts` retornan Promises que pueden usarse directamente como `queryFn` o `mutationFn`.
+
+### Formato de Respuestas API
+
+**Backend**: Todas las respuestas siguen el formato:
+- **Éxito**: `{ success: true, data: ... }`
+- **Error**: `{ success: false, message: "..." }` o `{ success: false, message: "...", errors: [...] }` (validación)
+
+**Códigos HTTP comunes**:
+- `200`: Éxito
+- `400`: Bad Request (usar `badRequestResponse`)
+- `401`: Unauthorized (usar `unauthorizedResponse`)
+- `403`: Forbidden (usar `forbiddenResponse`)
+- `404`: Not Found (usar `notFoundResponse`)
+- `409`: Conflict (usar `conflictResponse`)
+- `422`: Validación fallida (retornado por `validateRequest` middleware)
+- `500`: Error interno (usar `errorResponse`)
+
+**Frontend**: Los servicios en `frontend/src/services/*.ts` extraen `data` de respuestas exitosas. Los errores se propagan y pueden capturarse en componentes o con React Query.
+
 ## Backend: Ejemplo de Ruta Multi-Tenant
 
 ```startLine:endLine:backend/src/routes/index.js
@@ -213,8 +349,10 @@ router.use('/', evaluationsRouter);
 
 ## Internacionalización
 
-- Configuración en `frontend/src/i18n/config.ts`. `lng` por defecto `es`, fallback `en`.
-- Archivos `en.json`/`es.json` organizados por namespaces (`common`, `landing`, `dashboard`, etc.). Añade claves en ambos idiomas.
+- **Idiomas soportados**: español (`es`), catalán (`ca`) e inglés (`en`).
+- Configuración en `frontend/src/i18n/config.ts`. Idioma por defecto: `es`, fallback: `es`, idiomas soportados: `['es', 'ca', 'en']`.
+- Archivos de traducción en `frontend/src/i18n/locales/`: `es.json`, `ca.json`, `en.json`.
+- Organización por namespaces (`common`, `landing`, `dashboard`, etc.). **Añade claves en los tres idiomas** para mantener consistencia.
 - No concatenes strings; usa interpolación de i18next (`t('key', { value })`).
 - Textos del backend (mensajes de error/respuesta) deben estar en español por defecto; si se exponen al frontend, mapéalos a claves en el cliente.
 
@@ -241,11 +379,20 @@ router.use('/', evaluationsRouter);
 ### ✅ SIEMPRE
 - usa `useTranslation`, `useTenant`, `useAuth`.
 - respeta alias `@/`.
+- añade traducciones en los tres idiomas (`es`, `ca`, `en`) cuando agregues nuevas claves i18n.
+- reutiliza componentes comunes de `@/components/common` antes de crear nuevos.
+- usa `Dialog` o `AlertDialog` para modales según el caso de uso.
+- usa helpers de `utils/response.js` en controladores backend para respuestas consistentes.
+- reutiliza servicios y utilidades existentes en `backend/src/services/` y `backend/src/utils/`.
+- usa `apiClient` (no `axios` directo) para todas las llamadas HTTP en frontend.
+- usa React Query (`useQuery`, `useMutation`) para gestión de estado del servidor.
+- organiza `queryKey` de React Query por dominio y jerarquía.
 - documenta decisiones complejas con comentarios concisos.
 - filtra por tenant en cualquier acceso a datos.
 - maneja errores y respuestas `{ success, data | message }`.
 - agrega pruebas cuando cambies lógica crítica multitenant.
 - emplea JSDoc en servicios/middlewares complejos.
+- usa `useTenantPath()` para generar rutas con prefijo del tenant.
 
 ### ❌ NUNCA
 - Hardcodear textos o colores globales (excepto defaults controlados).
@@ -254,10 +401,14 @@ router.use('/', evaluationsRouter);
 - Introducir CSS externo, módulos o `styled-components`.
 - Enviar contraseñas/hashes/token en respuestas o logs.
 - Crear archivos `.md` adicionales fuera de `docs/` ni modificar backups manualmente.
+- Usar `axios` directamente en componentes (usa `apiClient`).
+- Hacer fetch manual sin React Query para datos del servidor (excepto casos específicos justificados).
+- Committear archivos `.env` o variables sensibles.
 
 ---
 
-**Versión**: 2.0  
-**Última actualización**: 2025-11-08  
+**Versión**: 2.2  
+**Última actualización**: 2025-01-27  
 **Arquitectura**: Multi-Tenant SaaS (CREATE Platform)  
-**Stack**: React 19 + TypeScript + Node.js + MySQL + Tailwind CSS + shadcn/ui
+**Stack**: React 19 + TypeScript + Node.js + MySQL + Tailwind CSS + shadcn/ui  
+**Idiomas**: Español (es), Catalán (ca), Inglés (en)

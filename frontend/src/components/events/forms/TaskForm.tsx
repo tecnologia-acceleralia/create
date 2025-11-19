@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -27,12 +28,21 @@ export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmittin
     handleSubmit,
     register,
     watch,
+    setValue,
     formState: { errors }
   } = form;
 
   const translateError = (message?: string) => (message ? t(message, { defaultValue: message }) : undefined);
   const showBasic = sections.includes('basic');
   const showHtml = sections.includes('html');
+  const deliveryType = watch('delivery_type');
+
+  // Cuando delivery_type es 'none', bloquear is_required y forzarlo a false
+  useEffect(() => {
+    if (deliveryType === 'none') {
+      setValue('is_required', false);
+    }
+  }, [deliveryType, setValue]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -97,13 +107,18 @@ export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmittin
           htmlFor={`${idPrefix}-type`}
           error={translateError(errors.delivery_type?.message)}
         >
-          <Select id={`${idPrefix}-type`} {...register('delivery_type')}>
+          <Select 
+            id={`${idPrefix}-type`} 
+            {...register('delivery_type')}
+            value={deliveryType ?? 'file'}
+          >
             <option value="file">File</option>
             <option value="text">Text</option>
             <option value="url">URL</option>
             <option value="video">Video</option>
             <option value="audio">Audio</option>
             <option value="zip">Zip</option>
+            <option value="none">{t('events.taskDeliveryTypeNone')}</option>
           </Select>
         </FormField>
         <FormField
@@ -158,7 +173,11 @@ export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmittin
         </FormField>
         </FormGrid>
         <label className="flex items-center gap-2 text-sm font-medium">
-          <input type="checkbox" {...register('is_required')} />
+          <input 
+            type="checkbox" 
+            {...register('is_required')} 
+            disabled={deliveryType === 'none'}
+          />
           {t('events.taskRequired')}
         </label>
         {!hideSubmitButton && (

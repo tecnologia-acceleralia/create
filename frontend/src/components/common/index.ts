@@ -2,3 +2,12 @@
 export { PageHeader } from './PageHeader';
 export { PageContainer } from './PageContainer';
 export { PasswordGeneratorButton } from './PasswordGeneratorButton';
+export { ErrorDisplay } from './ErrorDisplay';
+export { EmptyState } from './EmptyState';
+export { ExpandableSection } from './ExpandableSection';
+export { AuthCard } from './AuthCard';
+export { DataTable } from './DataTable';
+export type { Column, PaginationMeta } from './DataTable';
+export { FilterCard } from './FilterCard';
+export { CardWithActions } from './CardWithActions';
+export { InfoTooltip } from './InfoTooltip';

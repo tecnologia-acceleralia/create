@@ -9,15 +9,8 @@ import { toast } from 'sonner';
 import { DashboardLayout } from '@/components/layout';
 import { ResourceListCard } from '@/components/cards';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
-import { Spinner } from '@/components/common';
+import { EventCreateModal } from '@/components/events/modals';
+import { Spinner, EmptyState } from '@/components/common';
 import { EventCard } from '@/components/events/EventCard';
 import { createEvent, getEvents, type Event } from '@/services/events';
 import { useTenantPath } from '@/hooks/useTenantPath';
@@ -88,31 +81,13 @@ function EventsListPage() {
         </Button>
       }
     >
-      <Dialog open={isDialogOpen} onOpenChange={openState => (!openState ? handleCloseDialog() : null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>{t('events.formTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('events.createEventDescription', { defaultValue: 'Crea un nuevo evento' })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6">
-            <EventForm form={eventForm} onSubmit={onSubmit} isSubmitting={createMutation.isPending} hideSubmitButton />
-          </div>
-          <DialogFooter className="px-6 pb-6 pt-4 border-t">
-            <Button type="button" variant="outline" onClick={handleCloseDialog}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={eventForm.handleSubmit(onSubmit)}
-              disabled={createMutation.isPending}
-            >
-              {createMutation.isPending ? t('common.loading') : t('events.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EventCreateModal
+        open={isDialogOpen}
+        onOpenChange={openState => (!openState ? handleCloseDialog() : null)}
+        form={eventForm}
+        onSubmit={onSubmit}
+        isSubmitting={createMutation.isPending}
+      />
 
       {isLoading ? (
         <Spinner fullHeight />
@@ -133,7 +108,7 @@ function EventsListPage() {
               }
             />
           )}
-          emptyMessage={<p className="text-sm text-muted-foreground">{t('events.empty')}</p>}
+          emptyMessage={<EmptyState message={t('events.empty')} />}
           contentClassName="grid gap-4 md:grid-cols-2"
         />
       )}

@@ -13,13 +13,12 @@ import PublicEventsHubPage from '@/pages/public/PublicEventsHubPage';
 import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import EventsListPage from '@/pages/admin/events/EventsListPage';
 import EventDetailAdminPage from '@/pages/admin/events/EventDetailAdminPage';
-import EventTrackingPage from '@/pages/admin/events/EventTrackingPage';
 import EventDeliverablesTrackingPage from '@/pages/admin/events/EventDeliverablesTrackingPage';
-import TeamDashboardPage from '@/pages/participant/TeamDashboardPage';
+import MyTeamPage from '@/pages/participant/MyTeamPage';
+import ProjectsPage from '@/pages/participant/ProjectsPage';
 import ParticipantDashboardPage from '@/pages/participant/ParticipantDashboardPage';
-import EventDetailParticipantPage from '@/pages/participant/EventDetailParticipantPage';
+import PhaseDetailParticipantPage from '@/pages/participant/PhaseDetailParticipantPage';
 import EventHomePage from '@/pages/participant/EventHomePage';
-import PhaseZeroPage from '@/pages/participant/PhaseZeroPage';
 import EvaluatorDashboardPage from '@/pages/evaluator/EvaluatorDashboardPage';
 import TaskSubmissionPage from '@/pages/participant/TaskSubmissionPage';
 import NotificationsPage from '@/pages/common/NotificationsPage';
@@ -43,7 +42,8 @@ function TenantNotFoundRedirect() {
 }
 
 function TenantLayout() {
-  const { tenantSlug, setTenantSlug, accessWindow, loading } = useTenant();
+  const { tenantSlug, setTenantSlug, accessWindow, loading, tenantNotFound } = useTenant();
+  const { isSuperAdmin } = useAuth();
   const params = useParams<{ tenantSlug?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,8 +61,27 @@ function TenantLayout() {
     }
   }, [params.tenantSlug, tenantSlug, setTenantSlug]);
 
+  // Verificar si el tenant existe antes de renderizar
   useEffect(() => {
     if (!params.tenantSlug || loading) {
+      return;
+    }
+
+    // Si el tenant no existe y no estamos en una ruta de superadmin, redirigir a home
+    // PERO: si el usuario es superadmin, permitir acceso sin validar tenant
+    if (tenantNotFound && !location.pathname.startsWith('/superadmin') && !isSuperAdmin) {
+      navigate('/', { replace: true });
+      return;
+    }
+  }, [tenantNotFound, loading, location.pathname, navigate, params.tenantSlug, isSuperAdmin]);
+
+  useEffect(() => {
+    // Superadmin puede acceder sin validar accessWindow
+    if (isSuperAdmin) {
+      return;
+    }
+
+    if (!params.tenantSlug || loading || tenantNotFound) {
       return;
     }
 
@@ -74,10 +93,16 @@ function TenantLayout() {
     ) {
       navigate(`/${params.tenantSlug}/dashboard`, { replace: true });
     }
-  }, [accessWindow.isActiveNow, loading, location.pathname, navigate, params.tenantSlug]);
+  }, [accessWindow.isActiveNow, loading, tenantNotFound, location.pathname, navigate, params.tenantSlug, isSuperAdmin]);
 
   if (!params.tenantSlug) {
     return <Navigate to="/" replace />;
+  }
+
+  // Si el tenant no existe, no renderizar nada (la redirección se maneja en el useEffect)
+  // PERO: si el usuario es superadmin, permitir acceso sin validar tenant
+  if (tenantNotFound && !location.pathname.startsWith('/superadmin') && !isSuperAdmin) {
+    return null;
   }
 
   return <Outlet />;
@@ -143,23 +168,7 @@ function AppRoutes() {
           path: 'dashboard/events/:eventId/view',
           element: (
             <ProtectedRoute>
-              <EventDetailParticipantPage />
-            </ProtectedRoute>
-          )
-        },
-        {
-          path: 'dashboard/events/:eventId/phase-zero',
-          element: (
-            <ProtectedRoute>
-              <PhaseZeroPage />
-            </ProtectedRoute>
-          )
-        },
-        {
-          path: 'dashboard/events/:eventId/tracking',
-          element: (
-            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
-              <EventTrackingPage />
+              <PhaseDetailParticipantPage />
             </ProtectedRoute>
           )
         },
@@ -175,7 +184,15 @@ function AppRoutes() {
           path: 'dashboard/events/:eventId/team',
           element: (
             <ProtectedRoute requiredScopes={['participant', 'tenant_admin', 'organizer']}>
-              <TeamDashboardPage />
+              <MyTeamPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/projects',
+          element: (
+            <ProtectedRoute requiredScopes={['participant', 'tenant_admin', 'organizer']}>
+              <ProjectsPage />
             </ProtectedRoute>
           )
         },

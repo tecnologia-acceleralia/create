@@ -2,6 +2,10 @@ import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { ensureUserNotInOtherTeam, findTeamOr404 } from '../services/team.service.js';
+import { getRoleScopes, canEditProject, canViewProject } from '../utils/authorization.js';
+import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
+import { decodeBase64Image, uploadProjectLogo, deleteObjectByUrl } from '../services/tenant-assets.service.js';
+import { ensureParticipantRole } from '../utils/role-management.js';
 
 function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
   const team = project.team;
@@ -16,7 +20,11 @@ function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
     eventMaxTeamSize !== null ? Math.max(eventMaxTeamSize - activeMembers.length, 0) : null;
 
   const canJoin =
-    !isMember && !hasPending && team?.status === 'open' && (remainingSlots === null || remainingSlots > 0);
+    project.status === 'active' &&
+    !isMember &&
+    !hasPending &&
+    team?.status === 'open' &&
+    (remainingSlots === null || remainingSlots > 0);
 
   return {
     id: project.id,
@@ -62,42 +70,6 @@ function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
   };
 }
 
-function getRoleScopes(user) {
-  const scopes = user?.roleScopes;
-  if (!Array.isArray(scopes)) {
-    return [];
-  }
-  return scopes;
-}
-
-function canEditProject(user, team) {
-  const roleScopes = getRoleScopes(user);
-  if (!roleScopes.length) return false;
-
-  if (roleScopes.includes('tenant_admin') || roleScopes.includes('organizer')) return true;
-
-  if (roleScopes.some(scope => scope === 'team_captain' || scope === 'participant')) {
-    return team.captain_id === user.id;
-  }
-
-  return false;
-}
-
-function canViewProject(user, team) {
-  const roleScopes = getRoleScopes(user);
-  if (!roleScopes.length) return false;
-
-  if (roleScopes.some(scope => ['tenant_admin', 'organizer', 'evaluator'].includes(scope))) {
-    return true;
-  }
-
-  if (roleScopes.some(scope => scope === 'team_captain' || scope === 'participant')) {
-    if (team.captain_id === user.id) return true;
-    return team.members?.some(member => member.user_id === user.id);
-  }
-  return false;
-}
-
 export class ProjectsController {
   static async listByEvent(req, res, next) {
     try {
@@ -108,7 +80,7 @@ export class ProjectsController {
         where: { id: eventId, tenant_id: req.tenant.id }
       });
       if (!event) {
-        return res.status(404).json({ success: false, message: 'Evento no encontrado' });
+        return notFoundResponse(res, 'Evento no encontrado');
       }
 
       const projects = await Project.findAll({
@@ -152,7 +124,7 @@ export class ProjectsController {
         serializeProjectCard(project, maxTeamSize, currentUserId)
       );
 
-      res.json({ success: true, data: cards });
+      return successResponse(res, cards);
     } catch (error) {
       next(error);
     }
@@ -169,7 +141,7 @@ export class ProjectsController {
       });
       if (!event) {
         await transaction.rollback();
-        return res.status(404).json({ success: false, message: 'Evento no encontrado' });
+        return notFoundResponse(res, 'Evento no encontrado');
       }
 
       const captainId =
@@ -180,7 +152,7 @@ export class ProjectsController {
       const captainUser = await User.findOne({ where: { id: captainId } });
       if (!captainUser) {
         await transaction.rollback();
-        return res.status(404).json({ success: false, message: 'Capitán no válido' });
+        return notFoundResponse(res, 'Capitán no válido');
       }
 
       await ensureUserNotInOtherTeam(captainId, eventId);
@@ -209,9 +181,7 @@ export class ProjectsController {
 
       if (!title) {
         await transaction.rollback();
-        return res
-          .status(400)
-          .json({ success: false, message: 'El título del proyecto es obligatorio' });
+        return badRequestResponse(res, 'El título del proyecto es obligatorio');
       }
 
       const team = await Team.create(
@@ -294,7 +264,7 @@ export class ProjectsController {
         req.user?.id ?? null
       );
 
-      res.status(201).json({ success: true, data: serialized });
+      return successResponse(res, serialized, 201);
     } catch (error) {
       await transaction.rollback();
       next(error);
@@ -310,7 +280,13 @@ export class ProjectsController {
       const project = await Project.findOne({ where: { id: projectId } });
       if (!project) {
         await transaction.rollback();
-        return res.status(404).json({ success: false, message: 'Proyecto no encontrado' });
+        return notFoundResponse(res, 'Proyecto no encontrado');
+      }
+
+      // Validar que el proyecto esté activo
+      if (project.status !== 'active') {
+        await transaction.rollback();
+        return conflictResponse(res, 'No puedes unirte a un proyecto inactivo');
       }
 
       const team = await findTeamOr404(project.team_id);
@@ -318,7 +294,7 @@ export class ProjectsController {
 
       if (team.status !== 'open') {
         await transaction.rollback();
-        return res.status(409).json({ success: false, message: 'El equipo no admite más miembros' });
+        return conflictResponse(res, 'El equipo no admite más miembros');
       }
 
       const activeMembers = team.members.filter(member => member.status === 'active');
@@ -326,24 +302,19 @@ export class ProjectsController {
 
       if (eventMaxSize && activeMembers.length >= eventMaxSize) {
         await transaction.rollback();
-        return res.status(409).json({
-          success: false,
-          message: 'El equipo ha alcanzado el tamaño máximo permitido'
-        });
+        return conflictResponse(res, 'El equipo ha alcanzado el tamaño máximo permitido');
       }
 
       if (team.members.some(member => member.user_id === req.user.id)) {
         await transaction.rollback();
-        return res.status(409).json({
-          success: false,
-          message: 'Ya perteneces a este equipo'
-        });
+        return conflictResponse(res, 'Ya perteneces a este equipo');
       }
 
       await ensureUserNotInOtherTeam(req.user.id, eventId);
 
       await TeamMember.create(
         {
+          tenant_id: req.tenant.id,
           team_id: team.id,
           user_id: req.user.id,
           role: 'member',
@@ -351,6 +322,9 @@ export class ProjectsController {
         },
         { transaction }
       );
+
+      // Asegurar que el usuario tenga el rol participant
+      await ensureParticipantRole(req.user.id, req.tenant.id, { transaction });
 
       await transaction.commit();
 
@@ -395,7 +369,7 @@ export class ProjectsController {
         req.user.id
       );
 
-      res.status(201).json({ success: true, data: serialized });
+      return successResponse(res, serialized, 201);
     } catch (error) {
       await transaction.rollback();
       next(error);
@@ -410,25 +384,27 @@ export class ProjectsController {
         include: [{
           model: Team,
           as: 'team',
+          attributes: ['id', 'name', 'description', 'requirements', 'status', 'captain_id', 'event_id'],
           include: [{ model: TeamMember, as: 'members' }]
         }]
       });
 
       if (!project) {
-        return res.status(404).json({ success: false, message: 'Proyecto no encontrado' });
+        return notFoundResponse(res, 'Proyecto no encontrado');
       }
 
       if (!(req.auth?.isSuperAdmin || canViewProject(req.user, project.team))) {
-        return res.status(403).json({ success: false, message: 'No autorizado' });
+        return forbiddenResponse(res);
       }
 
-      res.json({ success: true, data: project });
+      return successResponse(res, project);
     } catch (error) {
       next(error);
     }
   }
 
   static async update(req, res, next) {
+    const transaction = await getSequelize().transaction();
     try {
       const { Project, Team, TeamMember } = getModels();
       const project = await Project.findOne({
@@ -436,16 +412,84 @@ export class ProjectsController {
         include: [{
           model: Team,
           as: 'team',
+          attributes: ['id', 'name', 'description', 'requirements', 'status', 'captain_id', 'event_id'],
           include: [{ model: TeamMember, as: 'members' }]
         }]
       });
 
       if (!project) {
-        return res.status(404).json({ success: false, message: 'Proyecto no encontrado' });
+        await transaction.rollback();
+        return notFoundResponse(res, 'Proyecto no encontrado');
       }
 
-      if (!(req.auth?.isSuperAdmin || canEditProject(req.user, project.team))) {
-        return res.status(403).json({ success: false, message: 'No autorizado' });
+      if (!project.team) {
+        await transaction.rollback();
+        return notFoundResponse(res, 'Equipo del proyecto no encontrado');
+      }
+
+      // Validar permisos para editar proyecto
+      const roleScopes = req.user?.roleScopes ?? [];
+      const isSuperAdmin = req.auth?.isSuperAdmin ?? false;
+      const canEdit = canEditProject(req.user, project.team);
+      
+      logger.debug('Validación de permisos para editar proyecto', {
+        userId: req.user?.id,
+        projectId: project.id,
+        teamId: project.team.id,
+        teamCaptainId: project.team.captain_id,
+        roleScopes,
+        isSuperAdmin,
+        canEdit,
+        captainMatch: project.team.captain_id != null && req.user?.id != null 
+          ? Number(project.team.captain_id) === Number(req.user.id) 
+          : false
+      });
+
+      if (!(isSuperAdmin || canEdit)) {
+        await transaction.rollback();
+        return forbiddenResponse(res, 'No tienes permisos para editar este proyecto');
+      }
+
+      // Validar que solo superadmin y tenant_admin puedan cambiar el estado
+      const newStatus = req.body.status ?? project.status;
+      const statusChanged = newStatus !== project.status;
+      if (statusChanged) {
+        const roleScopes = getRoleScopes(req.user);
+        const canChangeStatus = req.auth?.isSuperAdmin || roleScopes.includes('tenant_admin');
+        if (!canChangeStatus) {
+          await transaction.rollback();
+          return forbiddenResponse(res, 'Solo administradores pueden cambiar el estado del proyecto');
+        }
+      }
+
+      const wasActive = project.status === 'active';
+      const willBeInactive = newStatus === 'inactive';
+
+      // Manejar logo como base64 (similar a tenant)
+      const wantsToRemoveLogo =
+        Object.prototype.hasOwnProperty.call(req.body, 'logo') && req.body.logo === null;
+
+      let uploadResult = null;
+      const previousLogoUrl = project.logo_url;
+      let logoUrl = req.body.logo_url;
+
+      if (typeof req.body.logo === 'string' && req.body.logo.startsWith('data:')) {
+        try {
+          const { buffer, mimeType, extension } = decodeBase64Image(req.body.logo);
+          uploadResult = await uploadProjectLogo({
+            tenantId: req.tenant.id,
+            projectId: project.id,
+            buffer,
+            contentType: mimeType,
+            extension
+          });
+          logoUrl = uploadResult.url;
+        } catch (uploadError) {
+          await transaction.rollback();
+          return badRequestResponse(res, uploadError.message);
+        }
+      } else if (wantsToRemoveLogo) {
+        logoUrl = null;
       }
 
       await project.update({
@@ -453,14 +497,54 @@ export class ProjectsController {
         summary: req.body.summary,
         problem: req.body.problem,
         solution: req.body.solution,
-        logo_url: req.body.logo_url,
+        logo_url: logoUrl,
         repository_url: req.body.repository_url,
         pitch_url: req.body.pitch_url,
-        status: req.body.status ?? project.status
+        status: newStatus
+      }, { transaction });
+
+      // Si el proyecto se vuelve inactivo, cerrar el equipo automáticamente
+      if (wasActive && willBeInactive && project.team) {
+        await project.team.update(
+          { status: 'closed' },
+          { transaction }
+        );
+      }
+
+      await transaction.commit();
+
+      // Limpiar logo anterior si se subió uno nuevo o se eliminó
+      if (wantsToRemoveLogo && previousLogoUrl && !uploadResult) {
+        await deleteObjectByUrl(previousLogoUrl).catch(error => {
+          logger.warn('No se pudo eliminar el logo anterior del proyecto', {
+            error: error.message,
+            projectId: project.id
+          });
+        });
+      }
+
+      if (uploadResult && previousLogoUrl && previousLogoUrl !== uploadResult.url) {
+        await deleteObjectByUrl(previousLogoUrl).catch(error => {
+          logger.warn('No se pudo eliminar el logo anterior tras actualizarlo', {
+            error: error.message,
+            projectId: project.id
+          });
+        });
+      }
+
+      // Recargar el proyecto con las relaciones actualizadas
+      const updatedProject = await Project.findOne({
+        where: { id: project.id },
+        include: [{
+          model: Team,
+          as: 'team',
+          include: [{ model: TeamMember, as: 'members' }]
+        }]
       });
 
-      res.json({ success: true, data: project });
+      return successResponse(res, updatedProject);
     } catch (error) {
+      await transaction.rollback();
       next(error);
     }
   }

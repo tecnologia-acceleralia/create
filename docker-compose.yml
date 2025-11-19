@@ -57,7 +57,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    command: npm run dev
+    command: pnpm run dev
 
   # Frontend React App
   frontend:

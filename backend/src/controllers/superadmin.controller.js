@@ -12,6 +12,9 @@ import {
   validateSpacesConfiguration,
   probeSpacesConnection
 } from '../services/tenant-assets.service.js';
+import { parsePageParam, parsePageSizeParam, parseCsvParam, coerceNullableInteger, coerceNullableString } from '../utils/parsers.js';
+import { normalizeSort, mapGroupedCount, buildPaginationMeta } from '../utils/pagination.js';
+import { successResponse, errorResponse, notFoundResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 
 const DEFAULT_ROLES = [
   { name: 'Administrador de Cliente', scope: 'tenant_admin' },
@@ -69,77 +72,6 @@ function ensureAdminPayload(admin = {}) {
   };
 }
 
-function parseCsvParam(value) {
-  if (!value) {
-    return [];
-  }
-
-  const source = Array.isArray(value) ? value.join(',') : value;
-  return source
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean);
-}
-
-function parsePageParam(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed < 1) {
-    return fallback;
-  }
-  return parsed;
-}
-
-function parsePageSizeParam(value, fallback, max) {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed < 1) {
-    return fallback;
-  }
-  if (typeof max === 'number' && parsed > max) {
-    return max;
-  }
-  return parsed;
-}
-
-function normalizeSort(sortField, sortOrder, map, defaultField) {
-  const resolvedField = map[sortField] ?? map[defaultField] ?? defaultField;
-  const normalizedOrder = sortOrder === 'asc' ? 'ASC' : 'DESC';
-  return [resolvedField, normalizedOrder];
-}
-
-function mapGroupedCount(results, key = 'status') {
-  if (!Array.isArray(results)) {
-    return {};
-  }
-
-  return results.reduce((accumulator, entry) => {
-    if (!entry || !Object.prototype.hasOwnProperty.call(entry, key)) {
-      return accumulator;
-    }
-    const value = entry[key];
-    const count = Number(entry.count ?? entry?.dataValues?.count ?? 0);
-    accumulator[value] = count;
-    return accumulator;
-  }, {});
-}
-
-function buildPaginationMeta({ page, pageSize, totalItems }) {
-  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize);
-  return {
-    page,
-    pageSize,
-    totalItems,
-    totalPages
-  };
-}
-
-function coerceNullableInteger(value) {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-
-  const parsed = Number.parseInt(value, 10);
-  return Number.isNaN(parsed) ? null : parsed;
-}
 
 function normalizeTenantRolesPayload(rawPayload) {
   if (!rawPayload) {
@@ -275,15 +207,6 @@ async function syncUserTenantRoles({ membershipId, tenantId, desiredScopes, Role
   }
 }
 
-
-function coerceNullableString(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-  const trimmed = String(value).trim();
-  return trimmed === '' ? null : trimmed;
-}
-
 function parseHeroContent(payload) {
   if (payload === null || payload === undefined || payload === '') {
     return null;
@@ -374,7 +297,7 @@ export class SuperAdminController {
       });
     } catch (error) {
       logger.error('Error obteniendo el resumen de superadmin', { error: error.message });
-      return res.status(500).json({ success: false, message: 'No se pudo obtener el resumen' });
+      return errorResponse(res, 'No se pudo obtener el resumen', 500);
     }
   }
 
@@ -387,7 +310,7 @@ export class SuperAdminController {
     const subdomain = requestedSubdomain || slug;
 
     if (!slug) {
-      return res.status(400).json({ success: false, message: 'Slug inválido' });
+      return badRequestResponse(res, 'Slug inválido');
     }
 
     try {
@@ -397,7 +320,7 @@ export class SuperAdminController {
         }
       });
       if (existing) {
-        return res.status(409).json({ success: false, message: 'Slug o subdominio ya están en uso' });
+        return conflictResponse(res, 'Slug o subdominio ya están en uso');
       }
 
       const heroContent = payload.hero_content ? parseHeroContent(payload.hero_content) : null;
@@ -509,7 +432,7 @@ export class SuperAdminController {
       });
     } catch (error) {
       logger.error('Error creando tenant', { error: error.message });
-      return res.status(500).json({ success: false, message: 'Error creando tenant' });
+      return errorResponse(res, 'Error creando tenant', 500);
     }
   }
 
@@ -617,7 +540,7 @@ export class SuperAdminController {
     try {
       const tenant = await Tenant.findByPk(tenantId);
       if (!tenant) {
-        return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
+        return notFoundResponse(res, 'Tenant no encontrado');
       }
 
       const updates = {};
@@ -746,7 +669,7 @@ export class SuperAdminController {
     try {
       const tenant = await Tenant.findByPk(tenantId);
       if (!tenant) {
-        return res.status(404).json({ success: false, message: 'Tenant no encontrado' });
+        return notFoundResponse(res, 'Tenant no encontrado');
       }
 
       await tenant.destroy();
@@ -897,7 +820,7 @@ export class SuperAdminController {
     try {
       const existing = await User.scope('withPassword').findOne({ where: { email: payload.email } });
       if (existing) {
-        return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
+        return conflictResponse(res, 'Ya existe un usuario con ese email');
       }
 
       const rawPassword = payload.password?.trim() || crypto.randomUUID();
@@ -1011,7 +934,7 @@ export class SuperAdminController {
     try {
       const user = await User.scope('withPassword').findByPk(userId);
       if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+        return notFoundResponse(res, 'Usuario no encontrado');
       }
 
       const updates = {};
@@ -1034,7 +957,7 @@ export class SuperAdminController {
           where: { email: updates.email, id: { [Op.ne]: user.id } }
         });
         if (existing) {
-          return res.status(409).json({ success: false, message: 'Ya existe un usuario con ese email' });
+          return conflictResponse(res, 'Ya existe un usuario con ese email');
         }
       }
 
@@ -1185,7 +1108,7 @@ export class SuperAdminController {
     try {
       const user = await User.findByPk(userId);
       if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+        return notFoundResponse(res, 'Usuario no encontrado');
       }
 
       await UserTenant.destroy({

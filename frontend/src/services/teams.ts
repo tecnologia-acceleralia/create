@@ -24,7 +24,7 @@ export type Team = {
     id: number;
     name: string;
     summary?: string;
-    status: 'draft' | 'active' | 'completed';
+    status: 'active' | 'inactive';
     problem?: string;
     solution?: string;
     repository_url?: string;
@@ -71,5 +71,14 @@ export async function setCaptain(teamId: number, userId: number) {
 export async function getTeamsByEvent(eventId: number) {
   const response = await apiClient.get(`/teams/events/${eventId}`);
   return response.data.data as Team[];
+}
+
+export async function joinTeam(teamId: number) {
+  const response = await apiClient.post(`/teams/${teamId}/join`);
+  return response.data.data as { member: TeamMember; team: Team };
+}
+
+export async function leaveTeam(teamId: number) {
+  await apiClient.post(`/teams/${teamId}/leave`);
 }
 

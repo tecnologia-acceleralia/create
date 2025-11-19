@@ -6,10 +6,9 @@ import { z } from 'zod';
 import { isAxiosError } from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 
-import { PageContainer, Spinner } from '@/components/common';
+import { PageContainer, Spinner, AuthCard, ErrorDisplay } from '@/components/common';
 import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -102,7 +101,7 @@ function isEventOpen(event: PublicEvent | null) {
 
 export default function RegisterPage() {
   const { t, i18n } = useTranslation();
-  const { tenantSlug, branding } = useTenant();
+  const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
   const { hydrateSession } = useAuth();
@@ -352,27 +351,20 @@ export default function RegisterPage() {
   }
 
   return (
-    <PageContainer className="flex justify-center">
-      <Card className="h-full w-full max-w-xl border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
-        <CardHeader className="flex flex-col items-center gap-3">
-          {branding.logoUrl ? (
-            <img
-              src={branding.logoUrl}
-              alt={t('navigation.brand', { defaultValue: 'Create' })}
-              className="h-12 w-auto"
-            />
-          ) : null}
-          <CardTitle className="text-2xl font-semibold text-[color:var(--tenant-primary)]">
-            {t('register.title')}
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">{t('register.subtitle')}</p>
-          {selectedEvent ? (
-            <div className="rounded-full border border-border/70 bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground">
-              {t('register.eventTag', { name: selectedEvent.name })}
-            </div>
-          ) : null}
-        </CardHeader>
-        <CardContent>
+    <AuthCard
+      maxWidth="xl"
+      title={t('register.title')}
+      subtitle={t('register.subtitle')}
+      badge={selectedEvent ? t('register.eventTag', { name: selectedEvent.name }) : undefined}
+      footer={
+        <div className="flex flex-col items-center gap-2">
+          <p>{t('register.alreadyHaveAccount')}</p>
+          <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
+            <Link to={tenantPath('login')}>{t('register.goToLogin')}</Link>
+          </Button>
+        </div>
+      }
+    >
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
@@ -580,22 +572,13 @@ export default function RegisterPage() {
               ) : null}
             </div>
 
-            {submissionError ? <p className="text-sm text-destructive">{submissionError}</p> : null}
+            <ErrorDisplay error={submissionError} />
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? t('common.loading') : t('register.submit')}
             </Button>
-
-            <div className="flex flex-col items-center gap-2 text-center text-sm text-muted-foreground">
-              <p>{t('register.alreadyHaveAccount')}</p>
-              <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
-                <Link to={tenantPath('login')}>{t('register.goToLogin')}</Link>
-              </Button>
-            </div>
           </form>
-        </CardContent>
-      </Card>
-    </PageContainer>
+    </AuthCard>
   );
 }
 

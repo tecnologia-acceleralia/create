@@ -56,6 +56,7 @@ type TenantContextValue = {
   loading: boolean;
   tenantCss: string | null;
   accessWindow: TenantAccessWindow;
+  tenantNotFound: boolean;
 };
 
 const defaultBranding: Branding = {
@@ -138,16 +139,17 @@ function detectInitialSlug(): string | null {
     return null;
   }
 
+  const reservedSegments = new Set(['superadmin', 'dashboard']);
+
   const host = browserWindow.location.hostname;
   if (host.includes('.')) {
     const [subdomain] = host.split('.');
-    if (subdomain && subdomain !== 'www') {
+    if (subdomain && subdomain !== 'www' && !reservedSegments.has(subdomain.toLowerCase())) {
       return subdomain.toLowerCase();
     }
   }
 
   const firstSegment = browserWindow.location.pathname.split('/').find(Boolean);
-  const reservedSegments = new Set(['superadmin', 'dashboard']);
   if (firstSegment && !reservedSegments.has(firstSegment.toLowerCase())) {
     return firstSegment.toLowerCase();
   }
@@ -246,14 +248,17 @@ export function TenantProvider({ children }: Props) {
   const [loading, setLoading] = useState(false);
   const [tenantCss, setTenantCss] = useState<string | null>(initialCachedBranding?.tenantCss ?? null);
   const [accessWindow, setAccessWindow] = useState<TenantAccessWindow>(initialCachedBranding?.accessWindow ?? defaultAccessWindow);
+  const [tenantNotFound, setTenantNotFound] = useState(false);
 
   const refreshBranding = useCallback(async () => {
     if (!tenantSlug) {
+      setTenantNotFound(false);
       return;
     }
 
     try {
       setLoading(true);
+      setTenantNotFound(false);
       const [brandingResponse, phasesResponse] = await Promise.all([
         apiClient.get('/public/branding', {
           params: { slug: tenantSlug }
@@ -331,7 +336,16 @@ export function TenantProvider({ children }: Props) {
         };
       });
       setPhases(phasesData);
-    } catch (error) {
+    } catch (error: any) {
+      // Verificar si el error es 404 (tenant no encontrado)
+      const isNotFound = error?.response?.status === 404;
+      
+      if (isNotFound) {
+        setTenantNotFound(true);
+      } else {
+        setTenantNotFound(false);
+      }
+
       if (import.meta.env.DEV) {
         console.error('Error al refrescar el branding del tenant', error);
       }
@@ -358,6 +372,7 @@ export function TenantProvider({ children }: Props) {
         setBranding(cached.branding);
         setTenantCss(cached.tenantCss);
         setAccessWindow(cached.accessWindow);
+        setTenantNotFound(false);
       } else {
         setBranding(defaultBranding);
         setTenantCss(null);
@@ -370,6 +385,7 @@ export function TenantProvider({ children }: Props) {
       setPhases([]);
       setTenantCss(null);
       setAccessWindow(defaultAccessWindow);
+      setTenantNotFound(false);
     }
   }, [tenantSlug, refreshBranding]);
 
@@ -382,9 +398,10 @@ export function TenantProvider({ children }: Props) {
       refreshBranding,
       loading,
       tenantCss,
-      accessWindow
+      accessWindow,
+      tenantNotFound
     }),
-    [tenantSlug, branding, phases, setTenantSlug, refreshBranding, loading, tenantCss, accessWindow]
+    [tenantSlug, branding, phases, setTenantSlug, refreshBranding, loading, tenantCss, accessWindow, tenantNotFound]
   );
 
   return <TenantContext.Provider value={value}>{children}</TenantContext.Provider>;

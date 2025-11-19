@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/utils/cn';
 
 type FormFieldProps = {
-  label?: string;
+  label?: string | ReactNode;
   htmlFor?: string;
   description?: string;
   error?: string;

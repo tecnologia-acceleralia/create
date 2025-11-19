@@ -39,8 +39,8 @@ export function ProjectModel(sequelize) {
         allowNull: true
       },
       status: {
-        type: DataTypes.ENUM('draft', 'active', 'completed'),
-        defaultValue: 'draft'
+        type: DataTypes.ENUM('active', 'inactive'),
+        defaultValue: 'active'
       },
       logo_url: {
         type: DataTypes.STRING(500),

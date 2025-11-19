@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Spinner } from '@/components/common';
+import { Spinner, EmptyState } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { ResourceListCard } from '@/components/cards';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,7 +45,7 @@ function NotificationsPage() {
             </CardContent>
           </Card>
         )}
-        emptyMessage={<p className="text-sm text-muted-foreground">{t('notifications.empty')}</p>}
+        emptyMessage={<EmptyState message={t('notifications.empty')} />}
         contentClassName="space-y-3"
       />
     </DashboardLayout>

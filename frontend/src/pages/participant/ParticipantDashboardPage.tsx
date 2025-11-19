@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTenantPath } from '@/hooks/useTenantPath';
 
-import { Spinner } from '@/components/common';
+import { Spinner, EmptyState } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { useExpandableEventTasks } from '@/hooks/useExpandableEventTasks';
 function ParticipantDashboardPage() {
   const { t } = useTranslation();
   const tenantPath = useTenantPath();
+  const navigate = useNavigate();
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ['events'], queryFn: getEvents });
   const { expandedEventId, tasksByEvent, toggle, isExpanded } = useExpandableEventTasks(async (eventId: number) => {
     const detail = await getEventDetail(eventId);
@@ -33,6 +34,14 @@ function ParticipantDashboardPage() {
       tenantEvents: events
     };
   }, [events]);
+
+  // Redirigir automáticamente si solo hay un evento registrado
+  useEffect(() => {
+    if (!isLoading && registeredEvents.length === 1) {
+      const event = registeredEvents[0];
+      navigate(tenantPath(`dashboard/events/${event.id}/home`), { replace: true });
+    }
+  }, [isLoading, registeredEvents, navigate, tenantPath]);
 
   if (isLoading) {
     return <Spinner fullHeight />;
@@ -74,13 +83,13 @@ function ParticipantDashboardPage() {
                           ) : (
                             <>
                               <Button asChild variant="outline">
-                                <Link to={tenantPath(`dashboard/events/${event.id}/team#projects-list`)}>
-                                  {t('teams.viewTeams')}
+                                <Link to={tenantPath(`dashboard/events/${event.id}/projects`)}>
+                                  {t('projects.title')}
                                 </Link>
                               </Button>
                               <Button asChild>
-                                <Link to={tenantPath(`dashboard/events/${event.id}/team#projects-create`)}>
-                                  {t('teams.createTeam')}
+                                <Link to={tenantPath(`dashboard/events/${event.id}/projects#create`)}>
+                                  {t('projects.create')}
                                 </Link>
                               </Button>
                             </>
@@ -116,7 +125,7 @@ function ParticipantDashboardPage() {
                   );
                 })}
                 {registeredEvents.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t('events.noRegisteredEvents')}</p>
+                  <EmptyState message={t('events.noRegisteredEvents')} />
                 ) : null}
               </div>
             </CardContent>
@@ -144,7 +153,7 @@ function ParticipantDashboardPage() {
                   />
                 ))}
                 {tenantEvents.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t('events.empty')}</p>
+                  <EmptyState message={t('events.empty')} />
                 ) : null}
               </div>
             </CardContent>

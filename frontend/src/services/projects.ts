@@ -6,7 +6,7 @@ export type Project = {
   summary?: string | null;
   problem?: string | null;
   solution?: string | null;
-  status: 'draft' | 'active' | 'completed';
+  status: 'active' | 'inactive';
   logo_url?: string | null;
   repository_url?: string | null;
   pitch_url?: string | null;
@@ -34,7 +34,7 @@ export type ProjectCard = {
   description?: string | null;
   requirements?: string | null;
   image_url?: string | null;
-  status: 'draft' | 'active' | 'completed';
+  status: 'active' | 'inactive';
   team_status?: 'open' | 'closed' | null;
   team_name?: string | null;
   members_count: number;
@@ -58,7 +58,7 @@ export async function getProject(projectId: number) {
   return response.data.data as Project;
 }
 
-export async function updateProject(projectId: number, payload: Partial<Project>) {
+export async function updateProject(projectId: number, payload: Partial<Project & { logo?: string | null }>) {
   const response = await apiClient.put(`/projects/${projectId}`, payload);
   return response.data.data as Project;
 }

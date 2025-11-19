@@ -8,19 +8,18 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
-import { Spinner } from '@/components/common';
+import { Spinner, EmptyState, CardWithActions } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
+  EventEditModal,
+  PhaseModal,
+  TaskModal,
+  RubricModal,
+  TeamDetailsModal
+} from '@/components/admin/modals';
 import { formatDateValue } from '@/utils/date';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
@@ -120,6 +119,10 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
   const queryClient = useQueryClient();
   const tenantPath = useTenantPath();
   const { branding } = useTenant();
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Leer el tab de la URL, por defecto 'event-data'
+  const activeTab = searchParams.get('tab') || 'event-data';
 
   const phases = (eventDetail?.phases ?? []) as Phase[];
   const tasks = (eventDetail?.tasks ?? []) as Task[];
@@ -577,11 +580,10 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
       description: values.description || undefined,
       intro_html: values.intro_html || undefined,
       phase_id: Number(values.phase_id),
-      delivery_type: values.delivery_type || 'file',
+      delivery_type: values.delivery_type ?? 'file',
       is_required: Boolean(values.is_required),
       due_date: values.due_date || undefined,
       order_index: values.order_index !== undefined && !Number.isNaN(values.order_index) ? Number(values.order_index) : undefined,
-      phase_rubric_id: Number.isNaN(values.phase_rubric_id) ? undefined : values.phase_rubric_id,
       max_files: Number.isNaN(values.max_files) ? undefined : values.max_files,
       max_file_size_mb: Number.isNaN(values.max_file_size_mb) ? undefined : values.max_file_size_mb,
       allowed_mime_types: values.allowed_mime_types
@@ -591,6 +593,14 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
             .filter(Boolean)
         : undefined
     };
+
+    // Manejar phase_rubric_id: incluir solo si tiene valor o si queremos limpiarlo explícitamente
+    if (values.phase_rubric_id !== undefined && !Number.isNaN(values.phase_rubric_id)) {
+      payload.phase_rubric_id = Number(values.phase_rubric_id);
+    } else if (editingTask) {
+      // Si estamos editando y el campo está vacío, limpiar el valor existente
+      payload.phase_rubric_id = null;
+    }
 
     if (editingTask) {
       updateTaskMutation.mutate({ taskId: editingTask.id, payload });
@@ -733,9 +743,20 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
     };
   }, [primaryColor]);
 
+  const handleTabChange = (value: string) => {
+    const newSearchParams = new URLSearchParams(searchParams);
+    if (value === 'event-data') {
+      // Si es el tab por defecto, eliminar el parámetro de la URL
+      newSearchParams.delete('tab');
+    } else {
+      newSearchParams.set('tab', value);
+    }
+    setSearchParams(newSearchParams, { replace: true });
+  };
+
   return (
     <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
-      <Tabs defaultValue="event-data" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList data-event-tabs>
           <TabsTrigger value="event-data">{t('events.eventData')}</TabsTrigger>
           <TabsTrigger value="phases-tasks">{t('events.phasesAndTasks')}</TabsTrigger>
@@ -747,14 +768,15 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
 
         {/* Tab: Datos del evento */}
         <TabsContent value="event-data">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{t('events.eventData')}</CardTitle>
+          <CardWithActions
+            title={t('events.eventData')}
+            actions={
               <Button onClick={handleOpenEventModal}>
                 {t('common.edit')}
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            }
+            contentClassName="space-y-4"
+          >
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">{t('events.name')}</p>
@@ -813,24 +835,24 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                   </div>
                 )}
               </div>
-            </CardContent>
-          </Card>
+          </CardWithActions>
         </TabsContent>
 
         {/* Tab: Fases y Tareas */}
         <TabsContent value="phases-tasks" className="space-y-6">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{t('events.phasesAndTasks')}</CardTitle>
+          <CardWithActions
+            title={t('events.phasesAndTasks')}
+            actions={
               <Button onClick={() => handleOpenPhaseModal()}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t('events.addPhase')}
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {sortedPhases.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t('events.noPhases')}</p>
-              ) : (
+            }
+            contentClassName="space-y-6"
+          >
+            {sortedPhases.length === 0 ? (
+              <EmptyState message={t('events.noPhases')} />
+            ) : (
                 sortedPhases.map(phase => {
                   const phaseTasks = tasksByPhase.get(phase.id) ?? [];
                   return (
@@ -932,21 +954,21 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                   );
                 })
               )}
-            </CardContent>
-          </Card>
+          </CardWithActions>
         </TabsContent>
 
         {/* Tab: Rúbricas */}
         <TabsContent value="rubrics" className="space-y-6">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{t('events.rubricsTitle')}</CardTitle>
+          <CardWithActions
+            title={t('events.rubricsTitle')}
+            actions={
               <Button onClick={() => handleOpenRubricModal()}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t('common.add')}
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-6">
+            }
+            contentClassName="space-y-6"
+          >
               {/* Rúbricas de proyecto */}
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-foreground">{t('events.projectRubrics')}</p>
@@ -1065,8 +1087,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
                   })}
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </CardWithActions>
         </TabsContent>
 
         {/* Tab: Recursos */}
@@ -1094,431 +1115,64 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
         </TabsContent>
       </Tabs>
 
-      {/* Modal de Edición de Evento */}
-      <Dialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>{t('events.editEvent')}</DialogTitle>
-            <DialogDescription>
-              {t('events.editEventDescription', { defaultValue: 'Modifica los detalles del evento' })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6">
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList data-event-form-tabs className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-                <TabsTrigger value="html">HTML</TabsTrigger>
-                <TabsTrigger value="registration">{t('events.registrationSchema', { defaultValue: 'Esquema de Registro' })}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="basic" className="mt-4">
-                <EventForm
-                  form={eventForm}
-                  onSubmit={onSubmitEvent}
-                  isSubmitting={updateEventMutation.isPending}
-                  hideSubmitButton
-                  idPrefix="event"
-                  sections={['basic']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-                <EventForm
-                  form={eventForm}
-                  onSubmit={onSubmitEvent}
-                  isSubmitting={updateEventMutation.isPending}
-                  hideSubmitButton
-                  idPrefix="event"
-                  sections={['html']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-              <TabsContent value="registration" className="mt-4">
-                <EventForm
-                  form={eventForm}
-                  onSubmit={onSubmitEvent}
-                  isSubmitting={updateEventMutation.isPending}
-                  hideSubmitButton
-                  idPrefix="event"
-                  sections={['registration']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-          <DialogFooter className="px-6 pb-6 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsEventModalOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              type="button"
-              onClick={eventForm.handleSubmit(onSubmitEvent)}
-              disabled={updateEventMutation.isPending}
-            >
-              {updateEventMutation.isPending ? t('common.loading') : t('common.update')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <EventEditModal
+        open={isEventModalOpen}
+        onOpenChange={setIsEventModalOpen}
+        form={eventForm}
+        onSubmit={onSubmitEvent}
+        isSubmitting={updateEventMutation.isPending}
+        eventId={eventId}
+      />
 
-      {/* Modal de Fase */}
-      <Dialog open={isPhaseModalOpen} onOpenChange={setIsPhaseModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>
-              {editingPhase ? t('events.editPhase') : t('events.createPhase')}
-            </DialogTitle>
-            <DialogDescription>
-              {editingPhase
-                ? t('events.editPhaseDescription', { defaultValue: 'Modifica los detalles de la fase' })
-                : t('events.createPhaseDescription', { defaultValue: 'Crea una nueva fase para el evento' })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6">
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList data-phase-form-tabs className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-                <TabsTrigger value="html">HTML</TabsTrigger>
-              </TabsList>
-              <TabsContent value="basic" className="mt-4">
-                <PhaseForm
-                  form={phaseForm}
-                  onSubmit={onSubmitPhase}
-                  isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
-                  hideSubmitButton={true}
-                  sections={['basic']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-                <PhaseForm
-                  form={phaseForm}
-                  onSubmit={onSubmitPhase}
-                  isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
-                  hideSubmitButton={true}
-                  sections={['html']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-          <DialogFooter className="px-6 pb-6 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsPhaseModalOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={phaseForm.handleSubmit(onSubmitPhase)}
-              disabled={createPhaseMutation.isPending || updatePhaseMutation.isPending}
-            >
-              {createPhaseMutation.isPending || updatePhaseMutation.isPending
-                ? t('common.loading')
-                : editingPhase
-                  ? t('common.update')
-                  : t('common.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PhaseModal
+        open={isPhaseModalOpen}
+        onOpenChange={setIsPhaseModalOpen}
+        form={phaseForm}
+        onSubmit={onSubmitPhase}
+        isSubmitting={createPhaseMutation.isPending || updatePhaseMutation.isPending}
+        editingPhase={editingPhase}
+        eventId={eventId}
+      />
 
-      {/* Modal de Tarea */}
-      <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>
-              {editingTask ? t('events.editTask') : t('events.createTask')}
-            </DialogTitle>
-            <DialogDescription>
-              {editingTask
-                ? t('events.editTaskDescription', { defaultValue: 'Modifica los detalles de la tarea' })
-                : t('events.createTaskDescription', { defaultValue: 'Crea una nueva tarea para la fase' })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6">
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList data-task-form-tabs className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-                <TabsTrigger value="html">HTML</TabsTrigger>
-              </TabsList>
-              <TabsContent value="basic" className="mt-4">
-                <TaskForm
-                  form={taskForm as any}
-                  phases={sortedPhases}
-                  availableRubrics={availableRubrics}
-                  onSubmit={onSubmitTask}
-                  isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
-                  hideSubmitButton={true}
-                  sections={['basic']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-              <TabsContent value="html" className="mt-4 h-[calc(90vh-200px)]">
-                <TaskForm
-                  form={taskForm as any}
-                  phases={sortedPhases}
-                  availableRubrics={availableRubrics}
-                  onSubmit={onSubmitTask}
-                  isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
-                  hideSubmitButton={true}
-                  sections={['html']}
-                  eventId={eventId}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-          <DialogFooter className="px-6 pb-6 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsTaskModalOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={taskForm.handleSubmit(onSubmitTask)}
-              disabled={taskMutation.isPending || updateTaskMutation.isPending}
-            >
-              {taskMutation.isPending || updateTaskMutation.isPending
-                ? t('common.loading')
-                : editingTask
-                  ? t('common.update')
-                  : t('common.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TaskModal
+        open={isTaskModalOpen}
+        onOpenChange={setIsTaskModalOpen}
+        form={taskForm}
+        onSubmit={onSubmitTask}
+        isSubmitting={taskMutation.isPending || updateTaskMutation.isPending}
+        editingTask={editingTask}
+        phases={sortedPhases}
+        availableRubrics={availableRubrics}
+        eventId={eventId}
+      />
 
-      {/* Modal de Rúbrica */}
-      <Dialog open={isRubricModalOpen} onOpenChange={setIsRubricModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4">
-            <DialogTitle>
-              {editingRubric ? t('events.editRubric') : t('events.createRubric')}
-            </DialogTitle>
-            <DialogDescription>
-              {editingRubric
-                ? t('events.editRubricDescription', { defaultValue: 'Modifica los detalles de la rúbrica' })
-                : t('events.createRubricDescription', { defaultValue: 'Crea una nueva rúbrica de evaluación' })}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6">
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList data-rubric-form-tabs className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-                <TabsTrigger value="criteria">{t('events.rubricCriteriaTitle', { defaultValue: 'Criterios' })}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="basic" className="mt-4">
-                <RubricForm
-                  form={rubricForm}
-                  phases={sortedPhases}
-                  criteriaFields={criteriaArray.fields}
-                  onAddCriterion={() =>
-                    criteriaArray.append({
-                      title: '',
-                      description: '',
-                      weight: 1,
-                      max_score: null,
-                      order_index: (criteriaArray.fields.length || 0) + 1
-                    })
-                  }
-                  onRemoveCriterion={criteriaArray.remove}
-                  onSubmit={onSubmitRubric}
-                  onCancelEdit={resetRubricForm}
-                  isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
-                  isEditing={Boolean(editingRubric)}
-                  hideSubmitButton={true}
-                  sections={['basic']}
-                />
-              </TabsContent>
-              <TabsContent value="criteria" className="mt-4">
-                <RubricForm
-                  form={rubricForm}
-                  phases={sortedPhases}
-                  criteriaFields={criteriaArray.fields}
-                  onAddCriterion={() =>
-                    criteriaArray.append({
-                      title: '',
-                      description: '',
-                      weight: 1,
-                      max_score: null,
-                      order_index: (criteriaArray.fields.length || 0) + 1
-                    })
-                  }
-                  onRemoveCriterion={criteriaArray.remove}
-                  onSubmit={onSubmitRubric}
-                  onCancelEdit={resetRubricForm}
-                  isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
-                  isEditing={Boolean(editingRubric)}
-                  hideSubmitButton={true}
-                  sections={['criteria']}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-          <DialogFooter className="px-6 pb-6 pt-4 border-t">
-            <Button variant="outline" onClick={() => setIsRubricModalOpen(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              onClick={rubricForm.handleSubmit(onSubmitRubric)}
-              disabled={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
-            >
-              {createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending
-                ? t('common.loading')
-                : editingRubric
-                  ? t('common.update')
-                  : t('common.create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RubricModal
+        open={isRubricModalOpen}
+        onOpenChange={setIsRubricModalOpen}
+        form={rubricForm}
+        onSubmit={onSubmitRubric}
+        onCancelEdit={resetRubricForm}
+        isSubmitting={createRubricMutation.isPending || updateRubricMutation.isPending || createProjectRubricMutation.isPending || updateProjectRubricMutation.isPending}
+        editingRubric={editingRubric}
+        phases={sortedPhases}
+        criteriaFields={criteriaArray.fields}
+        onAddCriterion={() =>
+          criteriaArray.append({
+            title: '',
+            description: '',
+            weight: 1,
+            max_score: null,
+            order_index: (criteriaArray.fields.length || 0) + 1
+          })
+        }
+        onRemoveCriterion={criteriaArray.remove}
+      />
 
-      {/* Modal de Detalles del Equipo */}
-      <Dialog open={isTeamDetailsModalOpen} onOpenChange={setIsTeamDetailsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('teams.teamDetails')}</DialogTitle>
-            <DialogDescription>
-              {selectedTeam?.name}
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTeam && (
-            <Tabs defaultValue="team" className="w-full">
-              <TabsList data-team-details-tabs className="grid w-full grid-cols-2">
-                <TabsTrigger value="team">{t('teams.team')}</TabsTrigger>
-                <TabsTrigger value="project">{t('teams.project')}</TabsTrigger>
-              </TabsList>
-              
-              {/* Tab: Equipo */}
-              <TabsContent value="team" className="space-y-6 mt-4">
-                {/* Información del Equipo */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">{t('teams.teamInfo')}</h3>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{t('teams.name')}</p>
-                      <p className="text-base font-semibold">{selectedTeam.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{t('teams.status')}</p>
-                      <Badge variant={selectedTeam.status === 'open' ? 'default' : 'secondary'}>
-                        {selectedTeam.status === 'open' ? t('teams.statusOpen') : t('teams.statusClosed')}
-                      </Badge>
-                    </div>
-                    {selectedTeam.description && (
-                      <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.description')}</p>
-                        <p className="text-base">{selectedTeam.description}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Miembros del Equipo */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">{t('teams.members')}</h3>
-                  <div className="space-y-2">
-                    {selectedTeam.members && selectedTeam.members.length > 0 ? (
-                      selectedTeam.members.map(member => (
-                        <div key={member.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
-                          <div>
-                            <p className="font-medium">
-                              {member.user?.first_name} {member.user?.last_name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{member.user?.email}</p>
-                          </div>
-                          <Badge variant={member.role === 'captain' ? 'default' : 'outline'}>
-                            {member.role === 'captain' ? t('teams.captain') : t('teams.member')}
-                          </Badge>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">{t('teams.noMembers')}</p>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* Tab: Proyecto */}
-              <TabsContent value="project" className="space-y-4 mt-4">
-                {selectedTeam.project ? (
-                  <div className="space-y-4 rounded-lg border border-border/70 p-4">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectName')}</p>
-                        <p className="text-base font-semibold">{selectedTeam.project.name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectStatus')}</p>
-                        <Badge variant="outline" className="capitalize">
-                          {selectedTeam.project.status}
-                        </Badge>
-                      </div>
-                      {selectedTeam.project.summary && (
-                        <div className="md:col-span-2">
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectSummary')}</p>
-                          <p className="text-base">{selectedTeam.project.summary}</p>
-                        </div>
-                      )}
-                      {selectedTeam.project.problem && (
-                        <div className="md:col-span-2">
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectProblem')}</p>
-                          <p className="text-base">{selectedTeam.project.problem}</p>
-                        </div>
-                      )}
-                      {selectedTeam.project.solution && (
-                        <div className="md:col-span-2">
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectSolution')}</p>
-                          <p className="text-base">{selectedTeam.project.solution}</p>
-                        </div>
-                      )}
-                      {selectedTeam.project.repository_url && (
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectRepo')}</p>
-                          <a
-                            href={selectedTeam.project.repository_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-base text-primary hover:underline"
-                          >
-                            {selectedTeam.project.repository_url}
-                          </a>
-                        </div>
-                      )}
-                      {selectedTeam.project.pitch_url && (
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectPitch')}</p>
-                          <a
-                            href={selectedTeam.project.pitch_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-base text-primary hover:underline"
-                          >
-                            {selectedTeam.project.pitch_url}
-                          </a>
-                        </div>
-                      )}
-                      {selectedTeam.project.logo_url && (
-                        <div className="md:col-span-2">
-                          <p className="text-sm font-medium text-muted-foreground">{t('teams.projectImage')}</p>
-                          <img
-                            src={selectedTeam.project.logo_url}
-                            alt={selectedTeam.project.name}
-                            className="mt-2 max-w-xs rounded-md border border-border"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">{t('teams.noProject')}</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsTeamDetailsModalOpen(false)}>
-              {t('common.close')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TeamDetailsModal
+        open={isTeamDetailsModalOpen}
+        onOpenChange={setIsTeamDetailsModalOpen}
+        team={selectedTeam}
+      />
     </DashboardLayout>
   );
 }

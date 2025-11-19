@@ -2,34 +2,9 @@ import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { resolveAssetMarkers } from '../utils/asset-markers.js';
-
-function toInt(value) {
-  return Number.parseInt(value, 10);
-}
-
-function toDateOrNull(value) {
-  if (value === null || value === undefined || value === '') {
-    return null;
-  }
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? null : value;
-  }
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function toHtmlOrNull(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value !== 'string') {
-    return value;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length ? value : null;
-}
+import { toInt, toDateOrNull, toHtmlOrNull } from '../utils/parsers.js';
+import { findEventOr404 } from '../utils/finders.js';
+import { successResponse, badRequestResponse, notFoundResponse } from '../utils/response.js';
 
 function normalizeEventPayload(body) {
   const payload = { ...body };
@@ -115,33 +90,6 @@ function normalizeEventPayload(body) {
   return payload;
 }
 
-async function findEventOr404(eventId) {
-  const id = toInt(eventId);
-  const { Event, Phase, Task, PhaseRubric } = getModels();
-  const event = await Event.findOne({
-    where: { id },
-    include: [
-      { model: Phase, as: 'phases', separate: true, order: [['order_index', 'ASC']] },
-      { model: Task, as: 'tasks', separate: true },
-      {
-        model: PhaseRubric,
-        as: 'rubrics',
-        separate: true,
-        include: [{ association: 'criteria' }],
-        order: [['created_at', 'DESC']]
-      }
-    ]
-  });
-
-  if (!event) {
-    const error = new Error('Evento no encontrado');
-    error.statusCode = 404;
-    throw error;
-  }
-
-  return event;
-}
-
 export class EventsController {
   static async list(req, res) {
     const { Event, EventRegistration } = getModels();
@@ -152,7 +100,7 @@ export class EventsController {
 
     if (isManagement) {
       const events = await Event.findAll({ order: [['created_at', 'DESC']] });
-      return res.json({ success: true, data: events });
+      return successResponse(res, events);
     }
 
     const now = new Date();
@@ -258,11 +206,11 @@ export class EventsController {
       });
 
       logger.info('Evento creado', { eventId: event.id, tenantId: req.tenant.id });
-      res.status(201).json({ success: true, data: event });
+      return successResponse(res, event, 201);
     } catch (error) {
       logger.error('Error creando evento', { error: error.message });
       const statusCode = error.statusCode ?? 500;
-      res.status(statusCode).json({
+      return res.status(statusCode).json({
         success: false,
         message: error.statusCode ? error.message : 'Error creando evento'
       });
@@ -308,7 +256,7 @@ export class EventsController {
         }
       }
 
-      res.json({ success: true, data: eventJson });
+      return successResponse(res, eventJson);
     } catch (error) {
       next(error);
     }
@@ -319,7 +267,7 @@ export class EventsController {
       const event = await findEventOr404(req.params.eventId);
       const payload = normalizeEventPayload({ ...req.body });
       await event.update(payload);
-      res.json({ success: true, data: event });
+      return successResponse(res, event);
     } catch (error) {
       next(error);
     }
@@ -329,7 +277,7 @@ export class EventsController {
     try {
       const event = await findEventOr404(req.params.eventId);
       await event.update({ status: 'archived' });
-      res.json({ success: true, data: event });
+      return successResponse(res, event);
     } catch (error) {
       next(error);
     }
@@ -343,7 +291,7 @@ export class EventsController {
         where: { event_id: req.params.eventId },
         order: [['order_index', 'ASC']]
       });
-      res.json({ success: true, data: phases });
+      return successResponse(res, phases);
     } catch (error) {
       next(error);
     }
@@ -379,11 +327,10 @@ export class EventsController {
         null;
 
       if (resolvedViewStart && resolvedViewEnd && resolvedViewStart > resolvedViewEnd) {
-        return res.status(400).json({
-          success: false,
-          message:
-            'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
-        });
+        return badRequestResponse(
+          res,
+          'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
+        );
       }
 
       payload.view_start_date = resolvedViewStart;
@@ -391,7 +338,7 @@ export class EventsController {
 
       const phase = await Phase.create(payload);
 
-      res.status(201).json({ success: true, data: phase });
+      return successResponse(res, phase, 201);
     } catch (error) {
       next(error);
     }
@@ -406,7 +353,7 @@ export class EventsController {
       });
 
       if (!phase) {
-        return res.status(404).json({ success: false, message: 'Fase no encontrada' });
+        return notFoundResponse(res, 'Fase no encontrada');
       }
 
       const payload = { ...req.body };
@@ -441,15 +388,14 @@ export class EventsController {
         payload.view_end_date &&
         payload.view_start_date > payload.view_end_date
       ) {
-        return res.status(400).json({
-          success: false,
-          message:
-            'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
-        });
+        return badRequestResponse(
+          res,
+          'La fecha fin de visualización debe ser posterior o igual a la fecha de inicio de visualización'
+        );
       }
 
       await phase.update(payload);
-      res.json({ success: true, data: phase });
+      return successResponse(res, phase);
     } catch (error) {
       next(error);
     }
@@ -463,7 +409,7 @@ export class EventsController {
       });
 
       if (!phase) {
-        return res.status(404).json({ success: false, message: 'Fase no encontrada' });
+        return notFoundResponse(res, 'Fase no encontrada');
       }
 
       await phase.destroy();
@@ -481,7 +427,7 @@ export class EventsController {
         where: { event_id: req.params.eventId },
         order: [['created_at', 'ASC']]
       });
-      res.json({ success: true, data: tasks });
+      return successResponse(res, tasks);
     } catch (error) {
       next(error);
     }
@@ -497,7 +443,7 @@ export class EventsController {
       });
 
       if (!phase) {
-        return res.status(404).json({ success: false, message: 'Fase inválida' });
+        return notFoundResponse(res, 'Fase inválida');
       }
 
       let phaseRubricId = req.body.phase_rubric_id ?? null;
@@ -507,7 +453,7 @@ export class EventsController {
           where: { id: phaseRubricId, event_id: event.id, phase_id: phase.id }
         });
         if (!rubric) {
-          return res.status(400).json({ success: false, message: 'Rúbrica inválida para la fase' });
+          return badRequestResponse(res, 'Rúbrica inválida para la fase');
         }
       }
 
@@ -522,7 +468,7 @@ export class EventsController {
 
       const task = await Task.create(taskPayload);
 
-      res.status(201).json({ success: true, data: task });
+      return successResponse(res, task, 201);
     } catch (error) {
       next(error);
     }
@@ -536,7 +482,7 @@ export class EventsController {
       });
 
       if (!task) {
-        return res.status(404).json({ success: false, message: 'Tarea no encontrada' });
+        return notFoundResponse(res, 'Tarea no encontrada');
       }
 
       let updates = { ...req.body };
@@ -556,7 +502,7 @@ export class EventsController {
             }
           });
           if (!rubric) {
-            return res.status(400).json({ success: false, message: 'Rúbrica inválida para la fase' });
+            return badRequestResponse(res, 'Rúbrica inválida para la fase');
           }
           updates.phase_rubric_id = Number(req.body.phase_rubric_id);
         }
@@ -569,7 +515,7 @@ export class EventsController {
       }
 
       await task.update(updates);
-      res.json({ success: true, data: task });
+      return successResponse(res, task);
     } catch (error) {
       next(error);
     }
@@ -583,7 +529,7 @@ export class EventsController {
       });
 
       if (!task) {
-        return res.status(404).json({ success: false, message: 'Tarea no encontrada' });
+        return notFoundResponse(res, 'Tarea no encontrada');
       }
 
       await task.destroy();

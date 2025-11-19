@@ -722,8 +722,8 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.TEXT
     },
     status: {
-      type: Sequelize.ENUM('draft', 'active', 'completed'),
-      defaultValue: 'draft'
+      type: Sequelize.ENUM('active', 'inactive'),
+      defaultValue: 'active'
     },
     logo_url: {
       type: Sequelize.STRING(500)

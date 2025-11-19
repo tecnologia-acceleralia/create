@@ -1,6 +1,6 @@
 ﻿import { useMemo, useState, useRef, useEffect } from "react";
 import type { CSSProperties } from "react";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { ChevronDown, ChevronUp, Globe, Home, LogOut, Menu, Settings, UserRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +12,7 @@ import { cn } from '@/utils/cn';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { createSurfaceTheme, pickContrastColor } from '@/utils/color';
 import { getEventTasks, getEventDetail, type Task } from '@/services/events';
+import { getMyTeams } from '@/services/teams';
 
 export function SiteHeader() {
   const { t, i18n } = useTranslation();
@@ -24,12 +25,15 @@ export function SiteHeader() {
   } = useSuperAdminSession();
   const tenantPath = useTenantPath();
   const location = useLocation();
+  const navigate = useNavigate();
   const roleScopes = useMemo(
     () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
     [activeMembership?.roles, user?.roleScopes]
   );
   const isEventAdmin = isSuperAdmin || roleScopes.has('tenant_admin') || roleScopes.has('organizer');
   const isParticipantOnly = roleScopes.has('participant') && !isEventAdmin && !roleScopes.has('evaluator');
+  // Usuarios que no son admin/organizer/evaluator (incluyendo capitanes) deben usar rutas de participante
+  const isNonAdminUser = !isEventAdmin && !roleScopes.has('evaluator');
 
   const { isEventRoute, eventId: activeEventId } = useMemo(() => {
     const segments = location.pathname.split('/').filter(Boolean);
@@ -172,9 +176,8 @@ export function SiteHeader() {
         normalizedName.includes('fase 0') ||
         normalizedName.includes('phase 0');
       if (looksLikePhaseZero) {
-        const defaultTarget = tenantPath(`dashboard/events/${activeEventId}?phase=${phase.id}`);
-        const preparationTarget = tenantPath(`dashboard/events/${activeEventId}/team`);
-        const to = isParticipantOnly ? preparationTarget : defaultTarget;
+        // El menú Fase 0 siempre navega a /view?phase=${phase.id}
+        const to = tenantPath(`dashboard/events/${activeEventId}/view?phase=${phase.id}`);
         return { 
           to, 
           id: phase.id, 
@@ -186,7 +189,7 @@ export function SiteHeader() {
       }
     }
     return null;
-  }, [eventPhases, tenantPath, activeEventId, isParticipantOnly]);
+  }, [eventPhases, tenantPath, activeEventId]);
 
   const phaseLinks = useMemo(() => {
     if (!activeEventId) {
@@ -200,9 +203,14 @@ export function SiteHeader() {
           phase.orderIndex === 0 ||
           normalizedName.includes('fase 0') ||
           normalizedName.includes('phase 0');
-        const defaultTarget = tenantPath(`dashboard/events/${activeEventId}?phase=${phase.id}`);
+        // Para admin/organizer: usar ruta base del evento
+        // Para usuarios no admin (incluyendo capitanes): usar /view
+        const adminTarget = tenantPath(`dashboard/events/${activeEventId}?phase=${phase.id}`);
+        const participantTarget = tenantPath(`dashboard/events/${activeEventId}/view?phase=${phase.id}`);
         const preparationTarget = tenantPath(`dashboard/events/${activeEventId}/team`);
-        const to = isParticipantOnly && looksLikePhaseZero ? preparationTarget : defaultTarget;
+        const to = isNonAdminUser
+          ? (isParticipantOnly && looksLikePhaseZero ? preparationTarget : participantTarget)
+          : adminTarget;
 
         return {
           id: phase.id,
@@ -214,8 +222,24 @@ export function SiteHeader() {
         };
       })
       .filter(phase => !phase.isPreparationPhase); // Filtrar Fase 0, se mostrará como menú separado
-  }, [eventPhases, tenantPath, activeEventId, isParticipantOnly]);
-  const canViewPhases = (user || isSuperAdminSession) && isEventRoute && phaseLinks.length > 0;
+  }, [eventPhases, tenantPath, activeEventId, isParticipantOnly, isNonAdminUser]);
+
+  // Determinar la ruta principal del evento según el rol del usuario
+  // La nueva página de inicio siempre apunta a /home
+  const eventHomePath = useMemo(() => {
+    if (!isEventRoute || !activeEventId) {
+      return null;
+    }
+
+    if (!user && !isSuperAdminSession) {
+      return null;
+    }
+
+    // La nueva página de inicio siempre es /home
+    return tenantPath(`dashboard/events/${activeEventId}/home`);
+  }, [isEventRoute, activeEventId, user, isSuperAdminSession, tenantPath]);
+
+  const canViewPhases = (user || isSuperAdminSession) && isEventRoute && (eventHomePath !== null || phaseLinks.length > 0 || phaseZero !== null);
 
   const numericEventId = useMemo(() => {
     if (!activeEventId) {
@@ -246,7 +270,27 @@ export function SiteHeader() {
     gcTime: 5 * 60_000
   });
 
-  const hasTeam = eventDetail?.has_team ?? false;
+  const { data: myTeams } = useQuery({
+    queryKey: ['my-teams'],
+    queryFn: getMyTeams,
+    enabled: Boolean(user && !isSuperAdmin && !isSuperAdminSession),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000
+  });
+
+  const hasTeam = useMemo(() => {
+    if (!numericEventId || !myTeams || !Array.isArray(myTeams)) {
+      return false;
+    }
+    return myTeams.some(membership => {
+      const teamEventId = membership?.team?.event_id;
+      if (!teamEventId) {
+        return false;
+      }
+      // Comparar como números para evitar problemas de tipos
+      return Number(teamEventId) === numericEventId;
+    });
+  }, [myTeams, numericEventId]);
 
   const tasksByPhase = useMemo(() => {
     const grouped = new Map<number, Task[]>();
@@ -290,21 +334,6 @@ export function SiteHeader() {
 
     return grouped;
   }, [eventTasks]);
-
-  // Determinar la ruta principal del evento según el rol del usuario
-  // La nueva página de inicio siempre apunta a /home
-  const eventHomePath = useMemo(() => {
-    if (!canViewPhases || !activeEventId) {
-      return null;
-    }
-
-    if (!user && !isSuperAdminSession) {
-      return null;
-    }
-
-    // La nueva página de inicio siempre es /home
-    return tenantPath(`dashboard/events/${activeEventId}/home`);
-  }, [canViewPhases, activeEventId, user, isSuperAdminSession, tenantPath]);
 
   const isEventHomeActive = useMemo(() => {
     if (!eventHomePath) {
@@ -364,7 +393,11 @@ export function SiteHeader() {
       logoutSuperAdmin();
       return;
     }
-    logout();
+    // Navegar a la home del tenant antes de cerrar sesión
+    const homePath = tenantSlug ? `/${tenantSlug}` : '/';
+    navigate(homePath, { replace: true });
+    // Llamar a logout sin navegación automática (ya navegamos arriba)
+    logout(false);
   };
 
   const isActivePhase = (target: string) => {
@@ -377,11 +410,32 @@ export function SiteHeader() {
       const path = url.pathname;
       const searchParams = url.searchParams;
       const phaseId = searchParams.get('phase');
-      const matchesPath = location.pathname === path;
-      if (!phaseId) {
-        return matchesPath;
+      
+      // Si hay un phaseId, comparar por fase
+      // Las rutas /dashboard/events/:eventId y /dashboard/events/:eventId/view son equivalentes
+      if (phaseId) {
+        const currentPhaseId = new URLSearchParams(location.search).get('phase');
+        if (currentPhaseId !== phaseId) {
+          return false;
+        }
+        
+        // Verificar que estamos en una ruta válida del evento
+        const currentPath = location.pathname;
+        const isTargetAdminPath = path.includes(`/events/`) && !path.includes('/view') && !path.includes('/home') && !path.includes('/team') && !path.includes('/tasks/');
+        const isTargetParticipantPath = path.includes(`/events/`) && path.includes('/view');
+        const isCurrentAdminPath = currentPath.includes(`/events/`) && !currentPath.includes('/view') && !currentPath.includes('/home') && !currentPath.includes('/team') && !currentPath.includes('/tasks/');
+        const isCurrentParticipantPath = currentPath.includes(`/events/`) && currentPath.includes('/view');
+        
+        // Si el target es ruta admin, aceptar si estamos en ruta admin
+        if (isTargetAdminPath && isCurrentAdminPath) return true;
+        // Si el target es ruta participante, aceptar si estamos en ruta participante
+        if (isTargetParticipantPath && isCurrentParticipantPath) return true;
+        
+        return false;
       }
-      return matchesPath && location.search.includes(`phase=${phaseId}`);
+      
+      // Si no hay phaseId, comparar path exacto
+      return location.pathname === path;
     } catch (error) {
       return false;
     }
@@ -501,23 +555,13 @@ export function SiteHeader() {
               })() : null}
               {phaseZero ? (() => {
                 const baseTasks = tasksByPhase.get(phaseZero.id) ?? [];
-                const introductionItem = activeEventId
-                  ? [
-                      {
-                        key: 'introduction',
-                        label: t('teams.introduction'),
-                        href: tenantPath(`dashboard/events/${activeEventId}/phase-zero?phase=${phaseZero.id}`),
-                        order_index: 0
-                      }
-                    ]
-                  : [];
                 const viewProjectsItem = activeEventId
                   ? [
                       {
                         key: 'view-projects',
-                        label: t('projects.viewProjects'),
-                        href: tenantPath(`dashboard/events/${activeEventId}/team#projects-list`),
-                        order_index: 1
+                        label: t('projects.title'),
+                        href: tenantPath(`dashboard/events/${activeEventId}/projects`),
+                        order_index: 200
                       }
                     ]
                   : [];
@@ -527,11 +571,11 @@ export function SiteHeader() {
                         key: 'my-team',
                         label: t('teams.title'),
                         href: tenantPath(`dashboard/events/${activeEventId}/team`),
-                        order_index: 2
+                        order_index: 300
                       }
                     ]
                   : [];
-                const phaseZeroMenuItems = [...introductionItem, ...viewProjectsItem, ...myTeamItem];
+                const phaseZeroMenuItems = [...viewProjectsItem, ...myTeamItem];
                 const taskMenuItems = baseTasks.map(task => ({
                   key: `task-${task.id}`,
                   label: task.title,
@@ -872,23 +916,13 @@ export function SiteHeader() {
               })() : null}
               {phaseZero ? (() => {
                 const baseTasks = tasksByPhase.get(phaseZero.id) ?? [];
-                const introductionItem = activeEventId
-                  ? [
-                      {
-                        key: 'introduction',
-                        label: t('teams.introduction'),
-                        href: tenantPath(`dashboard/events/${activeEventId}/phase-zero?phase=${phaseZero.id}`),
-                        order_index: 0
-                      }
-                    ]
-                  : [];
                 const viewProjectsItem = activeEventId
                   ? [
                       {
                         key: 'view-projects',
-                        label: t('projects.viewProjects'),
-                        href: tenantPath(`dashboard/events/${activeEventId}/team#projects-list`),
-                        order_index: 1
+                        label: t('projects.title'),
+                        href: tenantPath(`dashboard/events/${activeEventId}/projects`),
+                        order_index: 200
                       }
                     ]
                   : [];
@@ -898,11 +932,11 @@ export function SiteHeader() {
                         key: 'my-team',
                         label: t('teams.title'),
                         href: tenantPath(`dashboard/events/${activeEventId}/team`),
-                        order_index: 2
+                        order_index: 300
                       }
                     ]
                   : [];
-                const phaseZeroMenuItems = [...introductionItem, ...viewProjectsItem, ...myTeamItem];
+                const phaseZeroMenuItems = [...viewProjectsItem, ...myTeamItem];
                 const taskMenuItems = baseTasks.map(task => ({
                   key: `task-${task.id}`,
                   label: task.title,

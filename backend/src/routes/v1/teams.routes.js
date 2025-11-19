@@ -11,7 +11,7 @@ teamsRouter.use(authenticate);
 
 teamsRouter.get(
   '/events/:eventId',
-  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
   [param('eventId').isInt()],
   validateRequest,
   TeamsController.listByEvent
@@ -61,5 +61,29 @@ teamsRouter.patch(
   [param('teamId').isInt(), body('user_id').isInt()],
   validateRequest,
   TeamsController.setCaptain
+);
+
+teamsRouter.patch(
+  '/:teamId/status',
+  authorizeRoles('tenant_admin', 'team_captain'),
+  [param('teamId').isInt(), body('status').isIn(['open', 'closed'])],
+  validateRequest,
+  TeamsController.updateStatus
+);
+
+teamsRouter.post(
+  '/:teamId/join',
+  authorizeRoles('participant', 'team_captain'),
+  [param('teamId').isInt()],
+  validateRequest,
+  TeamsController.joinTeam
+);
+
+teamsRouter.post(
+  '/:teamId/leave',
+  authorizeRoles('participant', 'team_captain'),
+  [param('teamId').isInt()],
+  validateRequest,
+  TeamsController.leaveTeam
 );
 

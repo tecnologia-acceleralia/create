@@ -5,13 +5,11 @@ import { isAxiosError } from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { PageContainer } from '@/components/common';
-import { useTenant } from '@/context/TenantContext';
+import { AuthCard, ErrorDisplay } from '@/components/common';
 import { FormField } from '@/components/form';
 
 const schema = z.object({
@@ -26,7 +24,6 @@ function LoginPage() {
   const { login, user, activeMembership, loading } = useAuth();
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
-  const { branding, tenantSlug } = useTenant();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,6 +38,7 @@ function LoginPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
+      // Limpiar el error solo cuando se intenta iniciar sesión de nuevo
       setError(null);
       await login(values);
       navigate(tenantPath('dashboard'));
@@ -55,62 +53,39 @@ function LoginPage() {
   };
 
   return (
-    <PageContainer className="flex justify-center">
-      <Card className="h-full w-full max-w-md border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
-        <CardHeader className="flex flex-col items-center gap-3">
-          {branding.logoUrl ? (
-            <div
-              className="flex h-12 w-auto items-center justify-center rounded border border-border p-2"
-              style={{ backgroundColor: branding.primaryColor || '#0ea5e9' }}
-            >
-              <img
-                src={branding.logoUrl}
-                alt={t('navigation.brand', { defaultValue: 'Create' })}
-                className="h-full w-auto max-h-full max-w-full object-contain"
-              />
-            </div>
-          ) : null}
-          {tenantSlug ? (
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('auth.loginForTenant', { tenant: tenantSlug })}
-            </p>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              label={t('auth.email')}
-              htmlFor="email"
-              error={errors.email ? t(errors.email.message ?? '', { defaultValue: errors.email.message }) : undefined}
-              required
-            >
-              <Input id="email" type="email" autoComplete="email" {...register('email')} />
-            </FormField>
+    <AuthCard
+      footer={
+        <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
+          {t('auth.forgotPassword')}
+        </Link>
+      }
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          label={t('auth.email')}
+          htmlFor="email"
+          error={errors.email ? t(errors.email.message ?? '', { defaultValue: errors.email.message }) : undefined}
+          required
+        >
+          <Input id="email" type="email" autoComplete="email" {...register('email')} />
+        </FormField>
 
-            <FormField
-              label={t('auth.password')}
-              htmlFor="password"
-              error={errors.password ? t(errors.password.message ?? '', { defaultValue: errors.password.message }) : undefined}
-              required
-            >
-              <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
-            </FormField>
+        <FormField
+          label={t('auth.password')}
+          htmlFor="password"
+          error={errors.password ? t(errors.password.message ?? '', { defaultValue: errors.password.message }) : undefined}
+          required
+        >
+          <Input id="password" type="password" autoComplete="current-password" {...register('password')} />
+        </FormField>
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorDisplay error={error} />
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? t('common.loading') : t('auth.submit')}
-            </Button>
-
-            <div className="text-center">
-              <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
-                {t('auth.forgotPassword')}
-              </Link>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </PageContainer>
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? t('common.loading') : t('auth.submit')}
+        </Button>
+      </form>
+    </AuthCard>
   );
 }
 

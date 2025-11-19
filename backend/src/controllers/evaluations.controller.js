@@ -1,22 +1,9 @@
 import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { generateAiEvaluation } from '../services/evaluation-ai.service.js';
-
-function getRoleScopes(user) {
-  const scopes = user?.roleScopes;
-  if (!Array.isArray(scopes)) {
-    return [];
-  }
-  return scopes;
-}
-
-function isReviewer(req) {
-  if (req.auth?.isSuperAdmin) {
-    return true;
-  }
-  const roleScopes = getRoleScopes(req.user);
-  return roleScopes.some(scope => ['tenant_admin', 'organizer', 'evaluator'].includes(scope));
-}
+import { isReviewer } from '../utils/authorization.js';
+import { findMembership } from '../utils/finders.js';
+import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse, errorResponse } from '../utils/response.js';
 
 async function notifyTeam(teamId, title, message) {
   const { TeamMember, Notification } = getModels();
@@ -33,14 +20,14 @@ export class EvaluationsController {
   static async create(req, res, next) {
     try {
       if (!isReviewer(req)) {
-        return res.status(403).json({ success: false, message: 'No autorizado' });
+        return forbiddenResponse(res);
       }
 
       const { Submission, Evaluation } = getModels();
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+        return notFoundResponse(res, 'Entrega no encontrada');
       }
 
       const evaluation = await Evaluation.create({
@@ -55,7 +42,7 @@ export class EvaluationsController {
 
       await notifyTeam(submission.team_id, 'Nueva evaluación', 'Tu entrega ha recibido comentarios.');
 
-      res.status(201).json({ success: true, data: evaluation });
+      return successResponse(res, evaluation, 201);
     } catch (error) {
       next(error);
     }
@@ -66,7 +53,7 @@ export class EvaluationsController {
     try {
       if (!isReviewer(req)) {
         await transaction.rollback();
-        return res.status(403).json({ success: false, message: 'No autorizado' });
+        return forbiddenResponse(res);
       }
 
       const {
@@ -88,13 +75,13 @@ export class EvaluationsController {
 
       if (!submission) {
         await transaction.rollback();
-        return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+        return notFoundResponse(res, 'Entrega no encontrada');
       }
 
       const task = submission.task;
       if (!task) {
         await transaction.rollback();
-        return res.status(400).json({ success: false, message: 'La tarea asociada a la entrega no está disponible' });
+        return badRequestResponse(res, 'La tarea asociada a la entrega no está disponible');
       }
 
       let rubric = null;
@@ -116,10 +103,7 @@ export class EvaluationsController {
 
       if (!rubric || !Array.isArray(rubric.criteria) || rubric.criteria.length === 0) {
         await transaction.rollback();
-        return res.status(409).json({
-          success: false,
-          message: 'No hay una rúbrica configurada para esta fase o tarea'
-        });
+        return conflictResponse(res, 'No hay una rúbrica configurada para esta fase o tarea');
       }
 
       const sortedCriteria = [...rubric.criteria].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
@@ -161,11 +145,11 @@ export class EvaluationsController {
 
       await notifyTeam(submission.team_id, 'Nueva evaluación asistida por IA', 'Tu entrega ha recibido comentarios generados con IA.');
 
-      res.status(201).json({ success: true, data: evaluation });
+      return successResponse(res, evaluation, 201);
     } catch (error) {
       await transaction.rollback();
       if (error?.message?.includes?.('OPENAI_API_KEY')) {
-        return res.status(500).json({ success: false, message: 'Servicio de IA no configurado' });
+        return errorResponse(res, 'Servicio de IA no configurado', 500);
       }
       next(error);
     }
@@ -177,14 +161,14 @@ export class EvaluationsController {
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+        return notFoundResponse(res, 'Entrega no encontrada');
       }
 
       if (!isReviewer(req)) {
         const { TeamMember } = getModels();
         const membership = await TeamMember.findOne({ where: { team_id: submission.team_id, user_id: req.user.id } });
         if (!membership) {
-          return res.status(403).json({ success: false, message: 'No autorizado' });
+          return forbiddenResponse(res);
         }
       }
 
@@ -193,7 +177,7 @@ export class EvaluationsController {
         order: [['created_at', 'DESC']]
       });
 
-      res.json({ success: true, data: evaluations });
+      return successResponse(res, evaluations);
     } catch (error) {
       next(error);
     }

@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.middleware.js';
+import { authorizeRoles } from '../../middleware/authorization.middleware.js';
+import { TenantStatisticsController } from '../../controllers/tenant-statistics.controller.js';
 
 export const tenantsRouter = Router();
 
@@ -30,4 +32,10 @@ tenantsRouter.get('/branding', (req, res) => {
     }
   });
 });
+
+tenantsRouter.get(
+  '/overview',
+  authorizeRoles('tenant_admin', 'organizer'),
+  TenantStatisticsController.getOverview
+);
 

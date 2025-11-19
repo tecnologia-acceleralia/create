@@ -103,6 +103,11 @@ function buildLogoKey(slug, extension) {
   return `${buildTenantPrefix(slug)}branding/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
 }
 
+function buildProjectLogoKey(tenantId, projectId, extension) {
+  const safeExtension = extension || 'png';
+  return `${buildTenantPrefixById(tenantId)}projects/${projectId}/logo-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
+}
+
 function buildSubmissionFileKey(slug, submissionId, fileName) {
   const normalizedName = fileName?.replace?.(/[^\w.\-]+/g, '_') ?? 'file.bin';
   return `${buildTenantPrefix(slug)}submissions/${submissionId}/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
@@ -187,6 +192,37 @@ export function decodeBase64File(base64) {
 export async function uploadTenantLogo({ tenantSlug, buffer, contentType, extension }) {
   const { client, settings } = ensureClient();
   const objectKey = buildLogoKey(tenantSlug, extension);
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: settings.bucket,
+      Key: objectKey,
+      Body: buffer,
+      ContentType: contentType,
+      ACL: 'public-read',
+      CacheControl: 'public, max-age=604800, immutable'
+    })
+  );
+
+  const baseUrl = settings.publicBaseUrl;
+  if (!baseUrl) {
+    throw new Error('No se pudo determinar la URL pública para el objeto subido');
+  }
+
+  return {
+    key: objectKey,
+    url: `${baseUrl}/${objectKey}`
+  };
+}
+
+/**
+ * Sube un logo de proyecto a DigitalOcean Spaces.
+ * @param {{ tenantId: number; projectId: number; buffer: Buffer; contentType: string; extension?: string }} options
+ * @returns {Promise<{ url: string; key: string }>}
+ */
+export async function uploadProjectLogo({ tenantId, projectId, buffer, contentType, extension }) {
+  const { client, settings } = ensureClient();
+  const objectKey = buildProjectLogoKey(tenantId, projectId, extension);
 
   await client.send(
     new PutObjectCommand({

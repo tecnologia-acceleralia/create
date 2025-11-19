@@ -46,7 +46,7 @@ function EvaluatorDashboardPage() {
                     {isExpanded(event.id) ? t('submissions.list') : t('events.tasksTitle')}
                   </Button>
                   <Button variant="secondary" asChild>
-                    <Link to={tenantPath(`dashboard/events/${event.id}/tracking`)}>
+                    <Link to={tenantPath(`dashboard/events/${event.id}?tab=statistics`)}>
                       {t('events.tracking.title')}
                     </Link>
                   </Button>

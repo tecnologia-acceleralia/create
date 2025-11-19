@@ -404,7 +404,7 @@ export async function up(queryInterface) {
     color: #9333ea;
   }
 
-  .demo-phase .phase-activities {
+  .demo-phase .phase-tasks {
     background: rgba(147, 51, 234, 0.05);
     border-left: 4px solid rgba(147, 51, 234, 0.5);
     border-radius: 16px;
@@ -412,7 +412,7 @@ export async function up(queryInterface) {
     margin-top: 1rem;
   }
 
-  .demo-phase .phase-activities strong {
+  .demo-phase .phase-tasks strong {
     display: block;
     font-size: 1rem;
     margin-bottom: 0.6rem;
@@ -454,7 +454,7 @@ export async function up(queryInterface) {
     <li><strong>Presentación preliminar:</strong> Sube una presentación de tu idea que incluya el problema que identificas, tu propuesta de solución y los primeros pasos que planeas dar. Esta actividad es obligatoria y te ayudará a estructurar tu pensamiento inicial.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Qué debes incluir en tu presentación?</strong>
     <ul>
       <li>Descripción clara del problema o necesidad que identificas.</li>
@@ -557,7 +557,7 @@ export async function up(queryInterface) {
       summary: 'Proyecto demostrativo para tests',
       problem: 'Necesidad de colaboración',
       solution: 'Plataforma CREATE',
-      status: 'draft',
+      status: 'active',
       created_at: new Date(),
       updated_at: new Date()
     }
@@ -779,7 +779,7 @@ export async function up(queryInterface) {
         summary: projectData.summary,
         problem: projectData.problem,
         solution: projectData.solution,
-        status: 'draft',
+        status: 'active',
         created_at: now,
         updated_at: now
       }

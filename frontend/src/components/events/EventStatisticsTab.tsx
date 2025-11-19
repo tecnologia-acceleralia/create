@@ -10,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Spinner } from '@/components/common';
 import { useTenant } from '@/context/TenantContext';
-import { getEventStatistics, type EventStatistics } from '@/services/events';
+import { getEventStatistics, getEventDetail, type EventStatistics } from '@/services/events';
 import { formatDateTime } from '@/utils/date';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
+import type { RegistrationSchema } from '@/services/public';
 
 function getFullName(firstName: string | null, lastName: string | null, email: string | null) {
   const parts = [firstName, lastName].filter(Boolean);
@@ -22,7 +23,56 @@ function getFullName(firstName: string | null, lastName: string | null, email: s
   return email ?? '—';
 }
 
-function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTeam?: (teamId: number) => void }) {
+function resolveSchemaLabel(
+  label: Record<string, string> | string | undefined,
+  language: string,
+  fallback: string
+): string {
+  if (!label) {
+    return fallback;
+  }
+
+  if (typeof label === 'string') {
+    return label;
+  }
+
+  const normalized = language?.split('-')[0]?.toLowerCase();
+  if (normalized && label[normalized]) {
+    return label[normalized] ?? fallback;
+  }
+
+  // Fallback a español si está disponible
+  if (label.es) {
+    return label.es;
+  }
+
+  // Fallback al primer valor disponible
+  const firstKey = Object.keys(label)[0];
+  return firstKey ? label[firstKey] : fallback;
+}
+
+function getGradeLabel(
+  gradeCode: string,
+  registrationSchema: RegistrationSchema | null | undefined,
+  language: string
+): string {
+  if (gradeCode === '__NO_GRADE__') {
+    return '';
+  }
+
+  if (!registrationSchema?.grade?.options) {
+    return gradeCode;
+  }
+
+  const gradeOption = registrationSchema.grade.options.find(option => option.value === gradeCode);
+  if (!gradeOption) {
+    return gradeCode;
+  }
+
+  return resolveSchemaLabel(gradeOption.label, language, gradeCode);
+}
+
+function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number; readonly onViewTeam?: (teamId: number) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
   const { branding } = useTenant();
@@ -32,6 +82,13 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
     queryKey: ['events', eventId, 'statistics'],
     queryFn: () => getEventStatistics(eventId),
     enabled: Number.isInteger(eventId)
+  });
+
+  const { data: eventDetail } = useQuery({
+    queryKey: ['events', eventId],
+    queryFn: () => getEventDetail(eventId),
+    enabled: Number.isInteger(eventId),
+    select: (data) => data.registration_schema
   });
 
   const primaryColor = branding.primaryColor || 'hsl(var(--primary))';
@@ -56,7 +113,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
     
     return () => {
       const existing = document.getElementById(styleId);
-      if (existing && existing.parentNode) {
+      if (existing?.parentNode) {
         existing.remove();
       }
     };
@@ -116,6 +173,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
     if (!statistics || sortedTeams.length === 0) return;
     
     const headers = [
+      '#',
       t('events.statisticsSection.teams.team'),
       t('events.statisticsSection.teams.project'),
       'Estado Proyecto',
@@ -127,14 +185,15 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
     const csvData = sortedTeams
       .filter(team => team.name) // Filtrar equipos sin nombre
-      .map(team => ({
-        [headers[0]]: team.name || '',
-        [headers[1]]: team.project?.name || 'Sin proyecto',
-        [headers[2]]: team.project?.status || '',
-        [headers[3]]: team.captain ? getFullName(team.captain.firstName, team.captain.lastName, team.captain.email) : 'Sin capitán',
-        [headers[4]]: team.captain?.email || '',
-        [headers[5]]: String(team.totalMembers || 0),
-        [headers[6]]: team.members && team.members.length > 0 
+      .map((team, index) => ({
+        [headers[0]]: String(index + 1),
+        [headers[1]]: team.name || '',
+        [headers[2]]: team.project?.name || 'Sin proyecto',
+        [headers[3]]: team.project?.status || '',
+        [headers[4]]: team.captain ? getFullName(team.captain.firstName, team.captain.lastName, team.captain.email) : 'Sin capitán',
+        [headers[5]]: team.captain?.email || '',
+        [headers[6]]: String(team.totalMembers || 0),
+        [headers[7]]: team.members && team.members.length > 0 
           ? team.members.map(m => getFullName(m.firstName, m.lastName, m.email)).join('; ')
           : 'Sin miembros'
       }));
@@ -147,9 +206,10 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
   // Función para exportar usuarios sin equipo a CSV
   const exportUsersWithoutTeamToCSV = () => {
-    if (!statistics || !statistics.usersWithoutTeam || statistics.usersWithoutTeam.length === 0) return;
+    if (!statistics?.usersWithoutTeam?.length) return;
     
     const headers = [
+      '#',
       t('events.statisticsSection.usersWithoutTeam.name'),
       t('events.statisticsSection.usersWithoutTeam.email'),
       t('events.statisticsSection.usersWithoutTeam.grade'),
@@ -158,11 +218,12 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
     const csvData = sortedUsersWithoutTeam
       .filter(user => user.firstName || user.lastName || user.email) // Filtrar usuarios sin datos
-      .map(user => ({
-        [headers[0]]: getFullName(user.firstName, user.lastName, user.email) || '',
-        [headers[1]]: user.email || '',
-        [headers[2]]: user.grade || '',
-        [headers[3]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
+      .map((user, index) => ({
+        [headers[0]]: String(index + 1),
+        [headers[1]]: getFullName(user.firstName, user.lastName, user.email) || '',
+        [headers[2]]: user.email || '',
+        [headers[3]]: user.grade || '',
+        [headers[4]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
       }));
 
     if (csvData.length === 0) return;
@@ -173,9 +234,10 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
   // Función para exportar usuarios a CSV
   const exportUsersToCSV = () => {
-    if (!statistics || !statistics.users || statistics.users.length === 0) return;
+    if (!statistics?.users?.length) return;
     
     const headers = [
+      '#',
       t('events.statisticsSection.users.name'),
       t('events.statisticsSection.users.email'),
       t('events.statisticsSection.users.team'),
@@ -186,13 +248,14 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
     const csvData = sortedUsers
       .filter(user => user.firstName || user.lastName || user.email) // Filtrar usuarios sin datos
-      .map(user => ({
-        [headers[0]]: getFullName(user.firstName, user.lastName, user.email) || '',
-        [headers[1]]: user.email || '',
-        [headers[2]]: user.team?.name || 'Sin equipo',
-        [headers[3]]: (user.roles && user.roles.length > 0) ? user.roles.join(', ') : 'Sin roles',
-        [headers[4]]: user.grade || '',
-        [headers[5]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
+      .map((user, index) => ({
+        [headers[0]]: String(index + 1),
+        [headers[1]]: getFullName(user.firstName, user.lastName, user.email) || '',
+        [headers[2]]: user.email || '',
+        [headers[3]]: user.team?.name || 'Sin equipo',
+        [headers[4]]: (user.roles && user.roles.length > 0) ? user.roles.join(', ') : 'Sin roles',
+        [headers[5]]: user.grade || '',
+        [headers[6]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
       }));
 
     if (csvData.length === 0) return;
@@ -203,7 +266,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
   // Función para exportar grados a CSV
   const exportGradesToCSV = () => {
-    if (!statistics || !statistics.gradeSummary || statistics.gradeSummary.length === 0) return;
+    if (!statistics?.gradeSummary?.length) return;
     
     const headers = [
       t('events.statisticsSection.grades.grade'),
@@ -212,12 +275,17 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
       t('events.statisticsSection.grades.total')
     ];
 
-    const csvData = sortedGradeSummary.map(entry => ({
-      [headers[0]]: entry.grade === '__NO_GRADE__' ? t('events.statisticsSection.grades.noGrade') : (entry.grade || ''),
-      [headers[1]]: String(entry.withTeam || 0),
-      [headers[2]]: String(entry.withoutTeam || 0),
-      [headers[3]]: String(entry.total || 0)
-    }));
+    const csvData = sortedGradeSummary.map(entry => {
+      const gradeLabel = entry.grade === '__NO_GRADE__'
+        ? t('events.statisticsSection.grades.noGrade')
+        : getGradeLabel(entry.grade, eventDetail, locale);
+      return {
+        [headers[0]]: gradeLabel,
+        [headers[1]]: String(entry.withTeam || 0),
+        [headers[2]]: String(entry.withoutTeam || 0),
+        [headers[3]]: String(entry.total || 0)
+      };
+    });
 
     if (csvData.length === 0) return;
 
@@ -227,7 +295,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
 
   // Función para exportar variables custom a CSV
   const exportCustomFieldsToCSV = () => {
-    if (!selectedCustomFieldAggregate || !selectedCustomFieldAggregate.summary || selectedCustomFieldAggregate.summary.length === 0) return;
+    if (!selectedCustomFieldAggregate?.summary?.length) return;
     
     const headers = [
       selectedCustomFieldAggregate.field.label || selectedCustomFieldAggregate.field.name,
@@ -289,6 +357,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
             <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>#</TableHead>
                 <TableHead>{t('events.statisticsSection.teams.team', { defaultValue: 'Equipo' })}</TableHead>
                 <TableHead>{t('events.statisticsSection.teams.project', { defaultValue: 'Proyecto' })}</TableHead>
                 <TableHead>{t('events.statisticsSection.teams.captain', { defaultValue: 'Capitán' })}</TableHead>
@@ -300,13 +369,14 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
               <TableBody>
                 {sortedTeams.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={onViewTeam ? 6 : 5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={onViewTeam ? 7 : 6} className="text-center text-sm text-muted-foreground">
                       {t('events.statisticsSection.teams.empty', { defaultValue: 'No hay equipos registrados' })}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedTeams.map(team => (
+                  sortedTeams.map((team, index) => (
                     <TableRow key={team.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell className="font-medium">{team.name}</TableCell>
                       <TableCell>
                         {team.project ? (
@@ -382,6 +452,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>{t('events.statisticsSection.usersWithoutTeam.name', { defaultValue: 'Nombre' })}</TableHead>
                   <TableHead>{t('events.statisticsSection.usersWithoutTeam.email', { defaultValue: 'Email' })}</TableHead>
                   <TableHead>{t('events.statisticsSection.usersWithoutTeam.grade', { defaultValue: 'Grado' })}</TableHead>
@@ -393,13 +464,14 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
               <TableBody>
                 {sortedUsersWithoutTeam.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
                       {t('events.statisticsSection.usersWithoutTeam.empty', { defaultValue: 'Todos los usuarios tienen equipo' })}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedUsersWithoutTeam.map(user => (
+                  sortedUsersWithoutTeam.map((user, index) => (
                     <TableRow key={user.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         {getFullName(user.firstName, user.lastName, user.email)}
                       </TableCell>
@@ -431,6 +503,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>#</TableHead>
                   <TableHead>{t('events.statisticsSection.users.name', { defaultValue: 'Nombre' })}</TableHead>
                   <TableHead>{t('events.statisticsSection.users.email', { defaultValue: 'Email' })}</TableHead>
                   <TableHead>{t('events.statisticsSection.users.team', { defaultValue: 'Equipo' })}</TableHead>
@@ -442,13 +515,14 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
               <TableBody>
                 {sortedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
                       {t('events.statisticsSection.users.empty', { defaultValue: 'No hay usuarios registrados' })}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedUsers.map(user => (
+                  sortedUsers.map((user, index) => (
                     <TableRow key={user.id}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
                       <TableCell className="font-medium">
                         {getFullName(user.firstName, user.lastName, user.email)}
                       </TableCell>
@@ -516,7 +590,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
                     const gradeLabel =
                       entry.grade === '__NO_GRADE__'
                         ? t('events.statisticsSection.grades.noGrade', { defaultValue: 'Sin grado' })
-                        : entry.grade;
+                        : getGradeLabel(entry.grade, eventDetail, locale);
                     return (
                       <TableRow key={entry.grade}>
                         <TableCell className="font-medium">{gradeLabel}</TableCell>
@@ -590,13 +664,13 @@ function EventStatisticsTab({ eventId, onViewTeam }: { eventId: number; onViewTe
                           </TableCell>
                         </TableRow>
                       ) : (
-                        selectedCustomFieldAggregate.summary.map((entry, index) => {
+                        selectedCustomFieldAggregate.summary.map((entry) => {
                           const valueLabel =
                             entry.value === '__NO_VALUE__'
                               ? t('events.statisticsSection.customFields.noValue', { defaultValue: 'Sin valor' })
                               : String(entry.value);
                           return (
-                            <TableRow key={index}>
+                            <TableRow key={`${selectedCustomFieldAggregate.field.name}-${entry.value}`}>
                               <TableCell className="font-medium">{valueLabel}</TableCell>
                               <TableCell>{entry.withTeam}</TableCell>
                               <TableCell>{entry.withoutTeam}</TableCell>

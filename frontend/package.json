@@ -96,5 +96,8 @@
     "ignoredBuiltDependencies": [
       "rollup"
     ]
+  },
+  "overrides": {
+    "js-yaml": "^4.1.1"
   }
 }

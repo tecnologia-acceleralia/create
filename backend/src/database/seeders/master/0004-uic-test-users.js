@@ -148,22 +148,41 @@ export async function up(queryInterface) {
       userTenantId = newUserTenant.id;
     }
 
-    // Asignar rol
-    const roleId = userData.isCaptain ? teamCaptainRoleId : participantRoleId;
-    const [[existingRoleAssignment]] = await queryInterface.sequelize.query(
-      `SELECT id FROM user_tenant_roles WHERE user_tenant_id = ${userTenantId} AND role_id = ${roleId} LIMIT 1`
+    // Asignar roles: todos deben tener participant, y los capitanes también team_captain
+    // Primero asegurar participant para todos
+    const [[existingParticipantRole]] = await queryInterface.sequelize.query(
+      `SELECT id FROM user_tenant_roles WHERE user_tenant_id = ${userTenantId} AND role_id = ${participantRoleId} LIMIT 1`
     );
 
-    if (!existingRoleAssignment) {
+    if (!existingParticipantRole) {
       await queryInterface.bulkInsert('user_tenant_roles', [
         {
           tenant_id: tenant.id,
           user_tenant_id: userTenantId,
-          role_id: roleId,
+          role_id: participantRoleId,
           created_at: now,
           updated_at: now
         }
       ]);
+    }
+
+    // Si es capitán, también asignar team_captain
+    if (userData.isCaptain) {
+      const [[existingCaptainRole]] = await queryInterface.sequelize.query(
+        `SELECT id FROM user_tenant_roles WHERE user_tenant_id = ${userTenantId} AND role_id = ${teamCaptainRoleId} LIMIT 1`
+      );
+
+      if (!existingCaptainRole) {
+        await queryInterface.bulkInsert('user_tenant_roles', [
+          {
+            tenant_id: tenant.id,
+            user_tenant_id: userTenantId,
+            role_id: teamCaptainRoleId,
+            created_at: now,
+            updated_at: now
+          }
+        ]);
+      }
     }
 
     // Registrar usuario en el evento con el grado
@@ -274,7 +293,7 @@ export async function up(queryInterface) {
         summary: projectData.summary,
         problem: projectData.problem,
         solution: projectData.solution,
-        status: 'draft',
+        status: i === 4 ? 'inactive' : 'active', // Proyecto UIC 5 inactivo
         created_at: now,
         updated_at: now
       }

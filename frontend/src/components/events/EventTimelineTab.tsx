@@ -62,7 +62,7 @@ export function EventTimelineTab({ event }: EventTimelineTabProps) {
                 {/* Content */}
                 <div className="flex-1 pb-6">
                   <Link
-                    to={tenantPath(`dashboard/events/${event.id}?phase=${phase.id}`)}
+                    to={tenantPath(`dashboard/events/${event.id}/view?phase=${phase.id}`)}
                     className="block rounded-lg border p-4 transition-all hover:shadow-md cursor-pointer"
                     style={{
                       borderColor: `${color}40`,

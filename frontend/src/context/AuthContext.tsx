@@ -66,7 +66,7 @@ type AuthContextValue = {
   loading: boolean;
   login: (values: { email: string; password: string }) => Promise<void>;
   hydrateSession: (payload: AuthResponsePayload) => void;
-  logout: () => void;
+  logout: (shouldNavigate?: boolean) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -126,7 +126,11 @@ export function AuthProvider({ children }: Props) {
 
     try {
       const parsed: StoredAuth = JSON.parse(stored);
-      if (parsed?.tenantSlug && parsed.tenantSlug !== tenantSlug) {
+      const isStoredSuperAdmin = Boolean(parsed.isSuperAdmin);
+      
+      // Si el tenantSlug cambió, solo limpiar sesión si NO es superadmin
+      // Los superadmins pueden navegar entre tenants sin perder su sesión
+      if (parsed?.tenantSlug && parsed.tenantSlug !== tenantSlug && !isStoredSuperAdmin) {
         localStorage.removeItem(STORAGE_KEY);
         setUser(null);
         setMemberships([]);
@@ -141,7 +145,7 @@ export function AuthProvider({ children }: Props) {
         setAuthToken(parsed.tokens.token);
         setTokens(parsed.tokens);
         setMemberships(parsed.memberships ?? []);
-        setIsSuperAdmin(Boolean(parsed.isSuperAdmin));
+        setIsSuperAdmin(isStoredSuperAdmin);
         const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
         setActiveMembership(active);
         const roleScopes = active?.roles?.map(role => role.scope) ?? [];
@@ -207,7 +211,7 @@ export function AuthProvider({ children }: Props) {
     applyAuthPayload(response.data.data);
   }, [applyAuthPayload]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((shouldNavigate: boolean = false) => {
     setUser(null);
     setMemberships([]);
     setActiveMembership(null);
@@ -216,11 +220,19 @@ export function AuthProvider({ children }: Props) {
     setAuthToken(null);
     clearSession();
     localStorage.removeItem(STORAGE_KEY);
-  }, []);
+    
+    // Navegar a la home del tenant después de cerrar sesión (solo si shouldNavigate es true)
+    // Por defecto, la navegación se maneja desde el componente que llama logout
+    if (shouldNavigate && typeof window !== 'undefined') {
+      const homePath = tenantSlug ? `/${tenantSlug}` : '/';
+      window.location.replace(homePath);
+    }
+  }, [tenantSlug]);
 
   useEffect(() => {
     const unsubscribe = registerUnauthorizedHandler(() => {
-      logout();
+      // No navegar automáticamente desde logout porque el handler maneja la navegación al login
+      logout(false);
       if (typeof window !== 'undefined') {
         const loginPath = tenantSlug ? `/${tenantSlug}/login` : '/';
         window.location.replace(loginPath);

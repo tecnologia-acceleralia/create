@@ -230,13 +230,21 @@ eventsRouter.post(
     param('eventId').isInt(),
     body('title').isString().notEmpty(),
     body('phase_id').isInt(),
-    body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip']),
+    body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']),
     body('intro_html').optional({ nullable: true }).isString(),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
-      .optional({ nullable: true })
-      .custom(value => value === null || Number.isInteger(Number(value)))
-      .customSanitizer(value => (value === null ? null : Number(value))),
+      .optional({ nullable: true, checkFalsy: true })
+      .custom(value => {
+        if (value === null || value === undefined || value === '') return true;
+        const num = Number(value);
+        return !Number.isNaN(num) && Number.isInteger(num);
+      })
+      .customSanitizer(value => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number(value);
+        return Number.isNaN(num) ? null : num;
+      }),
     body('max_files').optional().isInt({ min: 1 }).toInt(),
     body('max_file_size_mb').optional({ nullable: true }).isInt({ min: 1 }).toInt(),
     body('allowed_mime_types').optional().isArray(),
@@ -253,13 +261,21 @@ eventsRouter.put(
     param('taskId').isInt(),
     body('title').optional().isString().notEmpty(),
     body('phase_id').optional().isInt(),
-    body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip']),
+    body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']),
     body('intro_html').optional({ nullable: true }).isString(),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
-      .optional({ nullable: true })
-      .custom(value => value === null || Number.isInteger(Number(value)))
-      .customSanitizer(value => (value === null ? null : Number(value))),
+      .optional({ nullable: true, checkFalsy: true })
+      .custom(value => {
+        if (value === null || value === undefined || value === '') return true;
+        const num = Number(value);
+        return !Number.isNaN(num) && Number.isInteger(num);
+      })
+      .customSanitizer(value => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number(value);
+        return Number.isNaN(num) ? null : num;
+      }),
     body('max_files').optional().isInt({ min: 1 }).toInt(),
     body('max_file_size_mb').optional({ nullable: true }).isInt({ min: 1 }).toInt(),
     body('allowed_mime_types').optional().isArray(),

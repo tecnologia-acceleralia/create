@@ -19,7 +19,7 @@ export async function up(queryInterface) {
       slug: 'uic',
       name: 'UIC Universitat Internacional de Catalunya',
       subdomain: 'uic',
-      custom_domain: null,
+      custom_domain: 'uicbarcelona.acceleralia.com',
       logo_url: 'https://acc-create-test.fra1.digitaloceanspaces.com/tenants/uic/branding/logo-1763364706619-26ef4de4-3091-4e9b-a154-20a1d4f42706.svg',
       primary_color: '#00416b',
       secondary_color: '#007bff',
@@ -229,7 +229,7 @@ export async function up(queryInterface) {
     adminRole.id
   );
 
-  const eventStart = new Date('2025-11-24T00:00:00.000Z');
+  const eventStart = new Date('2025-11-01T00:00:00.000Z');
   const eventEnd = new Date('2026-04-16T23:59:59.000Z');
 
   const phaseIntroStyles = `
@@ -335,7 +335,7 @@ export async function up(queryInterface) {
     color: #00416b;
   }
 
-  .uic-phase .phase-activities {
+  .uic-phase .phase-tasks {
     background: rgba(0, 65, 107, 0.05);
     border-left: 4px solid rgba(0, 65, 107, 0.5);
     border-radius: 16px;
@@ -343,7 +343,7 @@ export async function up(queryInterface) {
     margin-top: 1rem;
   }
 
-  .uic-phase .phase-activities strong {
+  .uic-phase .phase-tasks strong {
     display: block;
     font-size: 1rem;
     margin-bottom: 0.6rem;
@@ -462,7 +462,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
   
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>Contacto</strong>
     <p>Para cualquier duda o ayuda que necesites sobre esta plataforma, contáctanos en <a href="mailto:support+create@acceleralia.com">support+create@acceleralia.com</a></p>
   </div>
@@ -615,7 +615,7 @@ export async function up(queryInterface) {
     <li><strong>Inscripción y descripción de la idea:</strong> Presenta tu concepto de negocio, define tu mercado objetivo y describe tu modelo de negocio inicial. Esta actividad es obligatoria y constituye el primer paso formal del programa.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Qué necesitas hacer?</strong>
     <ul>
       <li>Si tienes una idea: descríbela brevemente en el formulario online. Puede ser un negocio o una iniciativa social.</li>
@@ -650,7 +650,7 @@ export async function up(queryInterface) {
     <li><strong>Análisis de competidores:</strong> Estudia a fondo a tus competidores directos e indirectos para identificar ventajas competitivas.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Por qué son importantes estas actividades?</strong>
     <p>Un análisis riguroso del mercado y del entorno competitivo te permitirá tomar decisiones estratégicas fundamentadas, identificar oportunidades de diferenciación y anticipar posibles amenazas antes de invertir recursos significativos en tu proyecto.</p>
   </div>
@@ -678,7 +678,7 @@ export async function up(queryInterface) {
     <li><strong>Ventana de oportunidad:</strong> Analiza si existe un momento óptimo para lanzar tu proyecto. Identifica factores temporales que pueden favorecer o dificultar tu entrada al mercado.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Qué aprenderás?</strong>
     <ul>
       <li>A calcular métricas clave de mercado (TAM, SAM, SOM).</li>
@@ -711,7 +711,7 @@ export async function up(queryInterface) {
     <li><strong>Curva de valor (Océanos azules):</strong> Identifica factores que la industria da por sentados y que podrías eliminar o reducir, así como factores que podrías crear o aumentar para abrir nuevos espacios de mercado no disputados.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Por qué es crucial esta fase?</strong>
     <p>Una propuesta de valor clara y diferenciada es el corazón de cualquier negocio exitoso. Sin ella, será difícil atraer clientes, inversores o partners. Esta fase te ayudará a comunicar de manera efectiva qué hace especial a tu proyecto.</p>
   </div>
@@ -739,7 +739,7 @@ export async function up(queryInterface) {
     <li><strong>Analizando la ventaja competitiva:</strong> Identifica qué te hace único y cómo sostenerlo en el tiempo. Analiza ventajas internas (costes, procesos, tecnología) y externas (percepción del cliente, servicio, reputación).</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Qué lograrás en esta fase?</strong>
     <ul>
       <li>Un modelo de negocio completo y estructurado.</li>
@@ -767,7 +767,7 @@ export async function up(queryInterface) {
     <li><strong>Presenta tu proyecto:</strong> Desarrolla un pitch de 3-5 minutos que conecte el problema, el cliente y la solución en una narrativa memorable. Prepara tanto la presentación visual como el vídeo de tu pitch.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>Consejos para un pitch exitoso</strong>
     <ul>
       <li>Máximo seis palabras por diapositiva.</li>
@@ -798,7 +798,7 @@ export async function up(queryInterface) {
     <li><strong>Diagrama de Gantt:</strong> Planifica tareas, dependencias y responsables de tu proyecto con una visual clara. Controla plazos, identifica cuellos de botella y comunica avances al equipo.</li>
   </ul>
 
-  <div class="phase-activities">
+  <div class="phase-tasks">
     <strong>¿Por qué son importantes estas actividades?</strong>
     <p>La validación temprana con clientes reales puede ahorrarte meses de desarrollo en la dirección equivocada. Un MVP te permite aprender rápido y ajustar tu estrategia. Un roadmap claro te ayuda a mantener el foco y a comunicar tu visión a stakeholders.</p>
   </div>
@@ -929,7 +929,7 @@ export async function up(queryInterface) {
 
   const taskIntroStyles = `
 <style>
-  .uic-activity {
+  .uic-task {
     background: linear-gradient(135deg, rgba(0, 65, 107, 0.07), rgba(0, 123, 255, 0.04));
     border: 1px solid rgba(0, 65, 107, 0.12);
     border-radius: 18px;
@@ -938,13 +938,13 @@ export async function up(queryInterface) {
     box-shadow: 0 18px 36px -20px rgba(0, 65, 107, 0.45);
   }
 
-  .uic-activity header {
+  .uic-task header {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
   }
 
-  .uic-activity h2 {
+  .uic-task h2 {
     margin: 0;
     font-size: 1.2rem;
     text-transform: uppercase;
@@ -952,14 +952,14 @@ export async function up(queryInterface) {
     color: #00416b;
   }
 
-  .uic-activity .activity-lead {
+  .uic-task .task-lead {
     font-size: 1.05rem;
     font-weight: 600;
     color: #002c45;
     margin: 0.35rem 0 0.75rem;
   }
 
-  .uic-activity h3 {
+  .uic-task h3 {
     margin-top: 1.35rem;
     margin-bottom: 0.65rem;
     font-size: 1rem;
@@ -970,19 +970,19 @@ export async function up(queryInterface) {
     gap: 0.5rem;
   }
 
-  .uic-activity h3::before {
+  .uic-task h3::before {
     content: '✷';
     font-size: 0.85rem;
     color: #00a3ff;
   }
 
-  .uic-activity p {
+  .uic-task p {
     margin: 0.5rem 0;
     line-height: 1.65;
   }
 
-  .uic-activity ul,
-  .uic-activity ol {
+  .uic-task ul,
+  .uic-task ol {
     list-style: none;
     padding: 0;
     margin: 0.85rem 0 0.3rem;
@@ -990,7 +990,7 @@ export async function up(queryInterface) {
     gap: 0.5rem;
   }
 
-  .uic-activity li {
+  .uic-task li {
     position: relative;
     padding-left: 1.75rem;
     border-left: 2px solid rgba(0, 65, 107, 0.12);
@@ -998,7 +998,7 @@ export async function up(queryInterface) {
     padding-bottom: 0.35rem;
   }
 
-  .uic-activity ul li::before {
+  .uic-task ul li::before {
     content: '';
     position: absolute;
     top: 50%;
@@ -1010,16 +1010,16 @@ export async function up(queryInterface) {
     background: linear-gradient(135deg, #007bff, #00c2ff);
   }
 
-  .uic-activity ol {
+  .uic-task ol {
     counter-reset: uic-counter;
   }
 
-  .uic-activity ol li {
+  .uic-task ol li {
     counter-increment: uic-counter;
     padding-left: 2.1rem;
   }
 
-  .uic-activity ol li::before {
+  .uic-task ol li::before {
     content: counter(uic-counter) '.';
     position: absolute;
     left: -0.35rem;
@@ -1028,7 +1028,7 @@ export async function up(queryInterface) {
     color: #00416b;
   }
 
-  .uic-activity a {
+  .uic-task a {
     color: #00416b;
     font-weight: 600;
     text-decoration: underline;
@@ -1037,12 +1037,12 @@ export async function up(queryInterface) {
     transition: color 0.24s ease, text-decoration-color 0.24s ease;
   }
 
-  .uic-activity a:hover {
+  .uic-task a:hover {
     color: #002c45;
     text-decoration-color: #00c2ff;
   }
 
-  .uic-activity .activity-note {
+  .uic-task .task-note {
     background: rgba(0, 65, 107, 0.06);
     border-left: 4px solid rgba(0, 65, 107, 0.45);
     border-radius: 14px;
@@ -1050,7 +1050,7 @@ export async function up(queryInterface) {
     margin-top: 0.85rem;
   }
 
-  .uic-activity .activity-callout {
+  .uic-task .task-callout {
     background: rgba(0, 123, 255, 0.08);
     border: 1px solid rgba(0, 65, 107, 0.16);
     border-radius: 14px;
@@ -1058,7 +1058,7 @@ export async function up(queryInterface) {
     margin-top: 1.1rem;
   }
 
-  .uic-activity .activity-callout strong {
+  .uic-task .task-callout strong {
     display: block;
     font-size: 0.95rem;
     margin-bottom: 0.45rem;
@@ -1069,13 +1069,13 @@ export async function up(queryInterface) {
 
   const wrapIntro = (content) => `${taskIntroStyles}${content}`;
   const taskIntroHtml = Object.freeze({
-    'Inscripción y descripción de la idea': wrapIntro(`<section class="uic-activity">
+    'Inscripción y descripción de la idea': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Inscripción y descripción de la idea</h2>
-    <p class="activity-lead">Presenta tu idea de negocio y forma tu equipo para comenzar el programa SPP.</p>
+    <p class="task-lead">Presenta tu idea de negocio y forma tu equipo para comenzar el programa SPP.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>En qué consiste</strong>
     <p>En esta fase inicial, los interesados presentan sus ideas de negocio y equipos. Deben proporcionar detalles sobre el concepto de su empresa, el mercado objetivo y el modelo de negocio.</p>
   </div>
@@ -1095,7 +1095,7 @@ export async function up(queryInterface) {
     <li>Forma tu equipo (mínimo 3 miembros, máximo 5).</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Importante</strong>
     <ul>
       <li>¿Tienes una idea? Descríbela brevemente en el formulario online. Puede ser un negocio o una iniciativa social.</li>
@@ -1103,13 +1103,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Análisis de mercado y fuerzas de Porter': wrapIntro(`<section class="uic-activity">
+    'Análisis de mercado y fuerzas de Porter': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Análisis de mercado y fuerzas de Porter</h2>
-    <p class="activity-lead">Explora el ecosistema competitivo para anticipar riesgos y encontrar oportunidades con una visión integral.</p>
+    <p class="task-lead">Explora el ecosistema competitivo para anticipar riesgos y encontrar oportunidades con una visión integral.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>En qué consiste</strong>
     <p>Un <strong>análisis de mercado</strong> riguroso mide cambios globales y ayuda a comprender el entorno en el que opera tu proyecto. Sumado al análisis sectorial y a las cinco fuerzas de Porter, refuerza la toma de decisiones estratégicas.</p>
   </div>
@@ -1121,7 +1121,7 @@ export async function up(queryInterface) {
     <li><strong>Cinco fuerzas de Porter:</strong> estudia poder de clientes y proveedores, amenaza de sustitutivos y nuevos entrantes, y rivalidad actual.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recurso recomendado</strong>
     <ul>
       <li><a href="{{asset:10-pasos-para-hacer-un-analisis-de-sector.pdf}}" target="_blank" rel="noopener">10 pasos para hacer un análisis de sector</a></li>
@@ -1139,21 +1139,21 @@ export async function up(queryInterface) {
 
   <p>La lectura conjunta revela oportunidades, debilidades y tácticas para reforzar tu diferenciación.</p>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Plantilla-de-las-5-Fuerzas-de-Porter.pptx}}" target="_blank" rel="noopener">Descargar plantilla de Porter</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=1cQ7Ebj6Gxs&feature=youtu.be" target="_blank" rel="noopener">Porter’s Five Forces: A Practical Example</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Comparte tu análisis documentado de Porter.</li>
@@ -1162,13 +1162,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    PESTEL: wrapIntro(`<section class="uic-activity">
+    PESTEL: wrapIntro(`<section class="uic-task">
   <header>
     <h2>PESTEL</h2>
-    <p class="activity-lead">Evalúa el contexto externo de tu proyecto para anticipar factores que pueden acelerar o frenar su crecimiento.</p>
+    <p class="task-lead">Evalúa el contexto externo de tu proyecto para anticipar factores que pueden acelerar o frenar su crecimiento.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Por qué hacerlo</strong>
     <p>El análisis PESTEL revisa factores <strong>políticos, económicos, socioculturales, tecnológicos, ecológicos y legales</strong>. Te ayuda a detectar amenazas tempranas y a reforzar tu estrategia con datos reales.</p>
   </div>
@@ -1180,28 +1180,28 @@ export async function up(queryInterface) {
     <li>Define acciones preventivas u oportunidades emergentes.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recurso recomendado</strong>
     <ul>
       <li><a href="{{asset:Como-hacer-un-analisis-pestal.pdf}}" target="_blank" rel="noopener">Cómo hacer un análisis PESTEL</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Analisis-Pestel.pptx}}" target="_blank" rel="noopener">Descargar plantilla PESTEL</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=EVw3RjG2wag" target="_blank" rel="noopener">PESTEL: herramienta de planificación estratégica</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Sube tu análisis PESTEL completo.</li>
@@ -1210,13 +1210,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Análisis DAFO': wrapIntro(`<section class="uic-activity">
+    'Análisis DAFO': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Análisis DAFO</h2>
-    <p class="activity-lead">Cruza la mirada interna y externa de tu proyecto para diseñar estrategias accionables.</p>
+    <p class="task-lead">Cruza la mirada interna y externa de tu proyecto para diseñar estrategias accionables.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Elementos clave</strong>
     <ul>
       <li><strong>Debilidades:</strong> aspectos internos que limitan tu propuesta.</li>
@@ -1233,21 +1233,21 @@ export async function up(queryInterface) {
     <li>Define acciones para potenciar fortalezas y reducir riesgos.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Plantillas-para-realizar-un-analisis-FODA.pptx}}" target="_blank" rel="noopener">Descargar plantilla de análisis DAFO</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=Vlyh-2H6syg" target="_blank" rel="noopener">Vídeo explicativo sobre análisis DAFO</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Elige la plantilla que prefieras y completa los cuatro cuadrantes.</li>
@@ -1256,13 +1256,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 1: El mercado y el cliente': wrapIntro(`<section class="uic-activity">
+    'Opcional 1: El mercado y el cliente': wrapIntro(`<section class="uic-task">
   <header>
     <h2>El mercado y el cliente</h2>
-    <p class="activity-lead">Define a quién sirves y cómo generar valor real para cada segmento.</p>
+    <p class="task-lead">Define a quién sirves y cómo generar valor real para cada segmento.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Conceptos esenciales</strong>
     <ul>
       <li><strong>Mercado:</strong> conjunto de personas u organizaciones con necesidad y capacidad de compra.</li>
@@ -1281,7 +1281,7 @@ export async function up(queryInterface) {
 
   <p>Identifica personas usuarias, toma notas de sus motivaciones y practica la empatía para construir historias de uso.</p>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
       <li><a href="{{asset:Guia-practica-para-entender-el-mercado-los-clientes-y-consumidores.pdf}}" target="_blank" rel="noopener">Guía práctica para entender el mercado, los clientes y consumidores</a></li>
@@ -1289,7 +1289,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantillas y toolbox</strong>
     <ul>
       <li><a href="{{asset:Plantilla-de-tipos-de-cliente-1.pptx}}" target="_blank" rel="noopener">Plantilla de tipos de clientes</a></li>
@@ -1297,7 +1297,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Comparte tu análisis del segmento de clientes.</li>
@@ -1306,13 +1306,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 2: Análisis de competidores': wrapIntro(`<section class="uic-activity">
+    'Opcional 2: Análisis de competidores': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Análisis de competidores</h2>
-    <p class="activity-lead">Anticipa los movimientos del mercado y fortalece tu propuesta antes que el resto.</p>
+    <p class="task-lead">Anticipa los movimientos del mercado y fortalece tu propuesta antes que el resto.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Qué lograrás</strong>
     <p>Identificar diferenciadores, obstáculos para crecer y oportunidades para reorientar tu estrategia comercial o de producto.</p>
   </div>
@@ -1324,28 +1324,28 @@ export async function up(queryInterface) {
     <li>Evalúa precios, canales, narrativa y experiencia de usuario.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
       <li><a href="https://alternativeto.net/" target="_blank" rel="noopener">AlternativeTo: buscador de competidores</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:competitive-analysis-file-pdf.pdf}}" target="_blank" rel="noopener">Plantilla de análisis de la competencia</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=QtGvRYjjTms" target="_blank" rel="noopener">Crear Océanos Azules con las curvas de valor</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Documenta hallazgos por competidor y tu estrategia de respuesta.</li>
@@ -1353,13 +1353,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Cuantificación del mercado': wrapIntro(`<section class="uic-activity">
+    'Cuantificación del mercado': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Cuantificación de mercado: PAM, TAM, SAM, SOM</h2>
-    <p class="activity-lead">Dimensiona el tamaño real de tu oportunidad y prioriza dónde enfocarte primero.</p>
+    <p class="task-lead">Dimensiona el tamaño real de tu oportunidad y prioriza dónde enfocarte primero.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Definiciones clave</strong>
     <ul>
       <li><strong>PAM (Potential Available Market):</strong> consumo global sin restricciones.</li>
@@ -1378,21 +1378,21 @@ export async function up(queryInterface) {
 
   <p>Recuerda que un mercado puede permanecer en el PAM, pero quedar fuera del TAM por limitaciones normativas (ej. requisitos locales en China o Qatar).</p>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:PLANTILLA-TAM-SAM-SOM-1.pptx}}" target="_blank" rel="noopener">Plantilla TAM · SAM · SOM</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?si=xcwoRyFWzsR5EUux&v=z-VF1mCMfvg&feature=youtu.be" target="_blank" rel="noopener">¿Cómo calcular el mercado potencial de tu startup?</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Documenta los cálculos y fuentes utilizadas.</li>
@@ -1401,13 +1401,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 3: Ventana de oportunidad': wrapIntro(`<section class="uic-activity">
+    'Opcional 3: Ventana de oportunidad': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Ventana de oportunidad</h2>
-    <p class="activity-lead">Detecta segmentos que valoran tu propuesta ahora mismo y conviértelos en aliados tempranos.</p>
+    <p class="task-lead">Detecta segmentos que valoran tu propuesta ahora mismo y conviértelos en aliados tempranos.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Segmentación inteligente</strong>
     <p>Definir grupos con necesidades y comportamientos similares evita campañas genéricas y te permite lanzar mensajes con mayor precisión.</p>
   </div>
@@ -1419,7 +1419,7 @@ export async function up(queryInterface) {
     <li>Alinea canales y propuesta de valor para cada ventana detectada.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
       <li><a href="{{asset:Como-realizar-un-analisis-de-mercado-para-su-producto.pdf}}" target="_blank" rel="noopener">Cómo realizar un análisis de mercado para su producto</a></li>
@@ -1427,14 +1427,14 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Plantilla-para-hacer-segmentacion-de-mercado-1.pptx}}" target="_blank" rel="noopener">Plantilla de segmentación de mercado</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=83ckliHw2kg" target="_blank" rel="noopener">Segmentación de mercado (introducción)</a></li>
@@ -1442,13 +1442,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Propuesta de valor': wrapIntro(`<section class="uic-activity">
+    'Propuesta de valor': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Propuesta de valor</h2>
-    <p class="activity-lead">Explica cómo tu solución transforma la vida de tu cliente mejor que cualquier alternativa.</p>
+    <p class="task-lead">Explica cómo tu solución transforma la vida de tu cliente mejor que cualquier alternativa.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Canvas: segmento vs. propuesta</strong>
     <ul>
       <li><strong>Segmento de clientes:</strong> qué tareas desean completar, qué les entusiasma y qué les frustra.</li>
@@ -1463,7 +1463,7 @@ export async function up(queryInterface) {
     <li>Conecta con misión, visión y valores de tu proyecto.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
       <li><a href="{{asset:Como-formular-la-propuesta-de-valor-de-una-empresa.pdf}}" target="_blank" rel="noopener">Cómo formular la propuesta de valor de una empresa</a></li>
@@ -1473,14 +1473,14 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:plantilla-propuesta-de-valor.pdf}}" target="_blank" rel="noopener">Plantilla de propuesta de valor</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=C8tWbb41Q9M" target="_blank" rel="noopener">¿Qué es una propuesta de valor?</a></li>
@@ -1488,7 +1488,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Incluye propuesta de valor, público objetivo y aportes sociales.</li>
@@ -1496,13 +1496,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 4: Curva de valor (Océanos azules)': wrapIntro(`<section class="uic-activity">
+    'Opcional 4: Curva de valor (Océanos azules)': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Curva de valor (Océanos Azules)</h2>
-    <p class="activity-lead">Visualiza cómo te diferencias de la competencia y descubre espacios de valor inexplorados.</p>
+    <p class="task-lead">Visualiza cómo te diferencias de la competencia y descubre espacios de valor inexplorados.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Qué obtienes</strong>
     <ul>
       <li>Comprensión comparativa del sector.</li>
@@ -1518,27 +1518,27 @@ export async function up(queryInterface) {
     <li>Detecta dónde puedes innovar o simplificar para abrir un océano azul.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Plantilla-para-implementar-la-estrategia-oceanos-azules.pptx}}" target="_blank" rel="noopener">Plantilla estrategia Océanos Azules</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=QtGvRYjjTms" target="_blank" rel="noopener">Crear Océanos Azules con las curvas de valor</a></li>
     </ul>
   </div>
 </section>`),
-    'Modelo de negocio': wrapIntro(`<section class="uic-activity">
+    'Modelo de negocio': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Business Model Canvas</h2>
-    <p class="activity-lead">Resume cómo generas, entregas y capturas valor en una sola página.</p>
+    <p class="task-lead">Resume cómo generas, entregas y capturas valor en una sola página.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Dos bloques clave</strong>
     <ul>
       <li><strong>Mercado y clientes:</strong> segmentos, propuesta de valor, canales, relación y flujos de ingreso.</li>
@@ -1553,14 +1553,14 @@ export async function up(queryInterface) {
     <li>Refresca el canvas en cada iteración importante del proyecto.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Modelo-Canvas.doc}}" target="_blank" rel="noopener">Plantilla Business Model Canvas</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=f7-3mhABFxg" target="_blank" rel="noopener">The Business Model Canvas (9 Steps)</a></li>
@@ -1569,7 +1569,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Comparte tu canvas completo y conclusiones principales.</li>
@@ -1577,13 +1577,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 5: Analizando la ventaja competitiva': wrapIntro(`<section class="uic-activity">
+    'Opcional 5: Analizando la ventaja competitiva': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Analizando la ventaja competitiva</h2>
-    <p class="activity-lead">Identifica qué te hace único y cómo sostenerlo en el tiempo.</p>
+    <p class="task-lead">Identifica qué te hace único y cómo sostenerlo en el tiempo.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Dos miradas complementarias</strong>
     <ul>
       <li><strong>Interna:</strong> costes, procesos, tecnología, propiedad intelectual.</li>
@@ -1598,21 +1598,21 @@ export async function up(queryInterface) {
     <li>Conecta la ventaja con tu propuesta de valor y narrativa comercial.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
       <li><a href="{{asset:Plantilla-de-ventaja-comparativa-1.pptx}}" target="_blank" rel="noopener">Plantilla de ventaja comparativa</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=_XPEAvIfL00" target="_blank" rel="noopener">Estrategia y ventaja competitiva</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Resume tus ventajas clave y cómo las validarás.</li>
@@ -1620,13 +1620,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Presenta tu proyecto': wrapIntro(`<section class="uic-activity">
+    'Presenta tu proyecto': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Pitch</h2>
-    <p class="activity-lead">Cuenta la historia de tu proyecto en 3-5 minutos y conquista a tu audiencia.</p>
+    <p class="task-lead">Cuenta la historia de tu proyecto en 3-5 minutos y conquista a tu audiencia.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Preparación</strong>
     <p>A estas alturas ya dominas el problema, al cliente y la solución. Tu pitch conecta esos elementos en una narrativa memorable.</p>
   </div>
@@ -1647,7 +1647,7 @@ export async function up(queryInterface) {
     <li>Prepara respuestas para preguntas frecuentes (finanzas, DAFO, roadmap).</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
       <li><a href="{{asset:Pitch-deck.pptx}}" target="_blank" rel="noopener">Plantilla editable de pitch</a></li>
@@ -1655,7 +1655,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Sube dos archivos: vídeo del pitch y la presentación.</li>
@@ -1663,13 +1663,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 6: Validación de modelo de negocio': wrapIntro(`<section class="uic-activity">
+    'Opcional 6: Validación de modelo de negocio': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Validación de modelo de negocio</h2>
-    <p class="activity-lead">Confirma con evidencia que tus hipótesis son sólidas antes de escalar.</p>
+    <p class="task-lead">Confirma con evidencia que tus hipótesis son sólidas antes de escalar.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Qué implica</strong>
     <p>Hacer las preguntas correctas, contrastarlas con clientes tempranos y ajustar tu estrategia a partir de los resultados.</p>
   </div>
@@ -1681,14 +1681,14 @@ export async function up(queryInterface) {
     <li>Canales y relación: ¿cómo prefieren ser contactados y atendidos?</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
       <li><a href="{{asset:Encuestas-de-investigacion-de-mercado-1.pdf}}" target="_blank" rel="noopener">Encuestas de investigación de mercado y entrevistas de validación</a></li>
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=hKMX-uQ0NYY" target="_blank" rel="noopener">Validación del modelo de negocio</a></li>
@@ -1697,7 +1697,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Resume hallazgos de encuestas o entrevistas y decisiones tomadas.</li>
@@ -1705,13 +1705,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 7: Construye tu MVP': wrapIntro(`<section class="uic-activity">
+    'Opcional 7: Construye tu MVP': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Construye tu MVP</h2>
-    <p class="activity-lead">Diseña el experimento mínimo para validar tu solución con clientes reales.</p>
+    <p class="task-lead">Diseña el experimento mínimo para validar tu solución con clientes reales.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Propósito</strong>
     <p>Conversar con usuarios tempranos, comprobar que resuelves su problema y confirmar su disposición a pagar.</p>
   </div>
@@ -1723,7 +1723,7 @@ export async function up(queryInterface) {
     <li>Sienta bases sólidas para escalar el negocio.</li>
   </ul>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=cSXsPCgWOHU" target="_blank" rel="noopener">Las fases del lanzamiento de un producto</a></li>
@@ -1731,7 +1731,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Describe tu MVP, métricas objetivo y aprendizajes esperados.</li>
@@ -1739,13 +1739,13 @@ export async function up(queryInterface) {
     </ul>
   </div>
 </section>`),
-    'Opcional 8: Diagrama de Gantt': wrapIntro(`<section class="uic-activity">
+    'Opcional 8: Diagrama de Gantt': wrapIntro(`<section class="uic-task">
   <header>
     <h2>Diagrama de Gantt</h2>
-    <p class="activity-lead">Planifica tareas, dependencias y responsables de tu proyecto con una visual clara.</p>
+    <p class="task-lead">Planifica tareas, dependencias y responsables de tu proyecto con una visual clara.</p>
   </header>
 
-  <div class="activity-note">
+  <div class="task-note">
     <strong>Por qué usarlo</strong>
     <p>Te ayuda a ordenar fases, controlar plazos, identificar cuellos de botella y comunicar avances al equipo.</p>
   </div>
@@ -1759,7 +1759,7 @@ export async function up(queryInterface) {
     <li>Revisa periódicamente y ajusta según el progreso.</li>
   </ol>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
       <li><a href="{{asset:Que-es-y-para-que-sirve-un-diagrama-de-Gantt_.pdf}}" target="_blank" rel="noopener">¿Qué es y para qué sirve un diagrama de Gantt?</a></li>
@@ -1769,7 +1769,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Toolbox</strong>
     <ul>
       <li><a href="https://www.youtube.com/watch?v=5rhMbbasqNQ" target="_blank" rel="noopener">Cómo hacer un Gantt</a></li>
@@ -1777,7 +1777,7 @@ export async function up(queryInterface) {
     </ul>
   </div>
 
-  <div class="activity-callout">
+  <div class="task-callout">
     <strong>Entrega</strong>
     <ul>
       <li>Incluye ruta crítica, duración estimada y responsables.</li>
@@ -1899,6 +1899,8 @@ export async function up(queryInterface) {
     }
 
     tasks.forEach((task, index) => {
+      // La tarea "Inscripción y descripción de la idea" es de tipo "Sin entrega"
+      const isRegistrationTask = task.title === 'Inscripción y descripción de la idea';
       tasksToInsert.push({
         tenant_id: tenant.id,
         event_id: event.id,
@@ -1906,8 +1908,8 @@ export async function up(queryInterface) {
         title: task.title,
         description: null,
         intro_html: taskIntroHtml[task.title] ?? null,
-        delivery_type: 'file',
-        is_required: task.isRequired,
+        delivery_type: isRegistrationTask ? 'none' : 'file',
+        is_required: isRegistrationTask ? false : task.isRequired,
         due_date: phaseMeta.endDate,
         status: 'active',
         phase_rubric_id: null,

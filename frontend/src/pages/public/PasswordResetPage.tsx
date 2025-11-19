@@ -8,11 +8,9 @@ import { isAxiosError } from 'axios';
 import { useNavigate, Link } from 'react-router';
 import { toast } from 'sonner';
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PageContainer } from '@/components/common';
-import { useTenant } from '@/context/TenantContext';
+import { AuthCard, ErrorDisplay } from '@/components/common';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { requestPasswordResetCode, verifyPasswordResetCode, confirmPasswordReset } from '@/services/auth';
 import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
@@ -105,7 +103,7 @@ const RequestStepForm = ({ form, serverError, onSubmit }: RequestStepFormProps) 
         ) : null}
       </div>
 
-      {serverError ? <p className="text-sm text-destructive">{serverError}</p> : null}
+      <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? t('common.loading') : t('auth.submit')}
@@ -159,7 +157,7 @@ const VerifyStepForm = ({
         ) : null}
       </div>
 
-      {serverError ? <p className="text-sm text-destructive">{serverError}</p> : null}
+      <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? t('common.loading') : t('auth.passwordReset.submitCode')}
@@ -243,7 +241,7 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
         ) : null}
       </div>
 
-      {serverError ? <p className="text-sm text-destructive">{serverError}</p> : null}
+      <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
         {isSubmitting ? t('common.loading') : t('auth.passwordReset.submitPassword')}
@@ -254,7 +252,6 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
 
 function PasswordResetPage() {
   const { t } = useTranslation();
-  const { branding, tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
   const { hydrateSession } = useAuth();
@@ -387,63 +384,45 @@ function PasswordResetPage() {
   }, [step, code]);
 
   return (
-    <PageContainer className="flex justify-center">
-      <Card className="h-full w-full max-w-md border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
-        <CardHeader className="flex flex-col items-center gap-3">
-          {branding.logoUrl ? (
-            <img
-              src={branding.logoUrl}
-              alt={t('navigation.brand', { defaultValue: 'Create' })}
-              className="h-12 w-auto"
-            />
+    <AuthCard
+      title={currentTitle}
+      subtitle={currentDescription ?? undefined}
+      footer={
+        <>
+          <Link to={tenantPath('login')} className="text-sm text-primary underline underline-offset-4">
+            {t('auth.backToLogin')}
+          </Link>
+          {step !== 'request' ? (
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline underline-offset-4"
+              onClick={resetState}
+            >
+              {t('auth.passwordReset.cancel')}
+            </button>
           ) : null}
-          {tenantSlug ? (
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('auth.loginForTenant', { tenant: tenantSlug })}
-            </p>
-          ) : null}
-          <h1 className="text-xl font-semibold text-center">{currentTitle}</h1>
-          {currentDescription ? (
-            <p className="text-center text-sm text-muted-foreground">{currentDescription}</p>
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          {step === 'request' ? (
-            <RequestStepForm form={requestForm} serverError={serverError} onSubmit={handleRequest} />
-          ) : null}
+        </>
+      }
+    >
+      {step === 'request' ? (
+        <RequestStepForm form={requestForm} serverError={serverError} onSubmit={handleRequest} />
+      ) : null}
 
-          {step === 'verify' ? (
-            <VerifyStepForm
-              form={verifyForm}
-              serverError={serverError}
-              onSubmit={handleVerify}
-              onResend={handleResend}
-              isResending={isResending}
-              showResend={showResend}
-            />
-          ) : null}
+      {step === 'verify' ? (
+        <VerifyStepForm
+          form={verifyForm}
+          serverError={serverError}
+          onSubmit={handleVerify}
+          onResend={handleResend}
+          isResending={isResending}
+          showResend={showResend}
+        />
+      ) : null}
 
-          {step === 'confirm' ? (
-            <ConfirmStepForm form={confirmForm} serverError={serverError} onSubmit={handleConfirm} />
-          ) : null}
-
-          <div className="mt-6 flex flex-col gap-2 text-center">
-            <Link to={tenantPath('login')} className="text-sm text-primary underline underline-offset-4">
-              {t('auth.backToLogin')}
-            </Link>
-            {step === 'request' ? null : (
-              <button
-                type="button"
-                className="text-sm text-muted-foreground underline underline-offset-4"
-                onClick={resetState}
-              >
-                {t('auth.passwordReset.cancel')}
-              </button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </PageContainer>
+      {step === 'confirm' ? (
+        <ConfirmStepForm form={confirmForm} serverError={serverError} onSubmit={handleConfirm} />
+      ) : null}
+    </AuthCard>
   );
 }
 

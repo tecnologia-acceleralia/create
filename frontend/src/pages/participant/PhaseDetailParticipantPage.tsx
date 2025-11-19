@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link, useSearchParams, Navigate } from 'react-router';
+import { useParams, Link, useSearchParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { Plus, Minus } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatDateValue, formatDateRange, parseDate } from '@/utils/date';
+import { formatDateRange, parseDate } from '@/utils/date';
 import {
   getEventDetail,
   type Phase,
@@ -16,10 +14,11 @@ import {
 } from '@/services/events';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { useAuth } from '@/context/AuthContext';
+import { PhaseContextCard, TaskContextCard } from '@/components/events';
 
 type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 
-function EventDetailParticipantPage() {
+function PhaseDetailParticipantPage() {
   const { eventId } = useParams();
   const numericId = Number(eventId);
   const { t } = useTranslation();
@@ -71,15 +70,10 @@ function EventDetailParticipantPage() {
     );
   }
 
-  // Check if current phase is Phase 0, redirect to PhaseZeroPage
-  if (isPhaseZero) {
-    return <Navigate to={tenantPath(`dashboard/events/${eventId}/phase-zero?phase=${activePhaseId}`)} replace />;
-  }
-
-  return <EventParticipantView eventDetail={eventDetail} />;
+  return <PhaseParticipantView eventDetail={eventDetail} />;
 }
 
-function EventParticipantView({ eventDetail }: { eventDetail: EventDetailData }) {
+function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
   const tenantPath = useTenantPath();
@@ -223,7 +217,7 @@ function EventParticipantView({ eventDetail }: { eventDetail: EventDetailData })
     return initialSet;
   });
 
-  const [isPhaseContextExpanded, setIsPhaseContextExpanded] = useState(true);
+  const [isPhaseContextExpanded] = useState(true);
 
   // Actualizar el estado cuando cambian las tareas activas (expandir todas por defecto)
   useEffect(() => {
@@ -234,154 +228,30 @@ function EventParticipantView({ eventDetail }: { eventDetail: EventDetailData })
     setExpandedTasks(newExpandedSet);
   }, [activeTasks]); // Cuando cambian las tareas activas
 
-  const toggleTask = (taskId: number) => {
-    setExpandedTasks(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(taskId)) {
-        newSet.delete(taskId);
-      } else {
-        newSet.add(taskId);
-      }
-      return newSet;
-    });
-  };
-
   return (
     <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
       <div className="space-y-6">
-        {activePhase?.intro_html ? (
-          <div className="rounded-2xl border border-border/70 bg-card/80 p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2 flex-1">
-                <button
-                  onClick={() => setIsPhaseContextExpanded(!isPhaseContextExpanded)}
-                  className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
-                  aria-label={isPhaseContextExpanded ? t('common.collapse') : t('common.expand')}
-                >
-                  {isPhaseContextExpanded ? (
-                    <Minus className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </button>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-muted-foreground mb-1">
-                    Fase
-                  </p>
-                  <p className="text-base font-semibold text-foreground">{activePhase.name}</p>
-                  {(activePhase.start_date || activePhase.end_date) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatDateRange(locale, activePhase.start_date ?? null, activePhase.end_date ?? null) ?? t('events.taskPeriodNotSet')}
-                    </p>
-                  )}
-                  {isPhaseContextExpanded && (
-                    <div
-                      className="prose prose-sm max-w-none mt-3"
-                      dangerouslySetInnerHTML={{ __html: activePhase.intro_html }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {isPhaseZero ? (
-          <div className="flex flex-wrap gap-3">
-            <Button asChild>
-              <Link to={tenantPath(`dashboard/events/${eventDetail.id}/team#projects-list`)}>
-                {t('teams.viewTeams')}
-              </Link>
-            </Button>
-            {isParticipantOnly && !hasTeam ? (
-              <Button asChild variant="outline">
-                <Link to={tenantPath(`dashboard/events/${eventDetail.id}/team#projects-create`)}>
-                  {t('teams.createTeam')}
-                </Link>
-              </Button>
-            ) : null}
-          </div>
+        {activePhase ? (
+          <PhaseContextCard phase={activePhase} locale={locale} defaultExpanded={isPhaseContextExpanded} />
         ) : null}
 
         <div className="space-y-4">
           {activeTasks.map(task => {
-            const isExpanded = expandedTasks.has(task.id);
             const phase = phasesMap.get(task.phase_id);
             const periodStatus = isTaskInValidPeriod(task);
-            const hasValidDates = phase?.start_date || phase?.end_date;
             
             return (
-              <div key={task.id} className="rounded-2xl border border-border/70 bg-card/80 p-6">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-2 flex-1">
-                    <button
-                      onClick={() => toggleTask(task.id)}
-                      className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
-                      aria-label={isExpanded ? t('common.collapse') : t('common.expand')}
-                    >
-                      {isExpanded ? (
-                        <Minus className="h-4 w-4" aria-hidden="true" />
-                      ) : (
-                        <Plus className="h-4 w-4" aria-hidden="true" />
-                      )}
-                    </button>
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-muted-foreground mb-1">
-                        Actividad
-                      </p>
-                      <p className="text-base font-semibold text-foreground">{task.title}</p>
-                      {hasValidDates && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatDateRange(locale, phase?.start_date ?? null, phase?.end_date ?? null) ?? t('events.taskPeriodNotSet')}
-                        </p>
-                      )}
-                      {task.description && isExpanded ? (
-                        <p className="text-sm text-muted-foreground mt-2">{task.description}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {task.is_required ? <Badge variant="secondary">{t('events.taskRequiredBadge')}</Badge> : null}
-                  </div>
-                </div>
-                {isExpanded && (
-                  <div className="space-y-3 mt-3">
-                    {task.intro_html ? (
-                      <div
-                        className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: task.intro_html }}
-                      />
-                    ) : null}
-                    {isPhaseZero ? null : (
-                      <div className="flex flex-wrap gap-3 items-center">
-                        {periodStatus.isValid ? (
-                          <Button asChild>
-                            <Link to={tenantPath(`dashboard/events/${eventDetail.id}/tasks/${task.id}`)}>
-                              {t('submissions.register')}
-                            </Link>
-                          </Button>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <p className="text-sm text-muted-foreground">
-                              {(() => {
-                                if (periodStatus.reason === 'not_started') {
-                                  return t('events.taskPeriodNotStarted');
-                                }
-                                if (periodStatus.reason === 'ended') {
-                                  return t('events.taskPeriodEnded');
-                                }
-                                return t('events.taskPeriodNotAvailable');
-                              })()}
-                            </p>
-                            <Button variant="outline" disabled>
-                              {t('submissions.register')}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <TaskContextCard
+                key={task.id}
+                task={task}
+                phase={phase}
+                locale={locale}
+                defaultExpanded={expandedTasks.has(task.id)}
+                showActions={!isPhaseZero}
+                eventId={eventDetail.id}
+                isPhaseZero={isPhaseZero}
+                periodStatus={periodStatus}
+              />
             );
           })}
           {!activeTasks.length && phases.length ? (
@@ -393,5 +263,5 @@ function EventParticipantView({ eventDetail }: { eventDetail: EventDetailData })
   );
 }
 
-export default EventDetailParticipantPage;
+export default PhaseDetailParticipantPage;
 

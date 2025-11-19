@@ -96,6 +96,10 @@ export function setSuperAdminAuthToken(token: string | null) {
   currentToken = token;
 }
 
+export function getSuperAdminAuthToken(): string | null {
+  return currentToken;
+}
+
 export function registerSuperAdminUnauthorizedHandler(handler: UnauthorizedHandler) {
   unauthorizedHandlers.add(handler);
   return () => {

@@ -35,7 +35,7 @@ export function TaskModel(sequelize) {
         allowNull: true
       },
       delivery_type: {
-        type: DataTypes.ENUM('text', 'file', 'url', 'video', 'audio', 'zip'),
+        type: DataTypes.ENUM('text', 'file', 'url', 'video', 'audio', 'zip', 'none'),
         defaultValue: 'file'
       },
       is_required: {

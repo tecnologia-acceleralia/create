@@ -1,7 +1,119 @@
+<#
+.SYNOPSIS
+    Script de configuracion y arranque del entorno de desarrollo CREATE Platform.
+
+.DESCRIPTION
+    Este script automatiza la configuracion completa del entorno de desarrollo:
+    - Sincroniza cambios desde Git (opcional)
+    - Crea backups de configuracion (opcional)
+    - Instala dependencias locales (backend y frontend)
+    - Gestiona dependencias Docker con sincronizacion inteligente
+    - Inicializa/configura la base de datos
+    - Ejecuta migraciones y seeders
+    - Arranca los contenedores Docker
+
+    El script incluye proteccion contra bloqueos EPERM deteniendo automaticamente
+    contenedores Docker y procesos de pnpm antes de instalar dependencias.
+
+.PARAMETER Fresh
+    Modo de instalacion limpia:
+    - Elimina archivos lock (pnpm-lock.yaml)
+    - Detiene y elimina todos los contenedores Docker
+    - Reinstala todas las dependencias desde cero
+    - Reconstruye las imagenes Docker
+    - Si se combina con -ResetDB, tambien elimina el volumen de la base de datos
+
+.PARAMETER ResetDB
+    Resetea completamente la base de datos:
+    - Elimina y recrea la base de datos
+    - Ejecuta migraciones desde cero
+    - Ejecuta todos los seeders (master + test)
+    - Solo tiene efecto si se usa con -Fresh o si la base de datos ya existe
+
+.PARAMETER SkipBackup
+    Omite la creacion del backup automatico antes de sincronizar cambios.
+    Los backups incluyen archivos .env y dump de la base de datos si esta disponible.
+
+.PARAMETER SkipGit
+    Omite todas las operaciones de Git (fetch, pull, deteccion de cambios).
+    Util cuando trabajas offline o con cambios locales que no quieres sincronizar.
+
+.PARAMETER ForceBuild
+    Fuerza el rebuild de las imagenes Docker aunque no se detecten cambios.
+    Util cuando necesitas reconstruir las imagenes sin modificar archivos.
+
+.EXAMPLE
+    .\start-development.ps1
+    Ejecuta el flujo normal: sincroniza Git, crea backup, instala dependencias y arranca contenedores.
+
+.EXAMPLE
+    .\start-development.ps1 -Fresh
+    Instalacion limpia completa: elimina locks, reconstruye todo desde cero.
+
+.EXAMPLE
+    .\start-development.ps1 -Fresh -ResetDB
+    Instalacion limpia + reset completo de base de datos.
+
+.EXAMPLE
+    .\start-development.ps1 -SkipBackup -SkipGit
+    Ejecucion rapida sin backups ni operaciones Git.
+
+.EXAMPLE
+    .\start-development.ps1 -ForceBuild
+    Fuerza el rebuild de las imagenes Docker aunque no haya cambios detectados.
+
+.FLOW
+    FLUJO NORMAL (sin -Fresh):
+    1. Git fetch y pull (si no -SkipGit)
+    2. Crear backup (si no -SkipBackup)
+    3. Detener contenedores Docker (para evitar bloqueos EPERM)
+    4. Instalar dependencias locales (backend y frontend)
+    5. Ejecutar audit fix en ambas carpetas
+    6. Detectar cambios en Git para decidir rebuild
+    7. Sincronizar dependencias Docker (solo si cambian los lockfiles)
+    8. Arrancar contenedores Docker (con rebuild si es necesario)
+    9. Inicializar base de datos (si no existe)
+    10. Ejecutar migraciones pendientes
+    11. Ejecutar seeders pendientes
+    12. Mostrar resumen con URLs y credenciales
+
+    FLUJO FRESH (-Fresh):
+    1. Git fetch y pull (si no -SkipGit)
+    2. Crear backup (si no -SkipBackup)
+    3. Eliminar archivos lock (pnpm-lock.yaml)
+    4. Detener y eliminar contenedores Docker
+    5. Eliminar recursos Docker del proyecto (volumenes, redes)
+    6. Instalar dependencias locales sin lockfiles
+    7. Construir imagenes Docker (backend y frontend)
+    8. Instalar dependencias Docker en volumenes
+    9. Arrancar contenedores Docker
+    10. Resetear o inicializar base de datos (según -ResetDB)
+    11. Ejecutar migraciones
+    12. Ejecutar seeders (forzado si -ResetDB)
+    13. Mostrar resumen con URLs y credenciales
+
+.CARACTERISTICAS
+    - Proteccion EPERM: Detiene automaticamente contenedores Docker antes de instalar dependencias
+    - Reintentos inteligentes: Hasta 3 intentos con limpieza progresiva en caso de errores EPERM
+    - Sincronizacion Docker: Solo reinstala dependencias Docker si cambian los lockfiles (hash SHA256)
+    - Deteccion de cambios: Decide automaticamente si necesita rebuild basado en archivos modificados
+    - Estado persistente: Guarda hashes de lockfiles en .docker-state para optimizar ejecuciones
+
+.NOTAS
+    - Requiere Docker y Docker Compose instalados y ejecutandose
+    - Requiere pnpm instalado globalmente
+    - Requiere acceso a Git remoto (a menos que uses -SkipGit)
+    - El script debe ejecutarse desde la raiz del proyecto
+    - En Windows, puede requerir permisos de administrador para algunas operaciones
+
+#>
+
 Param(
     [switch]$Fresh,
+    [switch]$ResetDB,
     [switch]$SkipBackup,
-    [switch]$SkipGit
+    [switch]$SkipGit,
+    [switch]$ForceBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -301,17 +413,51 @@ FLUSH PRIVILEGES;
     }
 }
 
+function Reset-Database {
+    param([hashtable]$EnvValues)
+
+    Write-Info "Reseteando base de datos (eliminando y recreando)"
+
+    $rootPassword = $EnvValues['MYSQL_ROOT_PASSWORD']
+    if (-not $rootPassword) {
+        throw 'Falta MYSQL_ROOT_PASSWORD en .env.dev'
+    }
+
+    $dbName = $EnvValues['DB_NAME']
+    if (-not $dbName) {
+        $dbName = $EnvValues['MYSQL_DATABASE']
+    }
+    if (-not $dbName) {
+        throw 'Falta DB_NAME o MYSQL_DATABASE en .env.dev'
+    }
+
+    $rootPasswordSecure = ConvertTo-SecureString -String $rootPassword -AsPlainText -Force
+
+    Write-Info "Esperando a que la base de datos este lista"
+    Wait-ForDatabase -RootPassword $rootPasswordSecure
+
+    Write-Info "Eliminando base de datos '$dbName' si existe"
+    $dropDatabaseSql = "DROP DATABASE IF EXISTS `$dbName;"
+    try {
+        Invoke-Cli "docker" @("compose", "exec", "-T", "database", "env", "MYSQL_PWD=$rootPassword", "mysql", "-uroot", "-e", $dropDatabaseSql)
+    } catch {
+        Write-Info "No se pudo eliminar la base de datos (puede que no exista): $($_.Exception.Message)"
+    }
+
+    Initialize-Database -EnvValues $EnvValues
+}
+
 function Invoke-Migrations {
     Write-Info "Ejecutando migraciones pendientes"
-    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "npm", "run", "migrate:up")
+    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "pnpm", "run", "migrate:up")
 }
 
 function Invoke-Seeders {
     Write-Info "Ejecutando seeders master"
-    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "npm", "run", "seed:master")
+    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "pnpm", "run", "seed:master")
 
     Write-Info "Ejecutando seeders de prueba"
-    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "npm", "run", "seed:test")
+    Invoke-Cli "docker" @("compose", "exec", "-T", "backend", "pnpm", "run", "seed:test")
 }
 
 function Get-SeedersStatus {
@@ -579,8 +725,8 @@ function Test-RebuildRequired {
         "docker-compose\.ya?ml$",
         "Dockerfile",
         "package\.json$",
-        "package-lock\.json$",
         "pnpm-lock\.yaml$",
+        "package-lock\.json$",
         "yarn\.lock$",
         "\.env"
     )
@@ -597,17 +743,192 @@ function Test-RebuildRequired {
     return $false
 }
 
+function Stop-DockerContainers {
+    Write-Info "Verificando contenedores Docker que puedan estar bloqueando archivos..."
+    try {
+        $runningContainers = @()
+        try {
+            $rawOutput = & docker compose ps --services --filter "status=running" 2>$null
+            if ($rawOutput) {
+                if ($rawOutput -is [System.Array]) {
+                    $runningContainers = $rawOutput | Where-Object { $_ -and $_.Trim() -ne "" }
+                } else {
+                    $runningContainers = @($rawOutput) | Where-Object { $_ -and $_.Trim() -ne "" }
+                }
+            }
+        } catch {
+            # Ignorar errores al verificar contenedores
+        }
+        
+        if ($runningContainers -and $runningContainers.Count -gt 0) {
+            Write-Info "Detectados $($runningContainers.Count) contenedor(es) ejecutandose. Deteniendolos para evitar bloqueos..."
+            try {
+                & docker compose down --remove-orphans 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Info "Contenedores Docker detenidos exitosamente"
+                } else {
+                    Write-Info "docker compose down completo con codigo $LASTEXITCODE. Intentando detener individualmente..."
+                    foreach ($service in $runningContainers) {
+                        try {
+                            & docker compose stop $service 2>&1 | Out-Null
+                        } catch {
+                            # Ignorar errores individuales
+                        }
+                    }
+                }
+                Start-Sleep -Seconds 2
+            } catch {
+                Write-Info "No se pudieron detener todos los contenedores: $($_.Exception.Message)"
+                Write-Info "Continuando con la instalacion de dependencias..."
+            }
+        } else {
+            Write-Info "No hay contenedores Docker ejecutandose"
+        }
+    } catch {
+        Write-Info "No se pudieron verificar contenedores Docker: $($_.Exception.Message)"
+        Write-Info "Continuando con la instalacion de dependencias..."
+    }
+}
+
+function Stop-PnpmProcesses {
+    Write-Info "Verificando procesos de pnpm que puedan estar bloqueando archivos..."
+    try {
+        $pnpmProcesses = Get-Process -Name "pnpm" -ErrorAction SilentlyContinue
+        if ($pnpmProcesses) {
+            Write-Info "Detectados $($pnpmProcesses.Count) proceso(s) de pnpm. Intentando cerrarlos..."
+            foreach ($proc in $pnpmProcesses) {
+                try {
+                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                    Write-Info "Proceso pnpm (PID: $($proc.Id)) cerrado"
+                } catch {
+                    Write-Info "No se pudo cerrar el proceso pnpm (PID: $($proc.Id)): $($_.Exception.Message)"
+                }
+            }
+            Start-Sleep -Seconds 2
+        }
+    } catch {
+        Write-Info "No se pudieron verificar procesos de pnpm: $($_.Exception.Message)"
+    }
+}
+
 function Install-Dependencies {
+    param(
+        [string]$WorkingDirectory,
+        [string]$Command,
+        [string[]]$Arguments = @(),
+        [int]$MaxRetries = 3
+    )
+
+    Write-Info "Installing dependencies in $WorkingDirectory"
+    Push-Location $WorkingDirectory
+    try {
+        $attempt = 0
+        $success = $false
+        
+        while ($attempt -lt $MaxRetries -and -not $success) {
+            $attempt++
+            
+            if ($attempt -gt 1) {
+                Write-Info "Intento $attempt de $MaxRetries..."
+                if ($attempt -eq 2) {
+                    Write-Info "Deteniendo procesos y contenedores que puedan estar bloqueando archivos..."
+                    Stop-DockerContainers
+                    Stop-PnpmProcesses
+                    Write-Info "Esperando 3 segundos antes de reintentar..."
+                    Start-Sleep -Seconds 3
+                } elseif ($attempt -eq 3) {
+                    Write-Info "Limpiando node_modules antes del ultimo intento..."
+                    Stop-DockerContainers
+                    $nodeModulesPath = Join-Path $WorkingDirectory "node_modules"
+                    if (Test-Path $nodeModulesPath) {
+                        try {
+                            Remove-Item -Path $nodeModulesPath -Recurse -Force -ErrorAction SilentlyContinue
+                            Write-Info "node_modules eliminado"
+                        } catch {
+                            Write-Info "No se pudo eliminar node_modules completamente: $($_.Exception.Message)"
+                        }
+                    }
+                    Start-Sleep -Seconds 2
+                }
+            }
+            
+            try {
+                Write-Info "$Command $($Arguments -join ' ')"
+                $output = & $Command @Arguments 2>&1
+                $exitCode = $LASTEXITCODE
+                
+                # Convertir código negativo a positivo si es necesario (Windows maneja códigos negativos como números grandes sin signo)
+                if ($exitCode -lt 0) {
+                    $exitCode = [uint32]::MaxValue + $exitCode + 1
+                }
+                
+                if ($LASTEXITCODE -eq 0 -or $exitCode -eq 0) {
+                    $success = $true
+                } elseif ($LASTEXITCODE -eq -4048 -or $exitCode -eq 4294967248 -or ($output -like "*EPERM*")) {
+                    # Código de error EPERM en Windows (-4048 decimal = 4294967248 como uint32)
+                    if ($attempt -lt $MaxRetries) {
+                        Write-Info "Error EPERM (código $LASTEXITCODE) detectado. Reintentando..."
+                        continue
+                    } else {
+                        Write-Error "Error EPERM persistente despues de $MaxRetries intentos."
+                        Write-Error "Posibles soluciones:"
+                        Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
+                        Write-Error "  2. Ejecuta PowerShell como Administrador"
+                        Write-Error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $WorkingDirectory"
+                        Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
+                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path '$WorkingDirectory\node_modules' -Recurse -Force"
+                        throw "$Command failed with exit code $LASTEXITCODE (EPERM)"
+                    }
+                } elseif ($LASTEXITCODE -ne 0) {
+                    throw "$Command failed with exit code $LASTEXITCODE"
+                }
+            } catch {
+                $errorMessage = $_.Exception.Message
+                # También verificar el mensaje de error por si contiene EPERM
+                if ($errorMessage -like "*EPERM*" -or $errorMessage -like "*operation not permitted*" -or $errorMessage -like "*4048*") {
+                    if ($attempt -lt $MaxRetries) {
+                        Write-Info "Error EPERM detectado en mensaje. Reintentando..."
+                        continue
+                    } else {
+                        Write-Error "Error EPERM persistente despues de $MaxRetries intentos."
+                        Write-Error "Posibles soluciones:"
+                        Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
+                        Write-Error "  2. Ejecuta PowerShell como Administrador"
+                        Write-Error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $WorkingDirectory"
+                        Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
+                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path '$WorkingDirectory\node_modules' -Recurse -Force"
+                        throw
+                    }
+                } else {
+                    throw
+                }
+            }
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+function Invoke-AuditFix {
     param(
         [string]$WorkingDirectory,
         [string]$Command,
         [string[]]$Arguments = @()
     )
 
-    Write-Info "Installing dependencies in $WorkingDirectory"
+    Write-Info "Ejecutando $Command audit fix en $WorkingDirectory"
     Push-Location $WorkingDirectory
     try {
-        Invoke-Cli $Command $Arguments
+        Write-Info "$Command $($Arguments -join ' ')"
+        & $Command @Arguments
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            Write-Info "audit fix completo con codigo de salida $exitCode. Algunas vulnerabilidades pueden requerir cambios breaking. El script continuara."
+        } else {
+            Write-Info "audit fix completado exitosamente"
+        }
+    } catch {
+        Write-Info "Error al ejecutar audit fix: $($_.Exception.Message). El script continuara."
     } finally {
         Pop-Location
     }
@@ -667,28 +988,85 @@ try {
     $envFilePath = Join-Path $scriptRoot ".env.dev"
     $envValues = Get-EnvFileValues -FilePath $envFilePath
 
-    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "npm" -Arguments @("install")
-
-    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
-
-    $backendLockFile = Join-Path $scriptRoot "backend/package-lock.json"
+    $backendLockFile = Join-Path $scriptRoot "backend/pnpm-lock.yaml"
     $frontendLockFile = Join-Path $scriptRoot "frontend/pnpm-lock.yaml"
 
     if ($Fresh) {
         Write-Info "Fresh mode selected"
-        Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
+        
+        Write-Info "Eliminando archivos lock para instalacion limpia"
+        if (Test-Path $backendLockFile) {
+            Remove-Item -Path $backendLockFile -Force
+            Write-Info "Eliminado: $backendLockFile"
+        }
+        # También eliminar package-lock.json si existe (legacy)
+        $legacyBackendLockFile = Join-Path $scriptRoot "backend/package-lock.json"
+        if (Test-Path $legacyBackendLockFile) {
+            Remove-Item -Path $legacyBackendLockFile -Force
+            Write-Info "Eliminado (legacy): $legacyBackendLockFile"
+        }
+        if (Test-Path $frontendLockFile) {
+            Remove-Item -Path $frontendLockFile -Force
+            Write-Info "Eliminado: $frontendLockFile"
+        }
+        
+        if ($ResetDB) {
+            Write-Info "ResetDB activado: se eliminara el volumen de la base de datos"
+            Invoke-Cli "docker" @("compose", "down", "--volumes", "--remove-orphans")
+        } else {
+            Write-Info "ResetDB no activado: se preserva el volumen de la base de datos"
+            Invoke-Cli "docker" @("compose", "down", "--remove-orphans")
+            try {
+                $dbVolumeName = "${projectName}_mysql_data"
+                $dbVolumeExists = Test-DockerVolumeExists -VolumeName "mysql_data" -ProjectName $projectName
+                if ($dbVolumeExists) {
+                    Write-Info "Preservando volumen de base de datos: $dbVolumeName"
+                }
+            } catch {
+                Write-Info "No se pudo verificar el volumen de la base de datos: $($_.Exception.Message)"
+            }
+        }
+        
         Remove-ProjectDockerResources -ProjectName $projectName
-        Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
-        Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
-        Invoke-Cli "docker" @("compose", "up", "--build", "-d")
-        Initialize-Database -EnvValues $envValues
-        Invoke-Migrations
-        Invoke-SeedersIfPending -Force
+        
+        Write-Info "Instalando dependencias locales sin archivos lock"
+        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install")
+        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
+        
+        # Construir imágenes primero antes de ejecutar comandos
+        Write-Info "Construyendo imágenes Docker"
+        Invoke-Cli "docker" @("compose", "build", "backend", "frontend")
+        
+        Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "backend", "pnpm", "install")
+        Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "frontend", "pnpm", "install")
+        Invoke-Cli "docker" @("compose", "up", "-d")
+        
+        if ($ResetDB) {
+            Reset-Database -EnvValues $envValues
+            Invoke-Migrations
+            Invoke-SeedersIfPending -Force
+        } else {
+            Initialize-Database -EnvValues $envValues
+            Invoke-Migrations
+            Invoke-SeedersIfPending
+        }
+        
         Invoke-Cli "docker" @("compose", "ps")
         Write-Info "Fresh setup completed"
         Write-EnvironmentSummary
         exit 0
     }
+
+    # Detener contenedores Docker antes de instalar dependencias para evitar bloqueos EPERM
+    Stop-DockerContainers
+
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install")
+
+    Invoke-AuditFix -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("audit", "fix")
+
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
+
+    Invoke-AuditFix -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("audit", "fix")
 
     if (-not $SkipGit) {
         try {
@@ -722,20 +1100,31 @@ try {
     }
     $allChanges = $allChanges | Where-Object { $_ } | Sort-Object -Unique
 
-    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "backend", "npm", "ci")
-    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
+    Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "backend", "pnpm", "install", "--frozen-lockfile")
+    Update-DockerDependencies -ServiceName "frontend" -VolumeName "frontend_node_modules" -LockFilePath $frontendLockFile -HashFileName "frontend-deps.hash" -InstallCommandArgs @("compose", "run", "--build", "--rm", "frontend", "pnpm", "install", "--frozen-lockfile")
 
-    if (Test-RebuildRequired -Paths $allChanges) {
-        Write-Info "Changes require rebuild"
+    if ($ForceBuild -or (Test-RebuildRequired -Paths $allChanges)) {
+        if ($ForceBuild) {
+            Write-Info "ForceBuild activado: forzando rebuild de imagenes Docker"
+        } else {
+            Write-Info "Changes require rebuild"
+        }
         Invoke-Cli "docker" @("compose", "up", "--build", "-d")
     } else {
         Write-Info "No rebuild required, starting containers"
         Invoke-Cli "docker" @("compose", "up", "-d")
     }
 
-    Initialize-Database -EnvValues $envValues
-    Invoke-Migrations
-    Invoke-SeedersIfPending
+    if ($ResetDB) {
+        Write-Info "ResetDB activado: reseteando base de datos"
+        Reset-Database -EnvValues $envValues
+        Invoke-Migrations
+        Invoke-SeedersIfPending -Force
+    } else {
+        Initialize-Database -EnvValues $envValues
+        Invoke-Migrations
+        Invoke-SeedersIfPending
+    }
 
     Invoke-Cli "docker" @("compose", "ps")
     Write-Info "Setup completed"

@@ -4,11 +4,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/form';
 import { DashboardLayout } from '@/components/layout';
+import { CardWithActions } from '@/components/common';
 import { useAuth, mapUser } from '@/context/AuthContext';
 import { updateProfile } from '@/services/auth';
 
@@ -178,16 +178,18 @@ function ProfilePage() {
 
   return (
     <DashboardLayout title={t('profile.title')} subtitle={t('profile.subtitle')}>
-      <Card className="max-w-3xl border-border/70 shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>{isEditing ? t('profile.editing') : t('profile.title')}</CardTitle>
-          {!isEditing ? (
+      <CardWithActions
+        title={isEditing ? t('profile.editing') : t('profile.title')}
+        actions={
+          !isEditing ? (
             <Button variant="outline" size="sm" onClick={handleEdit}>
               {t('profile.edit')}
             </Button>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-6 text-sm text-foreground">
+          ) : undefined
+        }
+        className="max-w-3xl"
+        contentClassName="space-y-6 text-sm text-foreground"
+      >
           {isEditing ? (
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -341,8 +343,7 @@ function ProfilePage() {
               ) : null}
             </>
           )}
-        </CardContent>
-      </Card>
+      </CardWithActions>
     </DashboardLayout>
   );
 }

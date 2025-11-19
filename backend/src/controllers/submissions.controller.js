@@ -3,38 +3,9 @@ import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { decodeBase64File, deleteObjectByKey, uploadSubmissionFile } from '../services/tenant-assets.service.js';
 import { logger } from '../utils/logger.js';
-
-function getRoleScopes(user) {
-  const scopes = user?.roleScopes;
-  if (!Array.isArray(scopes)) {
-    return [];
-  }
-  return scopes;
-}
-
-function isManager(req) {
-  if (req.auth?.isSuperAdmin) {
-    return true;
-  }
-  const roleScopes = getRoleScopes(req.user);
-  return roleScopes.some(scope => scope === 'tenant_admin' || scope === 'organizer');
-}
-
-function isReviewer(req) {
-  if (req.auth?.isSuperAdmin) {
-    return true;
-  }
-  const roleScopes = getRoleScopes(req.user);
-  return roleScopes.some(scope => ['tenant_admin', 'organizer', 'evaluator'].includes(scope));
-}
-
-async function findMembership(userId, eventId) {
-  const { TeamMember, Team } = getModels();
-  return TeamMember.findOne({
-    where: { user_id: userId },
-    include: [{ model: Team, as: 'team', where: { event_id: eventId } }]
-  });
-}
+import { isManager, isReviewer } from '../utils/authorization.js';
+import { findMembership } from '../utils/finders.js';
+import { successResponse, notFoundResponse, forbiddenResponse } from '../utils/response.js';
 
 export class SubmissionsController {
   static async create(req, res, next) {
@@ -73,6 +44,15 @@ export class SubmissionsController {
           throw Object.assign(new Error('Solo el capitán del equipo puede hacer entregas'), { statusCode: 403 });
         }
         teamId = membership.team.id;
+      }
+
+      // Validar que el proyecto del equipo esté activo
+      if (teamId) {
+        const { Project } = getModels();
+        const project = await Project.findOne({ where: { team_id: teamId } });
+        if (project && project.status !== 'active') {
+          throw Object.assign(new Error('No se pueden hacer entregas en proyectos inactivos'), { statusCode: 409 });
+        }
       }
 
       const submission = await Submission.create({
@@ -148,7 +128,7 @@ export class SubmissionsController {
         where: { id: submission.id },
         include: ['task', 'team', { model: SubmissionFile, as: 'files' }]
       });
-      res.status(201).json({ success: true, data: result });
+      return successResponse(res, result, 201);
     } catch (error) {
       await transaction.rollback();
       if (Array.isArray(error?.uploadedFiles) && error.uploadedFiles.length > 0) {
@@ -170,7 +150,7 @@ export class SubmissionsController {
 
       const task = await Task.findOne({ where: { id: taskId } });
       if (!task) {
-        return res.status(404).json({ success: false, message: 'Tarea no encontrada' });
+        return notFoundResponse(res, 'Tarea no encontrada');
       }
 
       let whereClause = { task_id: taskId };
@@ -181,7 +161,7 @@ export class SubmissionsController {
           // Participantes sin equipo no deberían ver entregas ajenas,
           // pero devolver 403 rompía la UI del participante.
           // Retornamos lista vacía para mantener la experiencia coherente.
-          return res.json({ success: true, data: [] });
+          return successResponse(res, []);
         }
         whereClause = { ...whereClause, team_id: membership.team.id };
       }
@@ -196,7 +176,7 @@ export class SubmissionsController {
         ]
       });
 
-      res.json({ success: true, data: submissions });
+      return successResponse(res, submissions);
     } catch (error) {
       next(error);
     }
@@ -214,17 +194,17 @@ export class SubmissionsController {
       });
 
       if (!submission) {
-        return res.status(404).json({ success: false, message: 'Entrega no encontrada' });
+        return notFoundResponse(res, 'Entrega no encontrada');
       }
 
       if (!isReviewer(req)) {
         const membership = await findMembership(req.user.id, submission.event_id);
         if (!membership || membership.team.id !== submission.team_id) {
-          return res.status(403).json({ success: false, message: 'No autorizado' });
+          return forbiddenResponse(res);
         }
       }
 
-      res.json({ success: true, data: submission });
+      return successResponse(res, submission);
     } catch (error) {
       next(error);
     }

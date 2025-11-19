@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { useAuth } from '@/context/AuthContext';
+import { useSuperAdminSession } from '@/context/SuperAdminContext';
 import { useTenant } from '@/context/TenantContext';
 import { Spinner } from '@/components/common';
 
@@ -37,21 +38,28 @@ export function ProtectedRoute({
   loadingFallback
 }: ProtectedRouteProps) {
   const { user, tokens, loading, activeMembership, isSuperAdmin } = useAuth();
+  const superAdminSession = useSuperAdminSession();
   const { tenantSlug } = useTenant();
   const location = useLocation();
 
-  if (loading) {
+  // Verificar si hay sesión de superadmin activa
+  const hasSuperAdminSession = Boolean(superAdminSession.user && superAdminSession.tokens?.token);
+  const isSuperAdminUser = isSuperAdmin || hasSuperAdminSession;
+
+  if (loading || superAdminSession.loading) {
     return <>{loadingFallback ?? <Spinner fullHeight />}</>;
   }
 
   const loginPath = resolveLoginPath(location.pathname, tenantSlug);
   const dashboardPath = resolveDashboardPath(tenantSlug);
 
-  if (!user || !tokens?.token) {
+  // Si no hay sesión normal ni de superadmin, redirigir al login
+  if ((!user || !tokens?.token) && !hasSuperAdminSession) {
     return <Navigate to={loginPath} state={{ from: location }} replace />;
   }
 
-  if (allowSuperAdmin && isSuperAdmin) {
+  // Si es superadmin y está permitido, permitir acceso
+  if (allowSuperAdmin && isSuperAdminUser) {
     return <>{children}</>;
   }
 

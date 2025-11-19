@@ -43,7 +43,7 @@ export const taskSchema = z.object({
   description: z.string().optional(),
   intro_html: z.string().optional(),
   phase_id: z.number().int(),
-  delivery_type: z.enum(['text', 'file', 'url', 'video', 'audio', 'zip']).default('file'),
+  delivery_type: z.enum(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']).default('file'),
   due_date: z.string().optional(),
   is_required: z.boolean().optional(),
   order_index: z.union([z.number().int().min(0), z.nan()]).optional(),

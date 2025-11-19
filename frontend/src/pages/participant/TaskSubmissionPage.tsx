@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Plus, Minus } from 'lucide-react';
 
 import { Spinner } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
@@ -14,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { FormField, FormGrid } from '@/components/form';
+import { FormField, FormGrid, FileUploadList } from '@/components/form';
+import { TaskContextCard } from '@/components/events';
 import { getEventDetail, type Phase } from '@/services/events';
 import {
   createSubmission,
@@ -28,7 +28,7 @@ import {
 import { getMyTeams } from '@/services/teams';
 import { useAuth } from '@/context/AuthContext';
 import { fileToBase64 } from '@/utils/files';
-import { formatDateRange } from '@/utils/date';
+import { parseDate } from '@/utils/date';
 import { cn } from '@/utils/cn';
 
 const submissionSchema = z.object({
@@ -54,7 +54,6 @@ function TaskSubmissionPage() {
   const queryClient = useQueryClient();
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [isPhaseContextExpanded, setIsPhaseContextExpanded] = useState(false);
   const { user, activeMembership, isSuperAdmin } = useAuth();
   const roleScopes = useMemo(
     () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
@@ -87,9 +86,10 @@ function TaskSubmissionPage() {
     if (!myTeams || !numericEventId) {
       return false;
     }
-    return myTeams.some(
-      membership => membership.team.event_id === numericEventId && membership.role === 'captain'
-    );
+    return myTeams.some(membership => {
+      const teamEventId = membership?.team?.event_id;
+      return teamEventId && Number(teamEventId) === numericEventId && membership.role === 'captain';
+    });
   }, [myTeams, numericEventId, isReviewer]);
 
   const [evaluations, setEvaluations] = useState<Record<number, Evaluation[]>>({});
@@ -206,15 +206,15 @@ function TaskSubmissionPage() {
   const task = eventDetail?.tasks?.find(tk => tk.id === numericTaskId);
   const phase = eventDetail?.phases?.find(ph => ph.id === task?.phase_id) as Phase | undefined;
   const layoutSubtitle = useMemo(() => {
-    const parts: string[] = [];
-    if (phase?.name) {
-      parts.push(phase.name);
+    if (!phase) {
+      return '';
     }
-    if (task?.description) {
-      parts.push(task.description);
+    const parts: string[] = [phase.name];
+    if (phase.description) {
+      parts.push(phase.description);
     }
-    return parts.join(' · ');
-  }, [phase?.name, task?.description]);
+    return parts.join(' - ');
+  }, [phase]);
   const taskConstraints = useMemo(() => {
     if (!task) {
       return {
@@ -229,6 +229,56 @@ function TaskSubmissionPage() {
       allowedMimeTypes: task.allowed_mime_types ?? []
     };
   }, [task]);
+
+  // Verificar si la tarea tiene tipo de entrega "Sin entrega"
+  const hasNoDelivery = useMemo(() => {
+    return task?.delivery_type === 'none';
+  }, [task?.delivery_type]);
+
+  // Verificar si es fase 0
+  const isPhaseZero = useMemo(() => {
+    if (!phase) return false;
+    const normalizedName = phase.name?.toLowerCase() ?? '';
+    return (
+      phase.order_index === 0 ||
+      normalizedName.includes('fase 0') ||
+      normalizedName.includes('phase 0')
+    );
+  }, [phase]);
+
+  // Función para verificar si una tarea está en su periodo válido
+  const periodStatus = useMemo(() => {
+    if (!task || !phase) {
+      return { isValid: false, reason: 'no_dates' as const };
+    }
+
+    const startDate = phase.start_date ? parseDate(phase.start_date) : null;
+    const endDate = phase.end_date ? parseDate(phase.end_date) : null;
+
+    // Si no hay fechas, permitir entregas (comportamiento por defecto)
+    if (!startDate && !endDate) {
+      return { isValid: true, reason: 'valid' as const };
+    }
+
+    const now = new Date();
+    const nowNormalized = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (startDate) {
+      const startNormalized = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+      if (nowNormalized < startNormalized) {
+        return { isValid: false, reason: 'not_started' as const };
+      }
+    }
+
+    if (endDate) {
+      const endNormalized = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 23, 59, 59, 999);
+      if (nowNormalized > endNormalized) {
+        return { isValid: false, reason: 'ended' as const };
+      }
+    }
+
+    return { isValid: true, reason: 'valid' as const };
+  }, [task, phase]);
 
   if (eventLoading || submissionsLoading || teamsLoading) {
     return <Spinner fullHeight />;
@@ -286,132 +336,91 @@ function TaskSubmissionPage() {
   };
 
   return (
-    <DashboardLayout title={task.title} subtitle={layoutSubtitle}>
+    <DashboardLayout title={eventDetail?.name ?? ''} subtitle={layoutSubtitle}>
       <div className="space-y-6">
-        {phase?.intro_html ? (
-          <div className="rounded-2xl border border-border/70 bg-card/80 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2 flex-1">
-                <button
-                  onClick={() => setIsPhaseContextExpanded(!isPhaseContextExpanded)}
-                  className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
-                  aria-label={isPhaseContextExpanded ? t('common.collapse') : t('common.expand')}
-                >
-                  {isPhaseContextExpanded ? (
-                    <Minus className="h-4 w-4" aria-hidden="true" />
-                  ) : (
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                  )}
-                </button>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-muted-foreground mb-1">
-                    Fase
-                  </p>
-                  <p className="text-base font-semibold text-foreground">{phase.name}</p>
-                  {(phase.start_date || phase.end_date) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {formatDateRange(locale, phase.start_date ?? null, phase.end_date ?? null) ?? t('events.taskPeriodNotSet')}
-                    </p>
-                  )}
-                  {isPhaseContextExpanded && (
-                    <div
-                      className="prose prose-sm max-w-none mt-3"
-                      dangerouslySetInnerHTML={{ __html: phase.intro_html }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-        {task.intro_html ? (
-          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-5">
-            <p className="mb-2 text-sm font-semibold text-muted-foreground">Actividad</p>
-            <div dangerouslySetInnerHTML={{ __html: task.intro_html }} />
-          </div>
+        {task && phase ? (
+          <TaskContextCard
+            task={task}
+            phase={phase}
+            locale={locale}
+            defaultExpanded={true}
+            showActions={false}
+            eventId={numericEventId}
+            isPhaseZero={isPhaseZero}
+            periodStatus={periodStatus}
+          />
         ) : null}
 
-        {!isTeamCaptain && !isReviewer ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('submissions.register')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{t('submissions.notTeamCaptain')}</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('submissions.register')}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField label={t('submissions.description')} htmlFor="submission-content">
-                <Textarea id="submission-content" rows={4} {...form.register('content')} />
-              </FormField>
-              <FormField
-                label={t('submissions.attachments')}
-                htmlFor="submission-file"
-                description={t('submissions.filesHelper', {
-                  count: taskConstraints.maxFiles,
-                  maxSize: taskConstraints.maxFileSizeMb ?? t('submissions.unlimited'),
-                  types: taskConstraints.allowedMimeTypes.length
-                    ? taskConstraints.allowedMimeTypes.join(', ')
-                    : t('submissions.anyMime')
-                })}
-              >
-                <>
-                  <Input
-                    id="submission-file"
-                    type="file"
-                    multiple={taskConstraints.maxFiles > 1}
-                    onChange={handleFileChange}
-                    accept={taskConstraints.allowedMimeTypes.length ? taskConstraints.allowedMimeTypes.join(',') : undefined}
-                  />
-                  {files.length ? (
-                    <ul className="mt-2 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
-                      {files.map((file, index) => (
-                        <li key={file.name + index} className="flex items-center justify-between gap-3">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{file.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || t('submissions.unknownType')}
-                            </span>
-                          </div>
-                          <Button type="button" variant="ghost" size="sm" onClick={() => handleRemoveFile(index)}>
-                            {t('common.remove')}
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </>
-              </FormField>
-              <FormField label={t('submissions.type')}>
-                <div className="flex gap-4">
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" value="draft" {...form.register('status')} /> {t('submissions.draft')}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="radio" value="final" {...form.register('status')} /> {t('submissions.final')}
-                  </label>
-                </div>
-              </FormField>
-              <Button type="submit" disabled={createSubmissionMutation.isPending}>
-                {createSubmissionMutation.isPending ? t('common.loading') : t('submissions.submit')}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        {!hasNoDelivery && (
+          <>
+            {!isTeamCaptain && !isReviewer ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('submissions.register')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">{t('submissions.notTeamCaptain')}</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t('submissions.register')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField label={t('submissions.description')} htmlFor="submission-content">
+                    <Textarea id="submission-content" rows={4} {...form.register('content')} />
+                  </FormField>
+                  <FormField
+                    label={t('submissions.attachments')}
+                    htmlFor="submission-file"
+                    description={t('submissions.filesHelper', {
+                      count: taskConstraints.maxFiles,
+                      maxSize: taskConstraints.maxFileSizeMb ?? t('submissions.unlimited'),
+                      types: taskConstraints.allowedMimeTypes.length
+                        ? taskConstraints.allowedMimeTypes.join(', ')
+                        : t('submissions.anyMime')
+                    })}
+                  >
+                    <>
+                      <Input
+                        id="submission-file"
+                        type="file"
+                        multiple={taskConstraints.maxFiles > 1}
+                        onChange={handleFileChange}
+                        accept={taskConstraints.allowedMimeTypes.length ? taskConstraints.allowedMimeTypes.join(',') : undefined}
+                      />
+                      <FileUploadList files={files} onRemove={handleRemoveFile} />
+                    </>
+                  </FormField>
+                  <FormField label={t('submissions.type')}>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="radio" value="draft" {...form.register('status')} /> {t('submissions.draft')}
+                      </label>
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="radio" value="final" {...form.register('status')} /> {t('submissions.final')}
+                      </label>
+                    </div>
+                  </FormField>
+                  <Button type="submit" disabled={createSubmissionMutation.isPending}>
+                    {createSubmissionMutation.isPending ? t('common.loading') : t('submissions.submit')}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+            )}
+          </>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('submissions.list')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {submissions?.length ? submissions.map(submission => (
+        {!hasNoDelivery && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('submissions.list')}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {submissions?.length ? submissions.map(submission => (
               <div key={submission.id} className="rounded-md border border-border p-4">
                 <div className="flex flex-col gap-1 text-sm">
                   <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
@@ -513,11 +522,12 @@ function TaskSubmissionPage() {
                   </div>
                 ) : null}
               </div>
-            )) : (
-              <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>
-            )}
-          </CardContent>
-        </Card>
+              )) : (
+                <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

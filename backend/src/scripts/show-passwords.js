@@ -4,7 +4,7 @@ import '../config/env.js';
 // Contraseñas fijas definidas en los seeders
 const FIXED_PASSWORDS = {
   'superadmin@create.dev': {
-    password: '!CpUgGeV=50W',
+    password: '!CpUgGeV=50W!CpUgGeV=50W',
     role: 'Super Admin'
   },
   'admin@demo.com': {
