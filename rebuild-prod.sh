@@ -236,7 +236,7 @@ else
     fi
 fi
 
-# 5. Ejecutar migraciones si es necesario
+# 5. Ejecutar migraciones faltantes
 log "🗄️  Verificando migraciones de base de datos..."
 
 # Esperar a que MySQL esté completamente listo
@@ -253,10 +253,39 @@ for i in {1..30}; do
     sleep 2
 done
 
-# Ejecutar migraciones con Sequelize/Umzug
-log "📊 Ejecutando migraciones..."
+# Verificar estado de migraciones antes de ejecutar
+log "📊 Verificando estado de migraciones..."
+MIGRATION_STATUS=$(docker-compose --profile prod exec -T backend pnpm run migrate:status 2>&1)
+if [ $? -ne 0 ]; then
+    warning "No se pudo verificar el estado de migraciones. Intentando ejecutar migraciones..."
+    MIGRATION_STATUS=""
+fi
+
+# Mostrar migraciones pendientes si las hay
+if echo "$MIGRATION_STATUS" | grep -q "Migraciones pendientes:"; then
+    PENDING_COUNT=$(echo "$MIGRATION_STATUS" | grep -A 100 "Migraciones pendientes:" | grep -c "✖" || echo "0")
+    if [ "$PENDING_COUNT" -gt 0 ]; then
+        log "📋 Se encontraron $PENDING_COUNT migración(es) pendiente(s):"
+        echo "$MIGRATION_STATUS" | grep -A 100 "Migraciones pendientes:" | grep "✖" | sed 's/^/     /'
+    fi
+fi
+
+# Ejecutar migraciones faltantes con Sequelize/Umzug
+log "📊 Ejecutando migraciones faltantes..."
 if docker-compose --profile prod exec -T backend pnpm run migrate:up; then
     success "Migraciones ejecutadas correctamente"
+    
+    # Verificar estado después de ejecutar
+    log "✅ Verificando estado final de migraciones..."
+    FINAL_STATUS=$(docker-compose --profile prod exec -T backend pnpm run migrate:status 2>&1)
+    if echo "$FINAL_STATUS" | grep -q "Migraciones pendientes:"; then
+        REMAINING_PENDING=$(echo "$FINAL_STATUS" | grep -A 100 "Migraciones pendientes:" | grep -c "✖" || echo "0")
+        if [ "$REMAINING_PENDING" -gt 0 ]; then
+            warning "Aún quedan $REMAINING_PENDING migración(es) pendiente(s)"
+        else
+            success "Todas las migraciones están aplicadas"
+        fi
+    fi
 else
     error "Error ejecutando migraciones"
     log "🔍 Verificando logs del backend para más detalles..."
