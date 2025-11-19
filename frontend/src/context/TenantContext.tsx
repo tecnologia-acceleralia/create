@@ -144,6 +144,12 @@ function detectInitialSlug(): string | null {
   // PRIORIDAD 1: Verificar primero el pathname (para rutas como /uic)
   // Esto permite que las redirecciones de Cloudflare funcionen correctamente
   const firstSegment = browserWindow.location.pathname.split('/').find(Boolean);
+  
+  // Si el pathname empieza con un segmento reservado (como superadmin), no detectar tenant
+  if (firstSegment && reservedSegments.has(firstSegment.toLowerCase())) {
+    return null;
+  }
+  
   if (firstSegment && !reservedSegments.has(firstSegment.toLowerCase())) {
     return firstSegment.toLowerCase();
   }
