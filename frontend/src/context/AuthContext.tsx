@@ -34,6 +34,7 @@ type User = {
   email: string;
   first_name: string;
   last_name: string;
+  avatar_url: string | null;
   profile_image_url: string | null;
   is_super_admin: boolean;
   roleScopes: string[];
@@ -75,7 +76,11 @@ type Props = { children: ReactNode };
 
 const STORAGE_KEY = 'create.auth';
 
-function buildAvatarUrl(user: { first_name?: string; last_name?: string; email: string; profile_image_url?: string | null }) {
+function buildAvatarUrl(user: { first_name?: string; last_name?: string; email: string; avatar_url?: string | null; profile_image_url?: string | null }) {
+  // Prioridad: avatar_url > profile_image_url > generado
+  if (user.avatar_url) {
+    return user.avatar_url;
+  }
   if (user.profile_image_url) {
     return user.profile_image_url;
   }
@@ -90,6 +95,7 @@ function mapUser(rawUser: any, roleScopes: string[]): User {
     email: rawUser.email,
     first_name: rawUser.first_name,
     last_name: rawUser.last_name,
+    avatar_url: rawUser.avatar_url ?? null,
     profile_image_url: rawUser.profile_image_url ?? null,
     is_super_admin: Boolean(rawUser.is_super_admin),
     roleScopes,

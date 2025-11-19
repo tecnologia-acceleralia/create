@@ -562,8 +562,6 @@ export class AuthController {
         last_name: rawLastName,
         email: rawEmail,
         language,
-        avatar_url: rawAvatarUrl,
-        profile_image_url: rawProfileImageUrl,
         grade: rawGrade
       } = req.body;
 
@@ -627,26 +625,98 @@ export class AuthController {
         updateData.language = String(language);
       }
 
-      if (rawAvatarUrl !== undefined) {
-        const avatarUrl = String(rawAvatarUrl).trim();
-        if (avatarUrl.length > 500) {
-          return res.status(400).json({
-            success: false,
-            message: 'La URL del avatar no puede exceder 500 caracteres'
-          });
+      // Manejar avatar: puede venir como base64 (avatar) o como URL (avatar_url)
+      const { avatar: rawAvatar, avatar_url: rawAvatarUrlFromBody } = req.body;
+      if (rawAvatar !== undefined || rawAvatarUrlFromBody !== undefined) {
+        if (rawAvatar) {
+          // Si viene como base64, subirlo a S3
+          try {
+            const { decodeBase64Image, uploadUserAvatar, deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
+            const { buffer, mimeType, extension } = decodeBase64Image(rawAvatar);
+            
+            // Eliminar avatar anterior si existe
+            if (user.avatar_url) {
+              try {
+                await deleteObjectByUrl(user.avatar_url);
+              } catch (deleteError) {
+                logger.warn('No se pudo eliminar el avatar anterior', { error: deleteError.message });
+              }
+            }
+            
+            const uploadResult = await uploadUserAvatar({
+              userId: user.id,
+              buffer,
+              contentType: mimeType,
+              extension
+            });
+            
+            updateData.avatar_url = uploadResult.url;
+          } catch (error) {
+            logger.error('Error subiendo avatar', { error: error.message });
+            return res.status(400).json({
+              success: false,
+              message: `Error al subir el avatar: ${error.message}`
+            });
+          }
+        } else if (rawAvatarUrlFromBody === null) {
+          // Si se envía null explícitamente, eliminar el avatar
+          if (user.avatar_url) {
+            try {
+              const { deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
+              await deleteObjectByUrl(user.avatar_url);
+            } catch (deleteError) {
+              logger.warn('No se pudo eliminar el avatar', { error: deleteError.message });
+            }
+          }
+          updateData.avatar_url = null;
         }
-        updateData.avatar_url = avatarUrl || null;
       }
 
-      if (rawProfileImageUrl !== undefined) {
-        const profileImageUrl = String(rawProfileImageUrl).trim();
-        if (profileImageUrl.length > 500) {
-          return res.status(400).json({
-            success: false,
-            message: 'La URL de la imagen de perfil no puede exceder 500 caracteres'
-          });
+      // Manejar imagen de perfil: puede venir como base64 (profile_image) o como URL (profile_image_url)
+      const { profile_image: rawProfileImage, profile_image_url: rawProfileImageUrlFromBody } = req.body;
+      if (rawProfileImage !== undefined || rawProfileImageUrlFromBody !== undefined) {
+        if (rawProfileImage) {
+          // Si viene como base64, subirlo a S3
+          try {
+            const { decodeBase64Image, uploadUserProfileImage, deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
+            const { buffer, mimeType, extension } = decodeBase64Image(rawProfileImage);
+            
+            // Eliminar imagen anterior si existe
+            if (user.profile_image_url) {
+              try {
+                await deleteObjectByUrl(user.profile_image_url);
+              } catch (deleteError) {
+                logger.warn('No se pudo eliminar la imagen de perfil anterior', { error: deleteError.message });
+              }
+            }
+            
+            const uploadResult = await uploadUserProfileImage({
+              userId: user.id,
+              buffer,
+              contentType: mimeType,
+              extension
+            });
+            
+            updateData.profile_image_url = uploadResult.url;
+          } catch (error) {
+            logger.error('Error subiendo imagen de perfil', { error: error.message });
+            return res.status(400).json({
+              success: false,
+              message: `Error al subir la imagen de perfil: ${error.message}`
+            });
+          }
+        } else if (rawProfileImageUrlFromBody === null) {
+          // Si se envía null explícitamente, eliminar la imagen
+          if (user.profile_image_url) {
+            try {
+              const { deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
+              await deleteObjectByUrl(user.profile_image_url);
+            } catch (deleteError) {
+              logger.warn('No se pudo eliminar la imagen de perfil', { error: deleteError.message });
+            }
+          }
+          updateData.profile_image_url = null;
         }
-        updateData.profile_image_url = profileImageUrl || null;
       }
 
       if (rawGrade !== undefined) {

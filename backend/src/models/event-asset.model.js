@@ -46,6 +46,11 @@ export function EventAssetModel(sequelize) {
       uploaded_by: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: false
+      },
+      description: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+        comment: 'Texto descriptivo del recurso que se mostrará en lugar de la URL completa'
       }
     },
     {

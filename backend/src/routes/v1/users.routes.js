@@ -15,8 +15,10 @@ usersRouter.patch(
     body('last_name').optional().isString().trim().isLength({ min: 1, max: 150 }),
     body('email').optional().isEmail().normalizeEmail(),
     body('language').optional().isString().isIn(['es', 'en', 'ca']),
-    body('avatar_url').optional().isString().trim().isLength({ max: 500 }).optional({ nullable: true }),
-    body('profile_image_url').optional().isString().trim().isLength({ max: 500 }).optional({ nullable: true }),
+    body('avatar').optional().isString(), // base64 image
+    body('avatar_url').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
+    body('profile_image').optional().isString(), // base64 image
+    body('profile_image_url').optional({ nullable: true }).isString().trim().isLength({ max: 500 }),
     body('grade').optional().isString().trim().isLength({ max: 255 }).optional({ nullable: true })
   ],
   validateRequest,

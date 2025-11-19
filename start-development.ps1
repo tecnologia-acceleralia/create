@@ -760,8 +760,9 @@ function Stop-DockerContainers {
 }
 
 function Stop-PnpmProcesses {
-    Write-Info "Verificando procesos de pnpm que puedan estar bloqueando archivos..."
+    Write-Info "Verificando procesos de pnpm y node que puedan estar bloqueando archivos..."
     try {
+        # Detener procesos de pnpm
         $pnpmProcesses = Get-Process -Name "pnpm" -ErrorAction SilentlyContinue
         if ($pnpmProcesses) {
             Write-Info "Detectados $($pnpmProcesses.Count) proceso(s) de pnpm. Intentando cerrarlos..."
@@ -773,10 +774,56 @@ function Stop-PnpmProcesses {
                     Write-Info "No se pudo cerrar el proceso pnpm (PID: $($proc.Id)): $($_.Exception.Message)"
                 }
             }
-            Start-Sleep -Seconds 2
+        }
+        
+        # Detener procesos de node que puedan estar bloqueando archivos
+        # Solo detener procesos de node que estén relacionados con pnpm o instalaciones
+        $nodeProcesses = Get-Process -Name "node" -ErrorAction SilentlyContinue
+        if ($nodeProcesses) {
+            Write-Info "Detectados $($nodeProcesses.Count) proceso(s) de node. Verificando si están relacionados con pnpm..."
+            foreach ($proc in $nodeProcesses) {
+                try {
+                    # Verificar si el proceso está relacionado con pnpm o instalaciones
+                    $commandLine = $null
+                    try {
+                        # Intentar usar CIM primero (compatible con PowerShell Core y Windows PowerShell)
+                        $cimProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                        if ($cimProcess) {
+                            $commandLine = $cimProcess.CommandLine
+                        }
+                    } catch {
+                        # Si CIM falla, intentar con WMI (solo Windows PowerShell)
+                        try {
+                            if ($PSVersionTable.PSVersion.Major -le 5) {
+                                $wmiProcess = Get-WmiObject Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue
+                                if ($wmiProcess) {
+                                    $commandLine = $wmiProcess.CommandLine
+                                }
+                            }
+                        } catch {
+                            # Si ambos fallan, asumir que es seguro cerrar procesos de node relacionados con instalaciones
+                            $commandLine = ""
+                        }
+                    }
+                    
+                    # Si no podemos obtener la línea de comandos o contiene pnpm/install, cerrar el proceso
+                    if (-not $commandLine -or $commandLine -like "*pnpm*" -or $commandLine -like "*install*" -or $commandLine -like "*node_modules*") {
+                        Write-Info "Cerrando proceso node relacionado con pnpm (PID: $($proc.Id))..."
+                        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                        Write-Info "Proceso node (PID: $($proc.Id)) cerrado"
+                    }
+                } catch {
+                    Write-Info "No se pudo verificar/cerrar el proceso node (PID: $($proc.Id)): $($_.Exception.Message)"
+                }
+            }
+        }
+        
+        if ($pnpmProcesses -or $nodeProcesses) {
+            Write-Info "Esperando 3 segundos para que los procesos se liberen completamente..."
+            Start-Sleep -Seconds 3
         }
     } catch {
-        Write-Info "No se pudieron verificar procesos de pnpm: $($_.Exception.Message)"
+        Write-Info "No se pudieron verificar procesos de pnpm/node: $($_.Exception.Message)"
     }
 }
 
@@ -785,10 +832,20 @@ function Install-Dependencies {
         [string]$WorkingDirectory,
         [string]$Command,
         [string[]]$Arguments = @(),
-        [int]$MaxRetries = 3
+        [int]$MaxRetries = 3,
+        [switch]$PreStopProcesses
     )
 
     Write-Info "Installing dependencies in $WorkingDirectory"
+    
+    # Detener procesos antes del primer intento si se solicita
+    if ($PreStopProcesses) {
+        Write-Info "Deteniendo procesos y contenedores que puedan estar bloqueando archivos antes de instalar..."
+        Stop-DockerContainers
+        Stop-PnpmProcesses
+        Start-Sleep -Seconds 2
+    }
+    
     Push-Location $WorkingDirectory
     try {
         $attempt = 0
@@ -827,45 +884,102 @@ function Install-Dependencies {
                 $exitCode = $LASTEXITCODE
                 
                 # Convertir código negativo a positivo si es necesario (Windows maneja códigos negativos como números grandes sin signo)
+                $unsignedExitCode = $exitCode
                 if ($exitCode -lt 0) {
-                    $exitCode = [uint32]::MaxValue + $exitCode + 1
+                    $unsignedExitCode = [uint32]::MaxValue + $exitCode + 1
                 }
                 
-                if ($LASTEXITCODE -eq 0 -or $exitCode -eq 0) {
+                # Códigos de error comunes en Windows relacionados con permisos/bloqueos
+                $isPermissionError = $false
+                $errorCodeName = ""
+                
+                if ($LASTEXITCODE -eq 0 -or $unsignedExitCode -eq 0) {
                     $success = $true
-                } elseif ($LASTEXITCODE -eq -4048 -or $exitCode -eq 4294967248 -or ($output -like "*EPERM*")) {
-                    # Código de error EPERM en Windows (-4048 decimal = 4294967248 como uint32)
+                } elseif ($LASTEXITCODE -eq -4048 -or $unsignedExitCode -eq 4294967248) {
+                    # EPERM (-4048 decimal = 4294967248 como uint32)
+                    $isPermissionError = $true
+                    $errorCodeName = "EPERM"
+                } elseif ($LASTEXITCODE -eq -4082 -or $unsignedExitCode -eq 4294967214) {
+                    # Error de acceso denegado/bloqueado (-4082 decimal = 4294967214 como uint32)
+                    $isPermissionError = $true
+                    $errorCodeName = "ACCESS_DENIED"
+                } elseif ($output -like "*EPERM*" -or $output -like "*access denied*" -or $output -like "*permission denied*" -or $output -like "*bloqueado*") {
+                    $isPermissionError = $true
+                    $errorCodeName = "PERMISSION_ERROR"
+                }
+                
+                if ($isPermissionError) {
                     if ($attempt -lt $MaxRetries) {
-                        Write-Info "Error EPERM (código $LASTEXITCODE) detectado. Reintentando..."
+                        Write-Info "Error de permisos/bloqueo ($errorCodeName, código $LASTEXITCODE) detectado."
+                        
+                        # Para errores de acceso denegado, intentar limpiar procesos y archivos bloqueados
+                        if ($errorCodeName -eq "ACCESS_DENIED" -or $errorCodeName -eq "EPERM") {
+                            Write-Info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
+                            Stop-DockerContainers
+                            Stop-PnpmProcesses
+                            
+                            # Intentar limpiar archivos temporales de pnpm que puedan estar bloqueados
+                            Write-Info "Limpiando cache de pnpm..."
+                            try {
+                                & pnpm store prune 2>&1 | Out-Null
+                            } catch {
+                                Write-Info "No se pudo limpiar el cache de pnpm: $($_.Exception.Message)"
+                            }
+                            
+                            # Esperar más tiempo para errores de acceso denegado
+                            Write-Info "Esperando 5 segundos para que los archivos se liberen..."
+                            Start-Sleep -Seconds 5
+                        }
+                        
+                        Write-Info "Reintentando..."
                         continue
                     } else {
-                        Write-Error "Error EPERM persistente despues de $MaxRetries intentos."
+                        Write-Error "Error de permisos/bloqueo persistente ($errorCodeName, código $LASTEXITCODE) despues de $MaxRetries intentos."
                         Write-Error "Posibles soluciones:"
                         Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
                         Write-Error "  2. Ejecuta PowerShell como Administrador"
                         Write-Error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $WorkingDirectory"
                         Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
-                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path '$WorkingDirectory\node_modules' -Recurse -Force"
-                        throw "$Command failed with exit code $LASTEXITCODE (EPERM)"
+                        $nodeModulesPath = Join-Path $WorkingDirectory "node_modules"
+                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path `"$nodeModulesPath`" -Recurse -Force"
+                        throw "$Command failed with exit code $LASTEXITCODE ($errorCodeName)"
                     }
                 } elseif ($LASTEXITCODE -ne 0) {
                     throw "$Command failed with exit code $LASTEXITCODE"
                 }
             } catch {
                 $errorMessage = $_.Exception.Message
-                # También verificar el mensaje de error por si contiene EPERM
-                if ($errorMessage -like "*EPERM*" -or $errorMessage -like "*operation not permitted*" -or $errorMessage -like "*4048*") {
+                # También verificar el mensaje de error por si contiene errores de permisos
+                $isPermissionErrorInMessage = $errorMessage -like "*EPERM*" -or $errorMessage -like "*operation not permitted*" -or $errorMessage -like "*4048*" -or $errorMessage -like "*4082*" -or $errorMessage -like "*access denied*" -or $errorMessage -like "*permission denied*"
+                
+                if ($isPermissionErrorInMessage) {
                     if ($attempt -lt $MaxRetries) {
-                        Write-Info "Error EPERM detectado en mensaje. Reintentando..."
+                        Write-Info "Error de permisos detectado en mensaje: $errorMessage"
+                        Write-Info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
+                        Stop-DockerContainers
+                        Stop-PnpmProcesses
+                        
+                        # Intentar limpiar archivos temporales de pnpm que puedan estar bloqueados
+                        Write-Info "Limpiando cache de pnpm..."
+                        try {
+                            & pnpm store prune 2>&1 | Out-Null
+                        } catch {
+                            Write-Info "No se pudo limpiar el cache de pnpm: $($_.Exception.Message)"
+                        }
+                        
+                        Write-Info "Esperando 5 segundos para que los archivos se liberen..."
+                        Start-Sleep -Seconds 5
+                        Write-Info "Reintentando..."
                         continue
                     } else {
-                        Write-Error "Error EPERM persistente despues de $MaxRetries intentos."
+                        Write-Error "Error de permisos persistente despues de $MaxRetries intentos."
                         Write-Error "Posibles soluciones:"
                         Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
                         Write-Error "  2. Ejecuta PowerShell como Administrador"
                         Write-Error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $WorkingDirectory"
                         Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
-                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path '$WorkingDirectory\node_modules' -Recurse -Force"
+                        $nodeModulesPath = Join-Path $WorkingDirectory "node_modules"
+                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path `"$nodeModulesPath`" -Recurse -Force"
                         throw
                     }
                 } else {
@@ -999,8 +1113,8 @@ try {
         Remove-ProjectDockerResources -ProjectName $projectName
         
         Write-Info "Instalando dependencias locales sin archivos lock"
-        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install")
-        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
+        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
+        Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
         
         # Construir imágenes primero antes de ejecutar comandos
         Write-Info "Construyendo imágenes Docker"
@@ -1029,11 +1143,11 @@ try {
     # Detener contenedores Docker antes de instalar dependencias para evitar bloqueos EPERM
     Stop-DockerContainers
 
-    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install")
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
 
     Invoke-AuditFix -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("audit", "fix")
 
-    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install")
+    Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
 
     Invoke-AuditFix -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("audit", "fix")
 

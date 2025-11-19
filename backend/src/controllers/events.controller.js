@@ -1,7 +1,6 @@
 import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
-import { resolveAssetMarkers } from '../utils/asset-markers.js';
 import { toInt, toDateOrNull, toHtmlOrNull } from '../utils/parsers.js';
 import { findEventOr404 } from '../utils/finders.js';
 import { successResponse, badRequestResponse, notFoundResponse } from '../utils/response.js';
@@ -299,7 +298,8 @@ export class EventsController {
         });
       }
 
-      // Resolver marcadores de assets en HTML
+      // Los marcadores de assets se mantienen sin convertir en la BD
+      // La conversión a URLs solo se hace en el frontend al renderizar para visualización
       const eventJson = event.toJSON();
       
       // Convertir fechas a ISO string si existen
@@ -317,32 +317,6 @@ export class EventsController {
         } else if (typeof eventJson.end_date === 'string' && eventJson.end_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
           // Si es un string en formato YYYY-MM-DD, agregar hora para convertirlo a ISO
           eventJson.end_date = `${eventJson.end_date}T23:59:59.999Z`;
-        }
-      }
-      
-      if (eventJson.description_html) {
-        eventJson.description_html = await resolveAssetMarkers(
-          eventJson.description_html,
-          event.id,
-          req.tenant.id
-        );
-      }
-
-      // Resolver marcadores en intro_html de fases
-      if (Array.isArray(eventJson.phases)) {
-        for (const phase of eventJson.phases) {
-          if (phase.intro_html) {
-            phase.intro_html = await resolveAssetMarkers(phase.intro_html, event.id, req.tenant.id);
-          }
-        }
-      }
-
-      // Resolver marcadores en intro_html de tareas
-      if (Array.isArray(eventJson.tasks)) {
-        for (const task of eventJson.tasks) {
-          if (task.intro_html) {
-            task.intro_html = await resolveAssetMarkers(task.intro_html, event.id, req.tenant.id);
-          }
         }
       }
 

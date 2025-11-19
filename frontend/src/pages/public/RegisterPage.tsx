@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { isAxiosError } from 'axios';
-import { Link, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate } from 'react-router';
 
 import { PageContainer, AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
 import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
@@ -165,7 +165,7 @@ export default function RegisterPage() {
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
-  const { hydrateSession } = useAuth();
+  const { hydrateSession, user, activeMembership, loading: authLoading } = useAuth();
 
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
@@ -373,6 +373,16 @@ export default function RegisterPage() {
         </Button>
       </PageContainer>
     );
+  }
+
+  // Mostrar spinner mientras se verifica la autenticación
+  if (authLoading) {
+    return null;
+  }
+
+  // Redirigir a la home del tenant si el usuario ya está logueado
+  if (user && activeMembership) {
+    return <Navigate to={tenantPath('')} replace />;
   }
 
   return (

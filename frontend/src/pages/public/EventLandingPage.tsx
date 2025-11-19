@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 
 import { PageContainer, Spinner } from '@/components/common';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,8 @@ import { getPublicEvents } from '@/services/public';
 import { PublicHero } from '@/components/public';
 import { useAuth } from '@/context/AuthContext';
 import { formatDateRange } from '@/utils/date';
+import { resolveAssetMarkers } from '@/utils/asset-markers';
+import { getEventAssets } from '@/services/event-assets';
 
 type PublicEvent = Awaited<ReturnType<typeof getPublicEvents>>[number];
 
@@ -75,6 +78,42 @@ function EventLandingPage() {
     return activeMembership?.tenant?.slug === effectiveTenantSlug;
   }, [activeMembership?.tenant?.slug, effectiveTenantSlug, isSuperAdmin, user]);
 
+  // Determinar la ruta correcta según el rol del usuario
+  const getEventAccessPath = useMemo(() => {
+    if (!eventDetail) {
+      return '';
+    }
+
+    const roleScopes = new Set(
+      activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []
+    );
+    
+    // Si es admin u organizador, va a la vista de administración
+    const isAdminOrOrganizer = isSuperAdmin || 
+      roleScopes.has('tenant_admin') || 
+      roleScopes.has('organizer');
+    
+    // Si es participante o no tiene scopes específicos pero tiene membresía activa, va a la vista de participante
+    const isParticipant = roleScopes.has('participant') || 
+      roleScopes.has('team_captain') ||
+      (activeMembership?.status === 'active' && !isAdminOrOrganizer);
+
+    const basePath = tenantSlug
+      ? tenantPath(`dashboard/events/${eventDetail.id}`)
+      : tenantSlugFromParams
+      ? `/${tenantSlugFromParams}/dashboard/events/${eventDetail.id}`
+      : `/dashboard/events/${eventDetail.id}`;
+
+    if (isAdminOrOrganizer) {
+      return basePath;
+    } else if (isParticipant) {
+      return `${basePath}/home`;
+    }
+    
+    // Por defecto, intentar la vista de participante
+    return `${basePath}/home`;
+  }, [eventDetail, activeMembership, user, isSuperAdmin, tenantSlug, tenantSlugFromParams, tenantPath]);
+
   useEffect(() => {
     if (!effectiveTenantSlug || !eventId) {
       return;
@@ -113,6 +152,23 @@ function EventLandingPage() {
   }, [effectiveTenantSlug, eventId]);
 
   const locale = i18n.language ?? 'es';
+  const numericEventId = eventId ? Number(eventId) : null;
+
+  // Cargar assets del evento para resolver marcadores
+  const { data: assets = [] } = useQuery({
+    queryKey: ['eventAssets', numericEventId],
+    queryFn: () => (numericEventId ? getEventAssets(numericEventId) : Promise.resolve([])),
+    enabled: Boolean(numericEventId && eventDetail?.description_html)
+  });
+
+  // Resolver marcadores de assets en el HTML antes de renderizar
+  const resolvedDescriptionHtml = useMemo(() => {
+    if (!eventDetail?.description_html || !assets.length) {
+      return eventDetail?.description_html;
+    }
+    return resolveAssetMarkers(eventDetail.description_html, assets);
+  }, [eventDetail?.description_html, assets]);
+
   const formattedDates = useMemo(() => {
     if (!eventDetail) {
       return null;
@@ -182,18 +238,13 @@ function EventLandingPage() {
           isRegistrationOpen ? (
             authLoading ? null : canAccessTenant ? (
               <Button size="lg" asChild>
-                <Link
-                  to={
-                    tenantSlug
-                      ? tenantPath(`dashboard/events/${eventDetail.id}`)
-                      : tenantSlugFromParams
-                      ? `/${tenantSlugFromParams}/dashboard/events/${eventDetail.id}`
-                      : `/dashboard/events/${eventDetail.id}`
-                  }
-                >
+                <Link to={getEventAccessPath}>
                   {t('landing.accessCta')}
                 </Link>
               </Button>
+            ) : user ? (
+              // Si el usuario está logueado pero no tiene acceso al tenant, no mostrar acciones
+              null
             ) : (
               <>
                 <Button size="lg" asChild>
@@ -210,22 +261,20 @@ function EventLandingPage() {
                     {t('eventLanding.registerCta')}
                   </Link>
                 </Button>
-                {!user ? (
-                  <Button size="lg" variant="outline" asChild>
-                    <Link
-                      to={
-                        tenantSlug
-                          ? tenantPath('login')
-                          : tenantSlugFromParams
-                          ? `/${tenantSlugFromParams}/login`
-                          : '/login'
-                      }
-                      state={{ intent: 'login', eventId: eventDetail.id }}
-                    >
-                      {t('eventLanding.loginCta')}
-                    </Link>
-                  </Button>
-                ) : null}
+                <Button size="lg" variant="outline" asChild>
+                  <Link
+                    to={
+                      tenantSlug
+                        ? tenantPath('login')
+                        : tenantSlugFromParams
+                        ? `/${tenantSlugFromParams}/login`
+                        : '/login'
+                    }
+                    state={{ intent: 'login', eventId: eventDetail.id }}
+                  >
+                    {t('eventLanding.loginCta')}
+                  </Link>
+                </Button>
               </>
             )
           ) : (
@@ -249,10 +298,10 @@ function EventLandingPage() {
         </div>
       ) : null}
 
-      {eventDetail.description_html ? (
+      {resolvedDescriptionHtml ? (
         <div className="mx-auto w-full max-w-4xl">
           <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
-            <div dangerouslySetInnerHTML={{ __html: eventDetail.description_html }} />
+            <div dangerouslySetInnerHTML={{ __html: resolvedDescriptionHtml }} />
           </div>
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import multer from 'multer';
+import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { uploadEventAsset, deleteObjectByKey, checkObjectExists, getSettings, extractKeyFromUrl } from '../services/tenant-assets.service.js';
@@ -59,7 +60,7 @@ export class EventAssetsController {
         });
       }
 
-      let { name } = req.body;
+      let { name, description } = req.body;
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
         // Si no se proporciona nombre, usar el nombre del archivo normalizado
         name = file.originalname
@@ -76,6 +77,13 @@ export class EventAssetsController {
           .replace(/[^a-zA-Z0-9.\-_]/g, '_')
           .replace(/_+/g, '_')
           .replace(/^_+|_+$/g, '');
+      }
+
+      // Normalizar description si se proporciona
+      if (description && typeof description === 'string') {
+        description = description.trim() || null;
+      } else {
+        description = null;
       }
 
       // Validar formato del nombre (solo letras, números, guiones, puntos y guiones bajos)
@@ -164,7 +172,8 @@ export class EventAssetsController {
         url,
         mime_type: file.mimetype,
         file_size: file.size,
-        uploaded_by: req.user.id
+        uploaded_by: req.user.id,
+        description: description || null
       });
 
       return res.status(201).json({
@@ -404,6 +413,100 @@ export class EventAssetsController {
       return res.status(500).json({
         success: false,
         message: 'Error al comprobar los marcadores'
+      });
+    }
+  }
+
+  /**
+   * Actualiza un asset de un evento (nombre y/o descripción)
+   */
+  static async update(req, res) {
+    try {
+      const { eventId, assetId } = req.params;
+      const { tenant } = req;
+      const { name, description } = req.body;
+
+      const { EventAsset } = getModels();
+
+      const asset = await EventAsset.findOne({
+        where: {
+          id: assetId,
+          tenant_id: tenant.id,
+          event_id: eventId
+        }
+      });
+
+      if (!asset) {
+        return res.status(404).json({
+          success: false,
+          message: 'Recurso no encontrado'
+        });
+      }
+
+      // Si se proporciona un nombre nuevo, validarlo y normalizarlo
+      if (name !== undefined) {
+        if (typeof name !== 'string' || name.trim().length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'El nombre del recurso no puede estar vacío'
+          });
+        }
+
+        // Normalizar el nombre (eliminar acentos)
+        const normalizedName = name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+
+        // Validar formato del nombre
+        const nameRegex = /^[a-zA-Z0-9._-]+$/;
+        if (!nameRegex.test(normalizedName)) {
+          return res.status(400).json({
+            success: false,
+            message: 'El nombre del recurso solo puede contener letras, números, guiones, puntos y guiones bajos'
+          });
+        }
+
+        // Verificar si ya existe otro asset con ese nombre (excluyendo el actual)
+        const existingAsset = await EventAsset.findOne({
+          where: {
+            tenant_id: tenant.id,
+            event_id: eventId,
+            name: normalizedName,
+            id: { [Op.ne]: assetId }
+          }
+        });
+
+        if (existingAsset) {
+          return res.status(409).json({
+            success: false,
+            message: 'Ya existe un recurso con ese nombre para este evento'
+          });
+        }
+
+        asset.name = normalizedName;
+      }
+
+      // Si se proporciona una descripción, normalizarla
+      if (description !== undefined) {
+        if (typeof description === 'string') {
+          asset.description = description.trim() || null;
+        } else if (description === null) {
+          asset.description = null;
+        }
+      }
+
+      await asset.save();
+
+      return res.json({
+        success: true,
+        data: asset.toJSON()
+      });
+    } catch (error) {
+      logger.error('Error al actualizar asset del evento', { error: error.message, stack: error.stack });
+      return res.status(500).json({
+        success: false,
+        message: 'Error al actualizar el recurso'
       });
     }
   }

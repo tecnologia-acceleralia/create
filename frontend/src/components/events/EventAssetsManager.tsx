@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Upload, Trash2, Copy, Check, FileIcon, FileText, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, AlertCircle, CheckCircle2, RefreshCw, Search, X, FileCheck } from 'lucide-react';
+import { Upload, Trash2, Copy, Check, FileIcon, FileText, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, AlertCircle, CheckCircle2, RefreshCw, Search, X, FileCheck, ExternalLink, Pencil } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Spinner } from '@/components/common';
-import { getEventAssets, uploadEventAsset, deleteEventAsset, validateEventAssets, checkMarkers, type EventAsset, type AssetValidationResult, type InvalidMarker } from '@/services/event-assets';
+import { getEventAssets, uploadEventAsset, deleteEventAsset, updateEventAsset, validateEventAssets, checkMarkers, type EventAsset, type AssetValidationResult, type InvalidMarker } from '@/services/event-assets';
 
 interface EventAssetsManagerProps {
   readonly eventId: number;
@@ -21,12 +21,16 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [assetName, setAssetName] = useState('');
+  const [assetDescription, setAssetDescription] = useState('');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [validationResults, setValidationResults] = useState<Map<number, boolean>>(new Map());
   const [assetToOverwrite, setAssetToOverwrite] = useState<EventAsset | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [markersDialogOpen, setMarkersDialogOpen] = useState(false);
   const [invalidMarkers, setInvalidMarkers] = useState<InvalidMarker[]>([]);
+  const [editingAsset, setEditingAsset] = useState<EventAsset | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const { data: assets, isLoading } = useQuery<EventAsset[]>({
     queryKey: ['event-assets', eventId],
@@ -34,12 +38,13 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: ({ file, name, overwrite }: { file: File; name: string; overwrite?: boolean }) => 
-      uploadEventAsset(eventId, file, name, overwrite || false),
+    mutationFn: ({ file, name, description, overwrite }: { file: File; name: string; description?: string; overwrite?: boolean }) => 
+      uploadEventAsset(eventId, file, name, overwrite || false, description),
     onSuccess: () => {
       toast.success(t('events.assetUploaded', { defaultValue: 'Archivo subido correctamente' }));
       setSelectedFile(null);
       setAssetName('');
+      setAssetDescription('');
       setAssetToOverwrite(null);
       void queryClient.invalidateQueries({ queryKey: ['event-assets', eventId] });
       // Limpiar validación después de subir
@@ -99,6 +104,22 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     }
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ assetId, data }: { assetId: number; data: { name?: string; description?: string | null } }) =>
+      updateEventAsset(eventId, assetId, data),
+    onSuccess: () => {
+      toast.success(t('events.assetUpdated', { defaultValue: 'Recurso actualizado correctamente' }));
+      setEditingAsset(null);
+      setEditName('');
+      setEditDescription('');
+      void queryClient.invalidateQueries({ queryKey: ['event-assets', eventId] });
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.message || t('common.error');
+      toast.error(message);
+    }
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (assetId: number) => deleteEventAsset(eventId, assetId),
     onSuccess: () => {
@@ -125,6 +146,17 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
           .replaceAll(/^_+|_+$/g, '')
           .toLowerCase();
         setAssetName(suggestedName);
+      }
+      // Generar descripción sugerida basada en el nombre del archivo
+      if (!assetDescription) {
+        const suggestedDescription = file.name
+          .replace(/\.[^/.]+$/, '')
+          .replace(/[_-]/g, ' ')
+          .split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+          .join(' ')
+          .trim();
+        setAssetDescription(suggestedDescription);
       }
     }
   };
@@ -169,6 +201,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     uploadMutation.mutate({ 
       file: selectedFile, 
       name: normalizedName,
+      description: assetDescription.trim() || undefined,
       overwrite: overwrite || assetToOverwrite?.name === normalizedName
     });
   };
@@ -180,6 +213,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
   const handleReupload = (asset: EventAsset) => {
     setAssetToOverwrite(asset);
     setAssetName(asset.name);
+    setAssetDescription(asset.description || '');
     // Abrir el selector de archivos
     const input = document.createElement('input');
     input.type = 'file';
@@ -212,6 +246,47 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     } catch (error) {
       toast.error(t('common.error'));
     }
+  };
+
+  const handleOpenEditDialog = (asset: EventAsset) => {
+    setEditingAsset(asset);
+    setEditName(asset.name);
+    setEditDescription(asset.description || '');
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditingAsset(null);
+    setEditName('');
+    setEditDescription('');
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingAsset) return;
+
+    // Normalizar el nombre (eliminar acentos)
+    const normalizedName = editName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+
+    // Validar formato del nombre
+    const nameRegex = /^[a-zA-Z0-9._-]+$/;
+    if (!nameRegex.test(normalizedName)) {
+      toast.error(
+        t('events.assetNameInvalid', {
+          defaultValue: 'El nombre solo puede contener letras, números, guiones, puntos y guiones bajos'
+        })
+      );
+      return;
+    }
+
+    updateMutation.mutate({
+      assetId: editingAsset.id,
+      data: {
+        name: normalizedName !== editingAsset.name ? normalizedName : undefined,
+        description: editDescription.trim() || null
+      }
+    });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -371,6 +446,22 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                 })}
               </p>
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t('events.assetDescription', { defaultValue: 'Descripción' })}
+              </label>
+              <Input
+                value={assetDescription}
+                onChange={e => setAssetDescription(e.target.value)}
+                placeholder={t('events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('events.assetDescriptionHint', {
+                  defaultValue: 'Texto que se mostrará cuando se use el marcador en lugar de la URL completa. Si se deja vacío, se usará el nombre del archivo.'
+                })}
+              </p>
+            </div>
             {assetToOverwrite && (
               <div className="rounded-md bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800">
                 {t('events.overwritingAsset', { 
@@ -444,7 +535,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-semibold truncate" title={asset.name}>
-                              {asset.original_filename || asset.name}
+                              {asset.description || asset.original_filename || asset.name}
                             </p>
                             {validationResults.has(asset.id) && (
                               validationResults.get(asset.id) ? (
@@ -458,14 +549,19 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                               )
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(asset.file_size)}
-                            {validationResults.has(asset.id) && !validationResults.get(asset.id) && (
-                              <span className="text-red-600 ml-2">
-                                {t('events.missingInS3', { defaultValue: '(Faltante en S3)' })}
-                              </span>
-                            )}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(asset.file_size)}
+                              {validationResults.has(asset.id) && !validationResults.get(asset.id) && (
+                                <span className="text-red-600 ml-2">
+                                  {t('events.missingInS3', { defaultValue: '(Faltante en S3)' })}
+                                </span>
+                              )}
+                            </p>
+                            <span className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+                              {`{{asset:${asset.name}}}`}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -480,6 +576,14 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                           <Upload className="h-4 w-4" />
                         </Button>
                       )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleOpenEditDialog(asset)}
+                        title={t('common.edit', { defaultValue: 'Editar' })}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -506,6 +610,15 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                       >
                         <Copy className="h-4 w-4 mr-2" />
                         {t('events.marker', { defaultValue: 'Marcador' })}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(asset.url, '_blank', 'noopener,noreferrer')}
+                        title={t('events.viewAsset', { defaultValue: 'Ver recurso' })}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        {t('events.view', { defaultValue: 'Ver' })}
                       </Button>
                       <Button
                         size="sm"
@@ -620,6 +733,68 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
           <DialogFooter>
             <Button onClick={() => setMarkersDialogOpen(false)}>
               {t('common.close', { defaultValue: 'Cerrar' })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingAsset !== null} onOpenChange={handleCloseEditDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {t('events.editAsset', { defaultValue: 'Editar recurso' })}
+            </DialogTitle>
+            <DialogDescription>
+              {t('events.editAssetDescription', { defaultValue: 'Modifica el nombre del marcador y la descripción del recurso.' })}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t('events.assetName', { defaultValue: 'Nombre del recurso' })}
+                <span className="text-destructive ml-1">*</span>
+              </label>
+              <Input
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                placeholder={t('events.assetNamePlaceholder', { defaultValue: 'nombre-del-recurso' })}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('events.assetNameHint', {
+                  defaultValue: 'Solo letras, números, guiones, puntos y guiones bajos. Los acentos se eliminarán automáticamente. Este nombre se usará en los marcadores.'
+                })}
+              </p>
+              {editingAsset && (
+                <p className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
+                  {t('events.markerPreview', { defaultValue: 'Marcador:' })} {`{{asset:${editName}}}`}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t('events.assetDescription', { defaultValue: 'Descripción' })}
+              </label>
+              <Input
+                value={editDescription}
+                onChange={e => setEditDescription(e.target.value)}
+                placeholder={t('events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('events.assetDescriptionHint', {
+                  defaultValue: 'Texto que se mostrará cuando se use el marcador en lugar de la URL completa. Si se deja vacío, se usará el nombre del archivo.'
+                })}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCloseEditDialog}>
+              {t('common.cancel', { defaultValue: 'Cancelar' })}
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={updateMutation.isPending || !editName.trim()}>
+              {updateMutation.isPending ? t('common.loading') : t('common.save', { defaultValue: 'Guardar' })}
             </Button>
           </DialogFooter>
         </DialogContent>

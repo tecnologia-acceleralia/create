@@ -13,7 +13,7 @@ export function resolveAssetMarkers(html: string | null | undefined, assets: Eve
     return html || '';
   }
 
-  const markerRegex = /\{\{asset:([a-zA-Z0-9_-]+)\}\}/g;
+  const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
   const matches = [...html.matchAll(markerRegex)];
 
   if (matches.length === 0) {
@@ -54,7 +54,7 @@ export function extractAssetNames(html: string | null | undefined): string[] {
     return [];
   }
 
-  const markerRegex = /\{\{asset:([a-zA-Z0-9_-]+)\}\}/g;
+  const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
   const matches = [...html.matchAll(markerRegex)];
   return [...new Set(matches.map(match => match[1]))];
 }

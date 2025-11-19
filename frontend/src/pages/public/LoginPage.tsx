@@ -59,12 +59,14 @@ function LoginPage() {
           <Link to={tenantPath('password-reset')} className="text-sm text-primary underline underline-offset-4">
             {t('auth.forgotPassword')}
           </Link>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-sm text-muted-foreground">{t('auth.dontHaveAccount')}</p>
-            <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
-              <Link to={tenantPath('register')}>{t('auth.goToRegister')}</Link>
-            </Button>
-          </div>
+          {!user && (
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm text-muted-foreground">{t('auth.dontHaveAccount')}</p>
+              <Button variant="link" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
+                <Link to={tenantPath('register')}>{t('auth.goToRegister')}</Link>
+              </Button>
+            </div>
+          )}
         </div>
       }
     >

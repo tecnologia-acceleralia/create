@@ -343,6 +343,34 @@ eventsRouter.post(
   EventAssetsController.upload
 );
 
+eventsRouter.put(
+  '/:eventId/assets/:assetId',
+  authorizeRoles('tenant_admin'),
+  [
+    param('eventId').isInt(),
+    param('assetId').isInt(),
+    body('name')
+      .optional()
+      .isString()
+      .notEmpty()
+      .customSanitizer(value => {
+        // Normalizar el nombre (eliminar acentos) antes de validar
+        if (typeof value === 'string') {
+          return value
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+        }
+        return value;
+      })
+      .matches(/^[a-zA-Z0-9._-]+$/)
+      .withMessage('El nombre solo puede contener letras, números, guiones, puntos y guiones bajos'),
+    body('description').optional().isString()
+  ],
+  validateRequest,
+  EventAssetsController.update
+);
+
 eventsRouter.delete(
   '/:eventId/assets/:assetId',
   authorizeRoles('tenant_admin'),

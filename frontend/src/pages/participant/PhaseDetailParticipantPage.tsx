@@ -232,7 +232,7 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
     <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
       <div className="space-y-6">
         {activePhase ? (
-          <PhaseContextCard phase={activePhase} locale={locale} defaultExpanded={isPhaseContextExpanded} />
+          <PhaseContextCard phase={activePhase} locale={locale} defaultExpanded={isPhaseContextExpanded} eventId={eventDetail.id} />
         ) : null}
 
         <div className="space-y-4">

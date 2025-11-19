@@ -9,26 +9,17 @@ import { Input } from '@/components/ui/input';
 import { FormField } from '@/components/form';
 import { DashboardLayout } from '@/components/layout';
 import { CardWithActions } from '@/components/common';
+import { Card, CardContent } from '@/components/ui/card';
 import { useAuth, mapUser } from '@/context/AuthContext';
 import { updateProfile } from '@/services/auth';
+import { fileToBase64 } from '@/utils/files';
+import { useTenant } from '@/context/TenantContext';
 
 const profileSchema = z.object({
   first_name: z.string().trim().min(1, 'profile.firstNameRequired').max(150),
   last_name: z.string().trim().min(1, 'profile.lastNameRequired').max(150),
   email: z.string().email('profile.emailInvalid'),
-  language: z.enum(['es', 'en', 'ca']),
-  avatar_url: z
-    .string()
-    .optional()
-    .refine(val => !val || val === '' || z.string().url().safeParse(val).success, {
-      message: 'URL inválida'
-    }),
-  profile_image_url: z
-    .string()
-    .optional()
-    .refine(val => !val || val === '' || z.string().url().safeParse(val).success, {
-      message: 'URL inválida'
-    })
+  language: z.enum(['es', 'en', 'ca'])
 });
 
 type ProfileFormValues = z.infer<typeof profileSchema>;
@@ -36,8 +27,15 @@ type ProfileFormValues = z.infer<typeof profileSchema>;
 function ProfilePage() {
   const { t } = useTranslation();
   const { user, activeMembership, memberships, isSuperAdmin, hydrateSession, tokens } = useAuth();
+  const { branding } = useTenant();
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
+  const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null);
+  const [profileImageError, setProfileImageError] = useState<string | null>(null);
+  const [removeProfileImage, setRemoveProfileImage] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -45,9 +43,7 @@ function ProfilePage() {
       first_name: user?.first_name ?? '',
       last_name: user?.last_name ?? '',
       email: user?.email ?? '',
-      language: (user as any)?.language ?? 'es',
-      avatar_url: user?.profile_image_url ?? '',
-      profile_image_url: user?.profile_image_url ?? ''
+      language: (user as any)?.language ?? 'es'
     }
   });
 
@@ -57,10 +53,14 @@ function ProfilePage() {
         first_name: user.first_name ?? '',
         last_name: user.last_name ?? '',
         email: user.email ?? '',
-        language: (user as any)?.language ?? 'es',
-        avatar_url: user.profile_image_url ?? '',
-        profile_image_url: user.profile_image_url ?? ''
+        language: (user as any)?.language ?? 'es'
       });
+      setAvatarBase64(null);
+      setAvatarError(null);
+      setRemoveAvatar(false);
+      setProfileImageBase64(null);
+      setProfileImageError(null);
+      setRemoveProfileImage(false);
     }
   }, [user, form]);
 
@@ -103,10 +103,64 @@ function ProfilePage() {
         first_name: user.first_name ?? '',
         last_name: user.last_name ?? '',
         email: user.email ?? '',
-        language: (user as any)?.language ?? 'es',
-        avatar_url: user.profile_image_url ?? '',
-        profile_image_url: user.profile_image_url ?? ''
+        language: (user as any)?.language ?? 'es'
       });
+      setAvatarBase64(null);
+      setAvatarError(null);
+      setRemoveAvatar(false);
+      setProfileImageBase64(null);
+      setProfileImageError(null);
+      setRemoveProfileImage(false);
+    }
+  };
+
+  const handleAvatarFileChange: React.ChangeEventHandler<HTMLInputElement> = async event => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setAvatarBase64(null);
+      setAvatarError(null);
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError(t('profile.avatarTooLarge'));
+      setAvatarBase64(null);
+      return;
+    }
+
+    try {
+      const base64 = await fileToBase64(file);
+      setAvatarBase64(base64);
+      setAvatarError(null);
+      setRemoveAvatar(false);
+    } catch (error) {
+      setAvatarError(t('profile.avatarReadError'));
+      setAvatarBase64(null);
+    }
+  };
+
+  const handleProfileImageFileChange: React.ChangeEventHandler<HTMLInputElement> = async event => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setProfileImageBase64(null);
+      setProfileImageError(null);
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileImageError(t('profile.profileImageTooLarge'));
+      setProfileImageBase64(null);
+      return;
+    }
+
+    try {
+      const base64 = await fileToBase64(file);
+      setProfileImageBase64(base64);
+      setProfileImageError(null);
+      setRemoveProfileImage(false);
+    } catch (error) {
+      setProfileImageError(t('profile.profileImageReadError'));
+      setProfileImageBase64(null);
     }
   };
 
@@ -124,16 +178,18 @@ function ProfilePage() {
         language: data.language
       };
 
-      if (data.avatar_url) {
-        payload.avatar_url = data.avatar_url;
-      } else {
+      // Manejar avatar
+      if (removeAvatar) {
         payload.avatar_url = null;
+      } else if (avatarBase64) {
+        payload.avatar = avatarBase64;
       }
 
-      if (data.profile_image_url) {
-        payload.profile_image_url = data.profile_image_url;
-      } else {
+      // Manejar imagen de perfil
+      if (removeProfileImage) {
         payload.profile_image_url = null;
+      } else if (profileImageBase64) {
+        payload.profile_image = profileImageBase64;
       }
 
       const response = await updateProfile(payload);
@@ -156,6 +212,10 @@ function ProfilePage() {
 
       toast.success(t('profile.updateSuccess'));
       setIsEditing(false);
+      setAvatarBase64(null);
+      setProfileImageBase64(null);
+      setRemoveAvatar(false);
+      setRemoveProfileImage(false);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message ?? t('profile.updateError');
       toast.error(errorMessage);
@@ -237,23 +297,119 @@ function ProfilePage() {
                 </select>
               </FormField>
 
-              <FormField
-                label={t('profile.avatarUrl')}
-                htmlFor="avatar_url"
-                description={t('profile.avatarUrl')}
-                error={form.formState.errors.avatar_url?.message ? t(form.formState.errors.avatar_url.message) : undefined}
-              >
-                <Input id="avatar_url" type="url" placeholder="https://..." {...form.register('avatar_url')} />
-              </FormField>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label={t('profile.avatar')}
+                  htmlFor="avatar"
+                  description={t('profile.avatarInfo')}
+                  error={avatarError ?? undefined}
+                >
+                  <Input
+                    id="avatar"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleAvatarFileChange}
+                  />
+                  {avatarError ? <p className="text-xs text-destructive mt-1">{avatarError}</p> : null}
+                </FormField>
 
-              <FormField
-                label={t('profile.profileImageUrl')}
-                htmlFor="profile_image_url"
-                description={t('profile.profileImageUrl')}
-                error={form.formState.errors.profile_image_url?.message ? t(form.formState.errors.profile_image_url.message) : undefined}
-              >
-                <Input id="profile_image_url" type="url" placeholder="https://..." {...form.register('profile_image_url')} />
-              </FormField>
+                {avatarBase64 ? (
+                  <FormField label={t('profile.avatarPreview')}>
+                    <div
+                      className="flex h-20 w-20 items-center justify-center rounded-full border border-border overflow-hidden"
+                      style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
+                    >
+                      <img
+                        src={avatarBase64}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  </FormField>
+                ) : null}
+
+                {user?.avatar_url && !avatarBase64 ? (
+                  <FormField label={t('profile.currentAvatar')}>
+                    <div className="flex flex-col gap-2">
+                      <div
+                        className="flex h-20 w-20 items-center justify-center rounded-full border border-border overflow-hidden"
+                        style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
+                      >
+                        <img
+                          src={user.avatarUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={removeAvatar}
+                          onChange={event => setRemoveAvatar(event.target.checked)}
+                        />
+                        {t('profile.removeAvatar')}
+                      </label>
+                    </div>
+                  </FormField>
+                ) : null}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                  label={t('profile.profileImage')}
+                  htmlFor="profile_image"
+                  description={t('profile.profileImageInfo')}
+                  error={profileImageError ?? undefined}
+                >
+                  <Input
+                    id="profile_image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleProfileImageFileChange}
+                  />
+                  {profileImageError ? <p className="text-xs text-destructive mt-1">{profileImageError}</p> : null}
+                </FormField>
+
+                {profileImageBase64 ? (
+                  <FormField label={t('profile.profileImagePreview')}>
+                    <div
+                      className="flex h-32 w-auto items-center justify-center rounded border border-border p-2"
+                      style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
+                    >
+                      <img
+                        src={profileImageBase64}
+                        alt=""
+                        className="h-full w-auto max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  </FormField>
+                ) : null}
+
+                {user?.profile_image_url && !profileImageBase64 ? (
+                  <FormField label={t('profile.currentProfileImage')}>
+                    <div className="flex flex-col gap-2">
+                      <div
+                        className="flex h-32 w-auto items-center justify-center rounded border border-border p-2"
+                        style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
+                      >
+                        <img
+                          src={user.profile_image_url}
+                          alt=""
+                          className="h-full w-auto max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={removeProfileImage}
+                          onChange={event => setRemoveProfileImage(event.target.checked)}
+                        />
+                        {t('profile.removeProfileImage')}
+                      </label>
+                    </div>
+                  </FormField>
+                ) : null}
+              </div>
 
               <div className="flex gap-2 pt-4">
                 <Button type="submit" disabled={isSubmitting}>

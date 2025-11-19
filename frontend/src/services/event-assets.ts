@@ -11,6 +11,7 @@ export type EventAsset = {
   created_at: string;
   updated_at: string;
   s3_key?: string;
+  description?: string | null; // Texto descriptivo del recurso
   exists?: boolean; // Estado de validación (si existe en S3)
 };
 
@@ -19,12 +20,15 @@ export async function getEventAssets(eventId: number): Promise<EventAsset[]> {
   return response.data.data as EventAsset[];
 }
 
-export async function uploadEventAsset(eventId: number, file: File, name: string, overwrite = false): Promise<EventAsset> {
+export async function uploadEventAsset(eventId: number, file: File, name: string, overwrite = false, description?: string): Promise<EventAsset> {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('name', name);
   if (overwrite) {
     formData.append('overwrite', 'true');
+  }
+  if (description) {
+    formData.append('description', description);
   }
 
   const response = await apiClient.post(`/events/${eventId}/assets`, formData, {
@@ -69,6 +73,11 @@ export type CheckMarkersResult = {
 export async function checkMarkers(eventId: number): Promise<CheckMarkersResult> {
   const response = await apiClient.get(`/events/${eventId}/assets/check-markers`);
   return response.data.data as CheckMarkersResult;
+}
+
+export async function updateEventAsset(eventId: number, assetId: number, data: { name?: string; description?: string | null }): Promise<EventAsset> {
+  const response = await apiClient.put(`/events/${eventId}/assets/${assetId}`, data);
+  return response.data.data as EventAsset;
 }
 
 export async function deleteEventAsset(eventId: number, assetId: number): Promise<void> {
