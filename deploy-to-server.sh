@@ -386,8 +386,8 @@ if [ -f "nginx-create.conf" ]; then
     fi
     
     # Copiar la nueva configuración y reemplazar variables
-    # Reemplazar variables en nginx-prod.conf antes de copiarlo
-    sed "s|\${NGINX_DOMAIN}|${DOMAIN_NAME}|g; s|\${NGINX_CERT_PATH}|/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem|g; s|\${NGINX_CERT_KEY_PATH}|/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem|g" nginx-prod.conf | sudo tee /etc/nginx/sites-available/${DOMAIN_NAME} > /dev/null
+    # Reemplazar variables en nginx-create.conf antes de copiarlo
+    sed "s|\${NGINX_DOMAIN}|${DOMAIN_NAME}|g; s|\${NGINX_CERT_PATH}|/etc/letsencrypt/live/${DOMAIN_NAME}/fullchain.pem|g; s|\${NGINX_CERT_KEY_PATH}|/etc/letsencrypt/live/${DOMAIN_NAME}/privkey.pem|g" nginx-create.conf | sudo tee /etc/nginx/sites-available/${DOMAIN_NAME} > /dev/null
       
     # Asegurar que esté habilitada
     sudo ln -sf /etc/nginx/sites-available/${DOMAIN_NAME} /etc/nginx/sites-enabled/${DOMAIN_NAME}
