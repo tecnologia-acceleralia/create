@@ -4,17 +4,19 @@ import OpenAI from 'openai';
 import { Op } from 'sequelize';
 import { appConfig } from '../config/env.js';
 import { getModels } from '../models/index.js';
+import { getSequelize } from '../database/database.js';
 import { logger } from '../utils/logger.js';
 import {
   decodeBase64Image,
   deleteObjectByUrl,
+  deleteObjectByKey,
   uploadTenantLogo,
   validateSpacesConfiguration,
   probeSpacesConnection
 } from '../services/tenant-assets.service.js';
 import { parsePageParam, parsePageSizeParam, parseCsvParam, coerceNullableInteger, coerceNullableString } from '../utils/parsers.js';
 import { normalizeSort, mapGroupedCount, buildPaginationMeta } from '../utils/pagination.js';
-import { successResponse, errorResponse, notFoundResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
+import { errorResponse, notFoundResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 
 const DEFAULT_ROLES = [
   { name: 'Administrador de Cliente', scope: 'tenant_admin' },
@@ -24,7 +26,7 @@ const DEFAULT_ROLES = [
   { name: 'Capitán de equipo', scope: 'team_captain' }
 ];
 
-const TENANT_ROLE_SCOPES = ['tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'];
+const TENANT_ROLE_SCOPES = new Set(['tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain']);
 
 const DEFAULT_TENANT_PRIMARY = '#0ea5e9';
 const DEFAULT_TENANT_SECONDARY = '#1f2937';
@@ -111,7 +113,7 @@ function normalizeTenantRolesPayload(rawPayload) {
       new Set(
         entry.roleScopes
           .map(scope => (typeof scope === 'string' ? scope.trim() : ''))
-          .filter(scope => TENANT_ROLE_SCOPES.includes(scope))
+          .filter(scope => TENANT_ROLE_SCOPES.has(scope))
       )
     );
     accumulator[entry.tenantId] = scopes;
@@ -124,7 +126,7 @@ async function syncUserTenantRoles({ membershipId, tenantId, desiredScopes, Role
     new Set(
       (desiredScopes ?? [])
         .map(scope => (typeof scope === 'string' ? scope.trim() : ''))
-        .filter(scope => TENANT_ROLE_SCOPES.includes(scope))
+        .filter(scope => TENANT_ROLE_SCOPES.has(scope))
     )
   );
 
@@ -178,8 +180,8 @@ async function syncUserTenantRoles({ membershipId, tenantId, desiredScopes, Role
     }
   }
 
-  const existingRoleIds = existingAssignments.map(assignment => assignment.role_id);
-  const roleIdsToAdd = resolvedRoleIds.filter(roleId => !existingRoleIds.includes(roleId));
+  const existingRoleIds = new Set(existingAssignments.map(assignment => assignment.role_id));
+  const roleIdsToAdd = resolvedRoleIds.filter(roleId => !existingRoleIds.has(roleId));
   const assignmentIdsToRemove = existingAssignments
     .filter(assignment => !resolvedRoleIds.includes(assignment.role_id))
     .map(assignment => assignment.id);
@@ -1014,9 +1016,9 @@ export class SuperAdminController {
           skipTenant: true
         });
 
-        const currentTenantIds = currentMemberships.map(membership => membership.tenant_id);
+        const currentTenantIds = new Set(currentMemberships.map(membership => membership.tenant_id));
 
-        const toCreate = desiredTenantIds.filter(id => !currentTenantIds.includes(id));
+        const toCreate = desiredTenantIds.filter(id => !currentTenantIds.has(id));
         const toRemove = currentMemberships.filter(membership => !desiredTenantIds.includes(membership.tenant_id));
 
         if (toRemove.length > 0) {
@@ -1145,11 +1147,27 @@ export class SuperAdminController {
         return notFoundResponse(res, 'Usuario no encontrado');
       }
 
+      // Guardar URL antes de borrar el usuario
+      const profileImageUrl = user.profile_image_url;
+
+      // Borrar relaciones primero
       await UserTenant.destroy({
         where: { user_id: user.id },
         skipTenant: true
       });
 
+      // Borrar archivos de S3 antes de borrar el usuario
+      await Promise.allSettled([
+        profileImageUrl ? deleteObjectByUrl(profileImageUrl).catch(error => {
+          logger.warn('Error al borrar imagen de perfil de usuario de S3', {
+            error: error.message,
+            profileImageUrl,
+            userId: user.id
+          });
+        }) : Promise.resolve()
+      ]);
+
+      // Borrar el usuario
       await user.destroy();
 
       return res.json({ success: true });
@@ -1244,7 +1262,6 @@ export class SuperAdminController {
     }
 
     try {
-      const client = new OpenAI({ apiKey: appConfig.openai.apiKey });
       const model = appConfig.openai.model;
 
       return buildHealthcheckStatus({
@@ -1380,6 +1397,279 @@ export class SuperAdminController {
           error: error.message
         }
       });
+    }
+  }
+
+  static async cleanEvent(req, res) {
+    const { Event, Team, TeamMember, Project, Submission, SubmissionFile, Evaluation, EventRegistration, Notification } = getModels();
+    const { eventId } = req.params;
+    const eventIdNum = Number.parseInt(eventId, 10);
+
+    if (Number.isNaN(eventIdNum)) {
+      return badRequestResponse(res, 'ID de evento inválido');
+    }
+
+    try {
+      // Verificar que el evento existe
+      const event = await Event.findByPk(eventIdNum, { skipTenant: true });
+      if (!event) {
+        return notFoundResponse(res, 'Evento no encontrado');
+      }
+
+      // Obtener todos los equipos del evento
+      const teams = await Team.findAll({
+        where: { event_id: eventIdNum },
+        attributes: ['id', 'captain_id'],
+        skipTenant: true
+      });
+      const teamIds = teams.map(team => team.id);
+      const captainIds = teams.map(team => team.captain_id).filter(id => id !== null);
+
+      // Obtener todos los proyectos de esos equipos (con logo_url para borrar de S3)
+      const projects = await Project.findAll({
+        where: { team_id: { [Op.in]: teamIds } },
+        attributes: ['id', 'logo_url'],
+        skipTenant: true
+      });
+      const projectIds = projects.map(project => project.id);
+
+      // Obtener todas las entregas del evento
+      const submissions = await Submission.findAll({
+        where: { event_id: eventIdNum },
+        attributes: ['id', 'submitted_by'],
+        skipTenant: true
+      });
+      const submissionIds = submissions.map(submission => submission.id);
+      const submitterIds = submissions.map(submission => submission.submitted_by).filter(id => id !== null);
+
+      // Obtener archivos de entregas con sus storage_key para borrar de S3
+      let submissionFiles = [];
+      if (submissionIds.length > 0) {
+        submissionFiles = await SubmissionFile.findAll({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          attributes: ['id', 'storage_key', 'url'],
+          skipTenant: true
+        });
+      }
+
+      // Obtener todos los miembros de equipos
+      let teamMemberUserIds = [];
+      if (teamIds.length > 0) {
+        const teamMembers = await TeamMember.findAll({
+          where: { team_id: { [Op.in]: teamIds } },
+          attributes: ['user_id'],
+          skipTenant: true
+        });
+        teamMemberUserIds = teamMembers.map(member => member.user_id);
+      }
+
+      // Obtener evaluadores de las evaluaciones
+      let reviewerIds = [];
+      if (submissionIds.length > 0) {
+        const evaluations = await Evaluation.findAll({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          attributes: ['reviewer_id'],
+          skipTenant: true
+        });
+        reviewerIds = evaluations.map(evaluation => evaluation.reviewer_id).filter(id => id !== null);
+      }
+
+      // Consolidar todos los user_ids relacionados con el evento
+      const relatedUserIds = Array.from(
+        new Set([...teamMemberUserIds, ...captainIds, ...submitterIds, ...reviewerIds])
+      ).filter(id => id !== null && id !== undefined);
+
+      // Contar elementos antes de borrar para el log
+      const counts = {
+        teams: teamIds.length,
+        projects: projectIds.length,
+        submissions: submissionIds.length,
+        evaluations: 0,
+        submissionFiles: 0,
+        teamMembers: teamMemberUserIds.length,
+        eventRegistrations: 0,
+        notifications: 0
+      };
+
+      if (submissionIds.length > 0) {
+        // Contar evaluaciones y archivos de entregas
+        const evaluations = await Evaluation.findAll({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          attributes: ['id'],
+          skipTenant: true
+        });
+        counts.evaluations = evaluations.length;
+
+        const submissionFiles = await SubmissionFile.findAll({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          attributes: ['id'],
+          skipTenant: true
+        });
+        counts.submissionFiles = submissionFiles.length;
+      }
+
+      // Contar registros de evento
+      const eventRegistrations = await EventRegistration.findAll({
+        where: { event_id: eventIdNum },
+        attributes: ['id'],
+        skipTenant: true
+      });
+      counts.eventRegistrations = eventRegistrations.length;
+
+      // Contar notificaciones relacionadas (tipo 'evaluation' de usuarios relacionados)
+      if (relatedUserIds.length > 0) {
+        const notifications = await Notification.findAll({
+          where: {
+            user_id: { [Op.in]: relatedUserIds },
+            type: 'evaluation'
+          },
+          attributes: ['id'],
+          skipTenant: true
+        });
+        counts.notifications = notifications.length;
+      }
+
+      // Iniciar transacción para asegurar atomicidad
+      const transaction = await getSequelize().transaction();
+
+      try {
+        // Borrar en orden inverso de dependencias (de hijos a padres)
+
+        // 1. Borrar evaluaciones (dependen de submissions)
+        if (submissionIds.length > 0) {
+          await Evaluation.destroy({
+            where: { submission_id: { [Op.in]: submissionIds } },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 2. Borrar archivos de entregas de S3 y luego de BD (dependen de submissions)
+        if (submissionFiles.length > 0) {
+          // Borrar archivos de S3 primero
+          await Promise.allSettled(
+            submissionFiles.map(file => {
+              if (file.storage_key) {
+                return deleteObjectByKey(file.storage_key).catch(error => {
+                  logger.warn('Error al borrar archivo de entrega de S3', {
+                    error: error.message,
+                    storageKey: file.storage_key,
+                    submissionFileId: file.id
+                  });
+                });
+              }
+              return Promise.resolve();
+            })
+          );
+
+          // Luego borrar registros de BD
+          await SubmissionFile.destroy({
+            where: { submission_id: { [Op.in]: submissionIds } },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 3. Borrar notificaciones relacionadas (tipo 'evaluation' de usuarios del evento)
+        // Se borran antes de eliminar usuarios/teams para evitar problemas, aunque no hay FK constraint
+        if (relatedUserIds.length > 0) {
+          await Notification.destroy({
+            where: {
+              user_id: { [Op.in]: relatedUserIds },
+              type: 'evaluation'
+            },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 4. Borrar entregas (dependen de teams y events)
+        if (submissionIds.length > 0) {
+          await Submission.destroy({
+            where: { event_id: eventIdNum },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 5. Borrar logos de proyectos de S3 y luego borrar proyectos (dependen de teams)
+        if (projects.length > 0) {
+          // Borrar logos de S3 primero
+          await Promise.allSettled(
+            projects.map(project => {
+              if (project.logo_url) {
+                return deleteObjectByUrl(project.logo_url).catch(error => {
+                  logger.warn('Error al borrar logo de proyecto de S3', {
+                    error: error.message,
+                    logoUrl: project.logo_url,
+                    projectId: project.id
+                  });
+                });
+              }
+              return Promise.resolve();
+            })
+          );
+
+          // Luego borrar registros de BD
+          await Project.destroy({
+            where: { team_id: { [Op.in]: teamIds } },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 6. Borrar miembros de equipos (dependen de teams)
+        if (teamIds.length > 0) {
+          await TeamMember.destroy({
+            where: { team_id: { [Op.in]: teamIds } },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 7. Borrar equipos (dependen de events)
+        if (teamIds.length > 0) {
+          await Team.destroy({
+            where: { event_id: eventIdNum },
+            skipTenant: true,
+            transaction
+          });
+        }
+
+        // 8. Borrar registros de evento (dependen de events y users)
+        await EventRegistration.destroy({
+          where: { event_id: eventIdNum },
+          skipTenant: true,
+          transaction
+        });
+
+        // Confirmar transacción
+        await transaction.commit();
+
+        logger.info('Evento limpiado exitosamente', {
+          eventId: eventIdNum,
+          eventName: event.name,
+          counts
+        });
+
+        return res.json({
+          success: true,
+          data: {
+            message: 'Evento limpiado exitosamente',
+            event: {
+              id: event.id,
+              name: event.name
+            },
+            deleted: counts
+          }
+        });
+      } catch (error) {
+        await transaction.rollback();
+        throw error;
+      }
+    } catch (error) {
+      logger.error('Error limpiando evento', { error: error.message, eventId: eventIdNum });
+      return errorResponse(res, 'Error limpiando evento', 500);
     }
   }
 }

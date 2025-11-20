@@ -445,3 +445,27 @@ export async function testSuperAdminService(
 
   return response.data.data;
 }
+
+export type CleanEventResponse = {
+  message: string;
+  event: {
+    id: number;
+    name: string;
+  };
+  deleted: {
+    teams: number;
+    projects: number;
+    submissions: number;
+    evaluations: number;
+    submissionFiles: number;
+    teamMembers: number;
+    eventRegistrations: number;
+  };
+};
+
+export async function cleanEventSuperAdmin(eventId: number) {
+  const response = await superAdminClient.delete<ApiResponse<CleanEventResponse>>(
+    `/events/${eventId}/clean`
+  );
+  return response.data.data;
+}

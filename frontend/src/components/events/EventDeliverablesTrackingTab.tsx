@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, Download } from 'lucide-react';
+import { ExternalLink, Download, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 import { Spinner } from '@/components/common';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +17,12 @@ import { arrayToCSV, downloadCSV } from '@/utils/csv';
 function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
   const { t } = useTranslation();
   const tenantPath = useTenantPath();
+  const { isSuperAdmin, activeMembership, user } = useAuth();
+  const roleScopes = useMemo(
+    () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
+    [activeMembership, user]
+  );
+  const isReviewer = isSuperAdmin || roleScopes.has('evaluator') || roleScopes.has('organizer') || roleScopes.has('tenant_admin');
 
   const { data: trackingData, isLoading, isError } = useQuery<EventDeliverablesTracking>({
     queryKey: ['events', eventId, 'deliverables-tracking'],
@@ -51,7 +58,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
   const deliverablesMap = useMemo(() => {
     if (!trackingData) return new Map();
 
-    const map = new Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null }>();
+    const map = new Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>();
     
     trackingData.teams.forEach(team => {
       team.deliverables.forEach(deliverable => {
@@ -60,12 +67,29 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
           submitted: deliverable.submitted,
           submissionId: deliverable.submissionId,
           attachmentUrl: deliverable.attachmentUrl,
-          content: deliverable.content
+          content: deliverable.content,
+          hasFinalEvaluation: deliverable.hasFinalEvaluation,
+          hasPendingEvaluation: deliverable.hasPendingEvaluation,
+          finalEvaluationId: deliverable.finalEvaluationId
         });
       });
     });
 
     return map;
+  }, [trackingData]);
+
+  // Contar evaluaciones pendientes
+  const pendingEvaluationsCount = useMemo(() => {
+    if (!trackingData) return 0;
+    let count = 0;
+    trackingData.teams.forEach(team => {
+      team.deliverables.forEach(deliverable => {
+        if (deliverable.submitted && !deliverable.hasFinalEvaluation) {
+          count++;
+        }
+      });
+    });
+    return count;
   }, [trackingData]);
 
   // Ordenar equipos por nombre
@@ -149,7 +173,33 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
           {t('common.export', { defaultValue: 'Exportar CSV' })}
         </Button>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="space-y-4">
+        {isReviewer && pendingEvaluationsCount > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            <span>
+              {(() => {
+                const pluralText = pendingEvaluationsCount === 1
+                  ? t('evaluations.pendingEvaluationsAlertSingular')
+                  : t('evaluations.pendingEvaluationsAlertPlural');
+                const verbText = pendingEvaluationsCount === 1
+                  ? t('evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
+                  : t('evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
+                let message = t('evaluations.pendingEvaluationsAlert', {
+                  count: pendingEvaluationsCount,
+                  plural: pluralText,
+                  verb: verbText
+                });
+                // Eliminar el placeholder {{verb}} si está vacío (para español y catalán)
+                if (!verbText) {
+                  message = message.replace(/\{\{verb\}\}/g, '').replace(/\s+/g, ' ').trim();
+                }
+                return message;
+              })()}
+            </span>
+          </div>
+        )}
+        <div className="overflow-x-auto">
         {sortedTeams.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             {t('events.deliverablesTracking.noTeams')}
@@ -199,8 +249,10 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                     const key = `${team.id}:${column.taskId}`;
                     const deliverable = deliverablesMap.get(key);
                     const submitted = deliverable?.submitted ?? false;
+                    const submissionId = deliverable?.submissionId;
                     const attachmentUrl = deliverable?.attachmentUrl;
                     const content = deliverable?.content;
+                    const hasFinalEvaluation = deliverable?.hasFinalEvaluation ?? false;
 
                     return (
                       <TableCell key={`${team.id}-${column.taskId}`} className="text-center w-[150px]">
@@ -209,9 +261,40 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
                               {t('events.deliverablesTracking.submitted')}
                             </Badge>
+                            {isReviewer && (
+                              <div className="flex flex-col gap-1">
+                                {!hasFinalEvaluation ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-auto text-xs"
+                                    asChild
+                                  >
+                                    <Link
+                                      to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
+                                    >
+                                      {t('evaluations.evaluateButton', { defaultValue: 'Evaluar' })}
+                                    </Link>
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-auto text-xs"
+                                    asChild
+                                  >
+                                    <Link
+                                      to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
+                                    >
+                                      {t('evaluations.viewEvaluationButton', { defaultValue: 'Ver evaluación' })}
+                                    </Link>
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                             {(attachmentUrl || content) && (
                               <Button
-                                variant="link"
+                                variant="ghost"
                                 size="sm"
                                 className="h-auto p-0 text-xs"
                                 asChild
@@ -238,10 +321,11 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+            </Table>
+          )}
+        </div>
+        </CardContent>
+      </Card>
   );
 }
 

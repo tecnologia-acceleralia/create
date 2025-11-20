@@ -96,6 +96,7 @@ function TaskSubmissionPage() {
   }, [myTeams, numericEventId, isReviewer]);
 
   const [evaluations, setEvaluations] = useState<Record<number, Evaluation[]>>({});
+  const [finalEvaluations, setFinalEvaluations] = useState<Record<number, Evaluation>>({});
 
   const form = useForm<SubmissionFormValues>({
     resolver: zodResolver(submissionSchema),
@@ -151,8 +152,29 @@ function TaskSubmissionPage() {
     if (!evaluations[submission.id]) {
       const evals = await getEvaluations(submission.id);
       setEvaluations(prev => ({ ...prev, [submission.id]: evals }));
+      // Guardar evaluación final si existe
+      const finalEval = evals.find(e => e.status === 'final');
+      if (finalEval) {
+        setFinalEvaluations(prev => ({ ...prev, [submission.id]: finalEval }));
+      }
     }
   };
+
+  // Cargar evaluaciones finales para todas las entregas
+  useEffect(() => {
+    if (submissions && !isReviewer) {
+      void Promise.all(
+        submissions.map(async (submission) => {
+          try {
+            const finalEval = await getFinalEvaluation(submission.id);
+            setFinalEvaluations(prev => ({ ...prev, [submission.id]: finalEval }));
+          } catch {
+            // No hay evaluación final, está bien
+          }
+        })
+      );
+    }
+  }, [submissions, isReviewer]);
 
   const evaluationMutation = useMutation({
     mutationFn: (values: EvaluationFormValues) => createEvaluation(selectedSubmission!.id, {
@@ -618,6 +640,52 @@ function TaskSubmissionPage() {
                     ) : null}
                   </div>
                 ) : null}
+                {/* Mostrar evaluación final debajo de cada entrega */}
+                {!isReviewer && finalEvaluations[submission.id] && (
+                  <div className="mt-3 rounded-md border-2 border-primary/20 bg-primary/5 p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <h4 className="font-semibold text-sm text-primary">
+                        {t('evaluations.finalEvaluationTitle', { defaultValue: 'Evaluación Final' })}
+                      </h4>
+                      <Badge variant="default" className="bg-primary text-primary-foreground">
+                        {t('evaluations.final', { defaultValue: 'Final' })}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {t('submissions.score')}: {finalEvaluations[submission.id].score ?? 'N/A'}
+                        </p>
+                        <span
+                          className={cn(
+                            'rounded-full px-2 py-0.5 text-xs',
+                            finalEvaluations[submission.id].source === 'ai_assisted'
+                              ? 'bg-primary/10 text-primary'
+                              : 'bg-muted text-muted-foreground'
+                          )}
+                        >
+                          {finalEvaluations[submission.id].source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                        </span>
+                      </div>
+                      <p>{finalEvaluations[submission.id].comment}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t('submissions.evaluatedAt')}: {new Date(finalEvaluations[submission.id].created_at).toLocaleString()}
+                      </p>
+                      {finalEvaluations[submission.id].metadata?.criteria?.length ? (
+                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {finalEvaluations[submission.id].metadata.criteria.map((criterion, idx) => (
+                            <li key={`${finalEvaluations[submission.id].id}-criterion-${idx}`}>
+                              {t('evaluations.criteriaScore', {
+                                index: idx + 1,
+                                score: criterion.score ?? 'N/A'
+                              })}: {criterion.feedback}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
               </div>
               )) : (
                 <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>

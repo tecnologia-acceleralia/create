@@ -14,6 +14,7 @@ import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
 import EventsListPage from '@/pages/admin/events/EventsListPage';
 import EventDetailAdminPage from '@/pages/admin/events/EventDetailAdminPage';
 import EventDeliverablesTrackingPage from '@/pages/admin/events/EventDeliverablesTrackingPage';
+import DeliverablesTrackingPage from '@/pages/common/DeliverablesTrackingPage';
 import MyTeamPage from '@/pages/participant/MyTeamPage';
 import ProjectsPage from '@/pages/participant/ProjectsPage';
 import ParticipantDashboardPage from '@/pages/participant/ParticipantDashboardPage';
@@ -21,6 +22,8 @@ import PhaseDetailParticipantPage from '@/pages/participant/PhaseDetailParticipa
 import EventHomePage from '@/pages/participant/EventHomePage';
 import EvaluatorDashboardPage from '@/pages/evaluator/EvaluatorDashboardPage';
 import TaskSubmissionPage from '@/pages/participant/TaskSubmissionPage';
+import EvaluationPage from '@/pages/evaluator/EvaluationPage';
+import PhaseEvaluationPage from '@/pages/evaluator/PhaseEvaluationPage';
 import NotificationsPage from '@/pages/common/NotificationsPage';
 import ProfilePage from '@/pages/common/ProfilePage';
 import SuperAdminRootPage from '@/pages/superadmin/SuperAdminRootPage';
@@ -205,10 +208,34 @@ function AppRoutes() {
           )
         },
         {
+          path: 'dashboard/events/:eventId/tasks/:taskId/submissions/:submissionId/evaluate',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
+              <EvaluationPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/phases/:phaseId/teams/:teamId/evaluate',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
+              <PhaseEvaluationPage />
+            </ProtectedRoute>
+          )
+        },
+        {
           path: 'dashboard/notifications',
           element: (
             <ProtectedRoute>
               <NotificationsPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/tracking/deliverables',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
+              <DeliverablesTrackingPage />
             </ProtectedRoute>
           )
         },

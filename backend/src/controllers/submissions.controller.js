@@ -197,7 +197,7 @@ export class SubmissionsController {
 
   static async listByTask(req, res, next) {
     try {
-      const { Submission, Team, User, Task, SubmissionFile } = getModels();
+      const { Submission, Team, User, Task, SubmissionFile, Evaluation } = getModels();
       const taskId = Number(req.params.taskId);
 
       const task = await Task.findOne({ where: { id: taskId } });
@@ -218,17 +218,51 @@ export class SubmissionsController {
         whereClause = { ...whereClause, team_id: membership.team.id };
       }
 
+      const { Project } = getModels();
       const submissions = await Submission.findAll({
         where: whereClause,
         order: [['submitted_at', 'DESC']],
         include: [
-          { model: Team, as: 'team' },
+          { 
+            model: Team, 
+            as: 'team',
+            include: [
+              { model: Project, as: 'project' }
+            ]
+          },
           { model: User, as: 'submitter', attributes: ['id', 'email', 'first_name', 'last_name'] },
           { model: SubmissionFile, as: 'files' }
         ]
       });
 
-      return successResponse(res, submissions);
+      // Agregar información de evaluaciones finales para cada entrega
+      const submissionsWithEvaluationStatus = await Promise.all(
+        submissions.map(async (submission) => {
+          const finalEvaluation = await Evaluation.findOne({
+            where: {
+              submission_id: submission.id,
+              status: 'final'
+            },
+            order: [['created_at', 'DESC']]
+          });
+
+          const pendingEvaluation = await Evaluation.findOne({
+            where: {
+              submission_id: submission.id,
+              status: 'draft'
+            },
+            order: [['created_at', 'DESC']]
+          });
+
+          const submissionData = submission.toJSON();
+          submissionData.has_final_evaluation = !!finalEvaluation;
+          submissionData.has_pending_evaluation = !!pendingEvaluation;
+          submissionData.final_evaluation_id = finalEvaluation?.id || null;
+          return submissionData;
+        })
+      );
+
+      return successResponse(res, submissionsWithEvaluationStatus);
     } catch (error) {
       next(error);
     }
@@ -236,12 +270,19 @@ export class SubmissionsController {
 
   static async detail(req, res, next) {
     try {
-      const { Submission, Evaluation, SubmissionFile } = getModels();
+      const { Submission, Evaluation, SubmissionFile, Team, Project } = getModels();
       const submission = await Submission.findOne({
         where: { id: req.params.submissionId },
         include: [
           { model: Evaluation, as: 'evaluations' },
-          { model: SubmissionFile, as: 'files' }
+          { model: SubmissionFile, as: 'files' },
+          {
+            model: Team,
+            as: 'team',
+            include: [
+              { model: Project, as: 'project' }
+            ]
+          }
         ]
       });
 

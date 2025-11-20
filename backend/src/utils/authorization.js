@@ -50,7 +50,8 @@ export function isReviewer(req) {
   if (req.auth?.isSuperAdmin) {
     return true;
   }
-  const roleScopes = getRoleScopes(req.user);
+  // Usar req.auth.roleScopes como fuente principal, con fallback a req.user.roleScopes
+  const roleScopes = req.auth?.roleScopes ?? getRoleScopes(req.user);
   return roleScopes.some(scope => ['tenant_admin', 'organizer', 'evaluator'].includes(scope));
 }
 

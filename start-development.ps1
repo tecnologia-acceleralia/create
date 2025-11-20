@@ -87,7 +87,7 @@
     7. Construir imagenes Docker (backend y frontend)
     8. Instalar dependencias Docker en volumenes
     9. Arrancar contenedores Docker
-    10. Resetear o inicializar base de datos (según -ResetDB)
+    10. Resetear o inicializar base de datos (segun -ResetDB)
     11. Ejecutar migraciones
     12. Ejecutar seeders (forzado si -ResetDB)
     13. Mostrar resumen con URLs y credenciales
@@ -591,6 +591,8 @@ function Write-EnvironmentSummary {
         }
         if ($demoUsers) {
             Write-Host "Credenciales de demo (tenant 'demo'):"
+            Write-Host "  - Frontend:   http://localhost:3100/demo"
+            Write-Host ""
             foreach ($user in $demoUsers) {
                 $role = if ($user.Value.role) { " ($($user.Value.role))" } else { "" }
                 Write-Host "  - $($user.Name)$role / $($user.Value.password)"
@@ -777,13 +779,13 @@ function Stop-PnpmProcesses {
         }
         
         # Detener procesos de node que puedan estar bloqueando archivos
-        # Solo detener procesos de node que estén relacionados con pnpm o instalaciones
+        # Solo detener procesos de node que esten relacionados con pnpm o instalaciones
         $nodeProcesses = Get-Process -Name "node" -ErrorAction SilentlyContinue
         if ($nodeProcesses) {
-            Write-Info "Detectados $($nodeProcesses.Count) proceso(s) de node. Verificando si están relacionados con pnpm..."
+            Write-Info "Detectados $($nodeProcesses.Count) proceso(s) de node. Verificando si estan relacionados con pnpm..."
             foreach ($proc in $nodeProcesses) {
                 try {
-                    # Verificar si el proceso está relacionado con pnpm o instalaciones
+                    # Verificar si el proceso esta relacionado con pnpm o instalaciones
                     $commandLine = $null
                     try {
                         # Intentar usar CIM primero (compatible con PowerShell Core y Windows PowerShell)
@@ -806,7 +808,7 @@ function Stop-PnpmProcesses {
                         }
                     }
                     
-                    # Si no podemos obtener la línea de comandos o contiene pnpm/install, cerrar el proceso
+                    # Si no podemos obtener la linea de comandos o contiene pnpm/install, cerrar el proceso
                     if (-not $commandLine -or $commandLine -like "*pnpm*" -or $commandLine -like "*install*" -or $commandLine -like "*node_modules*") {
                         Write-Info "Cerrando proceso node relacionado con pnpm (PID: $($proc.Id))..."
                         Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
@@ -883,13 +885,13 @@ function Install-Dependencies {
                 $output = & $Command @Arguments 2>&1
                 $exitCode = $LASTEXITCODE
                 
-                # Convertir código negativo a positivo si es necesario (Windows maneja códigos negativos como números grandes sin signo)
+                # Convertir codigo negativo a positivo si es necesario (Windows maneja codigos negativos como numeros grandes sin signo)
                 $unsignedExitCode = $exitCode
                 if ($exitCode -lt 0) {
                     $unsignedExitCode = [uint32]::MaxValue + $exitCode + 1
                 }
                 
-                # Códigos de error comunes en Windows relacionados con permisos/bloqueos
+                # Codigos de error comunes en Windows relacionados con permisos/bloqueos
                 $isPermissionError = $false
                 $errorCodeName = ""
                 
@@ -910,7 +912,7 @@ function Install-Dependencies {
                 
                 if ($isPermissionError) {
                     if ($attempt -lt $MaxRetries) {
-                        Write-Info "Error de permisos/bloqueo ($errorCodeName, código $LASTEXITCODE) detectado."
+                        Write-Info "Error de permisos/bloqueo ($errorCodeName, codigo $LASTEXITCODE) detectado."
                         
                         # Para errores de acceso denegado, intentar limpiar procesos y archivos bloqueados
                         if ($errorCodeName -eq "ACCESS_DENIED" -or $errorCodeName -eq "EPERM") {
@@ -926,7 +928,7 @@ function Install-Dependencies {
                                 Write-Info "No se pudo limpiar el cache de pnpm: $($_.Exception.Message)"
                             }
                             
-                            # Esperar más tiempo para errores de acceso denegado
+                            # Esperar mas tiempo para errores de acceso denegado
                             Write-Info "Esperando 5 segundos para que los archivos se liberen..."
                             Start-Sleep -Seconds 5
                         }
@@ -934,7 +936,7 @@ function Install-Dependencies {
                         Write-Info "Reintentando..."
                         continue
                     } else {
-                        Write-Error "Error de permisos/bloqueo persistente ($errorCodeName, código $LASTEXITCODE) despues de $MaxRetries intentos."
+                        Write-Error "Error de permisos/bloqueo persistente ($errorCodeName, codigo $LASTEXITCODE) despues de $MaxRetries intentos."
                         Write-Error "Posibles soluciones:"
                         Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
                         Write-Error "  2. Ejecuta PowerShell como Administrador"
@@ -949,7 +951,7 @@ function Install-Dependencies {
                 }
             } catch {
                 $errorMessage = $_.Exception.Message
-                # También verificar el mensaje de error por si contiene errores de permisos
+                # Tambien verificar el mensaje de error por si contiene errores de permisos
                 $isPermissionErrorInMessage = $errorMessage -like "*EPERM*" -or $errorMessage -like "*operation not permitted*" -or $errorMessage -like "*4048*" -or $errorMessage -like "*4082*" -or $errorMessage -like "*access denied*" -or $errorMessage -like "*permission denied*"
                 
                 if ($isPermissionErrorInMessage) {
@@ -1082,7 +1084,7 @@ try {
             Remove-Item -Path $backendLockFile -Force
             Write-Info "Eliminado: $backendLockFile"
         }
-        # También eliminar package-lock.json si existe (legacy)
+        # Tambien eliminar package-lock.json si existe (legacy)
         $legacyBackendLockFile = Join-Path $scriptRoot "backend/package-lock.json"
         if (Test-Path $legacyBackendLockFile) {
             Remove-Item -Path $legacyBackendLockFile -Force
@@ -1116,8 +1118,8 @@ try {
         Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "backend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
         Install-Dependencies -WorkingDirectory (Join-Path $scriptRoot "frontend") -Command "pnpm" -Arguments @("install") -PreStopProcesses
         
-        # Construir imágenes primero antes de ejecutar comandos
-        Write-Info "Construyendo imágenes Docker"
+        # Construir imagenes primero antes de ejecutar comandos
+        Write-Info "Construyendo imagenes Docker"
         Invoke-Cli "docker" @("compose", "--profile", "dev", "build", "backend", "frontend")
         
         Update-DockerDependencies -ServiceName "backend" -VolumeName "backend_node_modules" -LockFilePath $backendLockFile -HashFileName "backend-deps.hash" -InstallCommandArgs @("compose", "--profile", "dev", "run", "--build", "--rm", "backend", "pnpm", "install")

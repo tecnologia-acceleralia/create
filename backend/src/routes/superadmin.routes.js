@@ -204,3 +204,10 @@ superAdminRouter.post(
   (req, res, next) => SuperAdminController.healthcheckServiceTest(req, res, next)
 );
 
+superAdminRouter.delete(
+  '/events/:eventId/clean',
+  [param('eventId').isInt({ gt: 0 })],
+  validateRequest,
+  (req, res, next) => SuperAdminController.cleanEvent(req, res, next)
+);
+

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { isAxiosError } from 'axios';
 import { InfoTooltip, Spinner } from '@/components/common';
 
 import { useAuth } from '@/context/AuthContext';
@@ -78,7 +79,7 @@ function MyTeamPage() {
   const { eventId } = useParams();
   const numericEventId = Number(eventId);
   const { t } = useTranslation();
-  const { user, isSuperAdmin, activeMembership } = useAuth();
+  const { user, isSuperAdmin, activeMembership, updateEventSession, currentEventId } = useAuth();
   const { branding } = useTenant();
   const tenantPath = useTenantPath();
   const queryClient = useQueryClient();
@@ -123,6 +124,23 @@ function MyTeamPage() {
       setRemoveLogo(false);
     }
   }, [myMembership?.team.project?.id, projectForm]);
+  
+  // Sincronizar sesión del evento cuando se carga el equipo
+  useEffect(() => {
+    if (myMembership && currentEventId === numericEventId && updateEventSession) {
+      const teamRole = myMembership.team.captain_id === user?.id ? 'captain' : myMembership.role as 'captain' | 'member' | 'evaluator';
+      updateEventSession(numericEventId, {
+        teamId: myMembership.team.id,
+        teamRole
+      });
+    } else if (!myMembership && currentEventId === numericEventId && updateEventSession) {
+      // Si no hay membresía pero estamos en el evento, limpiar la sesión
+      updateEventSession(numericEventId, {
+        teamId: null,
+        teamRole: null
+      });
+    }
+  }, [myMembership, currentEventId, numericEventId, user?.id, updateEventSession]);
 
   const addMemberMutation = useMutation({
     mutationFn: (values: AddMemberValues) => addTeamMember(myMembership!.team.id, values),
@@ -130,27 +148,82 @@ function MyTeamPage() {
       toast.success(t('teams.memberAdded'));
       addMemberForm.reset();
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
+      // Actualizar sesión del evento si es el evento actual
+      if (currentEventId === numericEventId && myMembership) {
+        updateEventSession(numericEventId, {
+          teamId: myMembership.team.id,
+          teamRole: myMembership.role as 'captain' | 'member' | 'evaluator'
+        });
+      }
     },
-    onError: () => toast.error(t('common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || t('common.error');
+        toast.error(message);
+      } else {
+        toast.error(t('common.error'));
+      }
+    }
   });
 
   const removeMemberMutation = useMutation({
     mutationFn: (userId: number) => removeTeamMember(myMembership!.team.id, userId),
-    onSuccess: () => {
+    onSuccess: (_, userId) => {
       toast.success(t('teams.memberRemoved'));
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
+      // Si el usuario eliminado es el actual, limpiar la sesión del evento
+      if (userId === user?.id && currentEventId === numericEventId) {
+        updateEventSession(numericEventId, {
+          teamId: null,
+          teamRole: null
+        });
+      } else if (currentEventId === numericEventId && myMembership) {
+        // Actualizar sesión manteniendo el equipo y rol actual
+        updateEventSession(numericEventId, {
+          teamId: myMembership.team.id,
+          teamRole: myMembership.role as 'captain' | 'member' | 'evaluator'
+        });
+      }
     },
-    onError: () => toast.error(t('common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || t('common.error');
+        toast.error(message);
+      } else {
+        toast.error(t('common.error'));
+      }
+    }
   });
 
   const setCaptainMutation = useMutation({
     mutationFn: (userId: number) => setCaptain(myMembership!.team.id, userId),
-    onSuccess: () => {
+    onSuccess: (_, userId) => {
       toast.success(t('teams.captainChanged'));
+      // Actualizar sesión del evento si el nuevo capitán es el usuario actual
+      if (userId === user?.id && currentEventId === numericEventId && myMembership) {
+        updateEventSession(numericEventId, {
+          teamId: myMembership.team.id,
+          teamRole: 'captain'
+        });
+      } else if (currentEventId === numericEventId && myMembership) {
+        // Si el usuario actual sigue siendo capitán o miembro, actualizar sesión
+        const newRole = userId === user?.id ? 'captain' : (myMembership.role as 'captain' | 'member' | 'evaluator');
+        updateEventSession(numericEventId, {
+          teamId: myMembership.team.id,
+          teamRole: newRole
+        });
+      }
       // Recargar la página para reaplicar permisos
       globalThis.location.reload();
     },
-    onError: () => toast.error(t('common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || t('common.error');
+        toast.error(message);
+      } else {
+        toast.error(t('common.error'));
+      }
+    }
   });
 
   const leaveTeamMutation = useMutation({
@@ -163,12 +236,23 @@ function MyTeamPage() {
     onSuccess: () => {
       toast.success(t('teams.leftTeam'));
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
+      // Limpiar sesión del evento cuando el usuario sale del equipo
+      if (currentEventId === numericEventId) {
+        updateEventSession(numericEventId, {
+          teamId: null,
+          teamRole: null
+        });
+      }
       // Recargar la página para actualizar la vista
       globalThis.location.reload();
     },
-    onError: (error: any) => {
-      const message = error?.response?.data?.message || t('common.error');
-      toast.error(message);
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || t('common.error');
+        toast.error(message);
+      } else {
+        toast.error(t('common.error'));
+      }
     }
   });
 
@@ -179,7 +263,14 @@ function MyTeamPage() {
       toast.success(t('teams.updateSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || t('common.error');
+        toast.error(message);
+      } else {
+        toast.error(t('common.error'));
+      }
+    }
   });
 
   if (isLoading) {

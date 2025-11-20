@@ -14,7 +14,8 @@ export class EventDeliverablesController {
         Task,
         Team,
         Phase,
-        Submission
+        Submission,
+        Evaluation
       } = getModels();
 
       const event = await Event.findOne({ where: { id: eventId } });
@@ -63,6 +64,29 @@ export class EventDeliverablesController {
         }
       });
 
+      // Obtener todas las evaluaciones finales y pendientes para las entregas
+      const submissionIds = Array.from(submissionMap.values()).map(s => s.id);
+      const evaluations = submissionIds.length > 0 ? await Evaluation.findAll({
+        where: {
+          submission_id: { [Op.in]: submissionIds }
+        },
+        attributes: ['id', 'submission_id', 'status'],
+        order: [['created_at', 'DESC']]
+      }) : [];
+
+      // Crear mapas de evaluaciones por submission_id
+      const finalEvaluationsMap = new Map();
+      const pendingEvaluationsMap = new Map();
+      for (const evaluation of evaluations) {
+        const submissionId = evaluation.submission_id;
+        if (evaluation.status === 'final' && !finalEvaluationsMap.has(submissionId)) {
+          finalEvaluationsMap.set(submissionId, evaluation.id);
+        }
+        if (evaluation.status === 'draft' && !pendingEvaluationsMap.has(submissionId)) {
+          pendingEvaluationsMap.set(submissionId, evaluation.id);
+        }
+      }
+
       // Organizar tareas por fase
       const tasksByPhase = new Map();
       phases.forEach(phase => {
@@ -84,16 +108,20 @@ export class EventDeliverablesController {
             const key = `${team.id}:${task.id}`;
             const submission = submissionMap.get(key);
             
+            const submissionId = submission?.id ?? null;
             deliverables.push({
               taskId: task.id,
               taskTitle: task.title,
               phaseId: phase.id,
               phaseName: phase.name,
               submitted: Boolean(submission),
-              submissionId: submission?.id ?? null,
+              submissionId,
               attachmentUrl: submission?.attachment_url ?? null,
               content: submission?.content ?? null,
-              submittedAt: submission?.submitted_at ?? null
+              submittedAt: submission?.submitted_at ?? null,
+              hasFinalEvaluation: submissionId ? finalEvaluationsMap.has(submissionId) : false,
+              hasPendingEvaluation: submissionId ? pendingEvaluationsMap.has(submissionId) : false,
+              finalEvaluationId: submissionId ? finalEvaluationsMap.get(submissionId) ?? null : null
             });
           });
         });

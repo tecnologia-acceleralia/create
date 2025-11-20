@@ -63,7 +63,7 @@ export const rubricCriterionSchema = z.object({
 
 export const rubricSchema = z
   .object({
-    rubric_scope: z.enum(['phase', 'project']).default('phase'),
+    rubric_scope: z.enum(['phase', 'project']),
     phase_id: z.union([z.number().int(), z.nan(), z.null()]).optional(),
     name: z.string().min(3),
     description: z.string().optional(),

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
-import { buildAvatarUrl, mapUser } from '@/context/AuthContext';
+import { buildAvatarUrl } from '@/utils/avatar';
+import { mapUser } from '@/context/AuthContext';
 
 describe('AuthContext helpers', () => {
   it('returns stored profile image when available', () => {
@@ -28,7 +29,33 @@ describe('AuthContext helpers', () => {
     });
 
     expect(first).toBe(second);
-    expect(first).toMatch(/^https:\/\/api\.dicebear\.com\/7\.x\/initials\/svg\?seed=/);
+    expect(first).toMatch(/^data:image\/svg\+xml;base64,/);
+    // Verificar que contiene las iniciales "AL"
+    const decoded = atob(first.split(',')[1] ?? '');
+    expect(decoded).toContain('AL');
+  });
+
+  it('uses email as fallback when name is missing', () => {
+    const avatarUrl = buildAvatarUrl({
+      email: 'test@example.com',
+      profile_image_url: null
+    });
+
+    expect(avatarUrl).toMatch(/^data:image\/svg\+xml;base64,/);
+    // Verificar que contiene las iniciales del email "TE"
+    const decoded = atob(avatarUrl.split(',')[1] ?? '');
+    expect(decoded).toContain('TE');
+  });
+
+  it('uses generic fallback when email is also missing', () => {
+    const avatarUrl = buildAvatarUrl({
+      profile_image_url: null
+    });
+
+    expect(avatarUrl).toMatch(/^data:image\/svg\+xml;base64,/);
+    // Verificar que contiene la inicial genérica "U"
+    const decoded = atob(avatarUrl.split(',')[1] ?? '');
+    expect(decoded).toContain('U');
   });
 
   it('maps raw user payload into view model with role scopes', () => {

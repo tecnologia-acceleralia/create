@@ -123,11 +123,6 @@ function buildEventAssetKey(tenantId, eventId, fileName) {
   return `${buildTenantPrefixById(tenantId)}events/${eventId}/assets/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
 }
 
-function buildUserAvatarKey(userId, extension) {
-  const safeExtension = extension || 'png';
-  return `users/${userId}/avatar-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
-}
-
 function buildUserProfileImageKey(userId, extension) {
   const safeExtension = extension || 'png';
   return `users/${userId}/profile-image-${Date.now()}-${crypto.randomUUID()}.${safeExtension}`;
@@ -464,38 +459,6 @@ export async function uploadEventAsset({ tenantId, eventId, fileName, buffer, co
   const baseUrl = settings.publicBaseUrl;
   if (!baseUrl) {
     throw new Error('No se pudo determinar la URL pública para el archivo subido');
-  }
-
-  return {
-    key: objectKey,
-    url: `${baseUrl}/${objectKey}`
-  };
-}
-
-/**
- * Sube un avatar de usuario a DigitalOcean Spaces.
- * Las imágenes de usuario son globales y no están asociadas a un tenant específico.
- * @param {{ userId: number; buffer: Buffer; contentType: string; extension?: string }} options
- * @returns {Promise<{ url: string; key: string }>}
- */
-export async function uploadUserAvatar({ userId, buffer, contentType, extension }) {
-  const { client, settings } = ensureClient();
-  const objectKey = buildUserAvatarKey(userId, extension);
-
-  await client.send(
-    new PutObjectCommand({
-      Bucket: settings.bucket,
-      Key: objectKey,
-      Body: buffer,
-      ContentType: contentType,
-      ACL: 'public-read',
-      CacheControl: 'public, max-age=604800, immutable'
-    })
-  );
-
-  const baseUrl = settings.publicBaseUrl;
-  if (!baseUrl) {
-    throw new Error('No se pudo determinar la URL pública para el avatar subido');
   }
 
   return {

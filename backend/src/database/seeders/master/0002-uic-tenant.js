@@ -479,7 +479,7 @@ export async function up(queryInterface) {
       start_date: eventStart,
       end_date: eventEnd,
       min_team_size: 2,
-      max_team_size: 8,
+      max_team_size: 5,
       status: 'published',
       video_url: 'https://youtu.be/lVJ8-tPSNzA',
       is_public: true,

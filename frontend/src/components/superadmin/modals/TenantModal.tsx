@@ -421,11 +421,10 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
           onSubmit={form.handleSubmit(submitForm, errors => {
             // Mostrar errores de validación
             const firstError = Object.values(errors)[0];
-            if (firstError?.message) {
-              toast.error(firstError.message);
-            } else {
-              toast.error(t('common.error'));
-            }
+            const errorMessage = typeof firstError?.message === 'string' 
+              ? firstError.message 
+              : firstError?.message?.message || t('common.error');
+            toast.error(errorMessage);
             // Hacer scroll al primer error
             const firstErrorField = Object.keys(errors)[0];
             if (firstErrorField) {
@@ -440,7 +439,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
             <Tabs defaultValue="general" className="flex flex-1 flex-col overflow-hidden">
               <div className="flex-1 overflow-y-auto flex flex-col">
                 <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-4">
-                  <TabsList className="flex-nowrap justify-start gap-2 bg-transparent overflow-x-auto">
+                  <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
                 <TabsTrigger value="general">
                   {t('superadmin.tenants.sections.general')}
                 </TabsTrigger>
@@ -469,7 +468,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 ) : null}
                   </TabsList>
                 </div>
-                <div className="px-6 py-4">
+                <div className="px-6 py-4 flex-1 flex flex-col min-h-0">
               <TabsContent value="general" className="mt-0 space-y-6">
                 <FormGrid columns={2}>
                   <FormField label={t('superadmin.tenants.fields.slug')} required>
@@ -587,13 +586,13 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
               <TabsContent value="limits" className="mt-0 space-y-6">
                 <FormGrid columns={3}>
                   <FormField label={t('superadmin.tenants.fields.maxEvaluators')}>
-                    <Input type="number" min={0} {...form.register('max_evaluators')} />
+                    <Input type="number" min={0} disabled {...form.register('max_evaluators')} />
                   </FormField>
                   <FormField label={t('superadmin.tenants.fields.maxParticipants')}>
-                    <Input type="number" min={0} {...form.register('max_participants')} />
+                    <Input type="number" min={0} disabled {...form.register('max_participants')} />
                   </FormField>
                   <FormField label={t('superadmin.tenants.fields.maxAppointments')}>
-                    <Input type="number" min={0} {...form.register('max_appointments_per_month')} />
+                    <Input type="number" min={0} disabled {...form.register('max_appointments_per_month')} />
                   </FormField>
                 </FormGrid>
               </TabsContent>
@@ -632,18 +631,16 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 </FormGrid>
               </TabsContent>
 
-              <TabsContent value="content" className="mt-0 space-y-4">
-                <FormField label={t('superadmin.tenants.fields.heroContent')}>
+              <TabsContent value="content" className="mt-0 flex flex-col flex-1 min-h-0 gap-4">
+                <FormField label={t('superadmin.tenants.fields.heroContent')} className="flex-1 flex flex-col min-h-0">
                   <textarea
-                    rows={4}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none min-h-0"
                     {...form.register('hero_content')}
                   />
                 </FormField>
-                <FormField label={t('superadmin.tenants.fields.tenantCss')}>
+                <FormField label={t('superadmin.tenants.fields.tenantCss')} className="flex-1 flex flex-col min-h-0">
                   <textarea
-                    rows={4}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                    className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none min-h-0"
                     {...form.register('tenant_css')}
                   />
                 </FormField>
@@ -661,9 +658,9 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 >
                   <RegistrationSchemaForm
                     id="tenant-registration-schema"
-                    value={form.watch('registration_schema')}
+                    value={form.watch('registration_schema') === null ? undefined : (form.watch('registration_schema') as any)}
                     onChange={value => {
-                      form.setValue('registration_schema', value, { shouldValidate: true });
+                      form.setValue('registration_schema', value as any, { shouldValidate: true });
                     }}
                     error={
                       typeof form.formState.errors.registration_schema?.message === 'string'

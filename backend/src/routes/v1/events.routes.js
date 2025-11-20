@@ -72,7 +72,7 @@ eventsRouter.get(
 
 eventsRouter.get(
   '/:eventId/deliverables-tracking',
-  authorizeRoles('tenant_admin', 'organizer'),
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
   [param('eventId').isInt()],
   validateRequest,
   EventDeliverablesController.getDeliverablesTracking

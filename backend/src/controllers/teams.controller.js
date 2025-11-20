@@ -133,7 +133,7 @@ export class TeamsController {
         const user = await User.findOne({ where: { email: req.body.user_email } });
         if (!user) {
           await transaction.rollback();
-          return notFoundResponse(res, 'Usuario no encontrado');
+          return notFoundResponse(res, `No se encontró ningún usuario con el correo electrónico ${req.body.user_email}. El usuario debe estar registrado previamente en la plataforma.`);
         }
         userId = user.id;
       }

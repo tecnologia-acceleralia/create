@@ -30,9 +30,6 @@ function ProfilePage() {
   const { branding } = useTenant();
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
-  const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [removeAvatar, setRemoveAvatar] = useState(false);
   const [profileImageBase64, setProfileImageBase64] = useState<string | null>(null);
   const [profileImageError, setProfileImageError] = useState<string | null>(null);
   const [removeProfileImage, setRemoveProfileImage] = useState(false);
@@ -55,9 +52,6 @@ function ProfilePage() {
         email: user.email ?? '',
         language: (user as any)?.language ?? 'es'
       });
-      setAvatarBase64(null);
-      setAvatarError(null);
-      setRemoveAvatar(false);
       setProfileImageBase64(null);
       setProfileImageError(null);
       setRemoveProfileImage(false);
@@ -105,37 +99,9 @@ function ProfilePage() {
         email: user.email ?? '',
         language: (user as any)?.language ?? 'es'
       });
-      setAvatarBase64(null);
-      setAvatarError(null);
-      setRemoveAvatar(false);
       setProfileImageBase64(null);
       setProfileImageError(null);
       setRemoveProfileImage(false);
-    }
-  };
-
-  const handleAvatarFileChange: React.ChangeEventHandler<HTMLInputElement> = async event => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setAvatarBase64(null);
-      setAvatarError(null);
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setAvatarError(t('profile.avatarTooLarge'));
-      setAvatarBase64(null);
-      return;
-    }
-
-    try {
-      const base64 = await fileToBase64(file);
-      setAvatarBase64(base64);
-      setAvatarError(null);
-      setRemoveAvatar(false);
-    } catch (error) {
-      setAvatarError(t('profile.avatarReadError'));
-      setAvatarBase64(null);
     }
   };
 
@@ -178,13 +144,6 @@ function ProfilePage() {
         language: data.language
       };
 
-      // Manejar avatar
-      if (removeAvatar) {
-        payload.avatar_url = null;
-      } else if (avatarBase64) {
-        payload.avatar = avatarBase64;
-      }
-
       // Manejar imagen de perfil
       if (removeProfileImage) {
         payload.profile_image_url = null;
@@ -212,9 +171,7 @@ function ProfilePage() {
 
       toast.success(t('profile.updateSuccess'));
       setIsEditing(false);
-      setAvatarBase64(null);
       setProfileImageBase64(null);
-      setRemoveAvatar(false);
       setRemoveProfileImage(false);
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message ?? t('profile.updateError');
@@ -296,63 +253,6 @@ function ProfilePage() {
                   <option value="ca">Català</option>
                 </select>
               </FormField>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
-                  label={t('profile.avatar')}
-                  htmlFor="avatar"
-                  description={t('profile.avatarInfo')}
-                  error={avatarError ?? undefined}
-                >
-                  <Input
-                    id="avatar"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    onChange={handleAvatarFileChange}
-                  />
-                  {avatarError ? <p className="text-xs text-destructive mt-1">{avatarError}</p> : null}
-                </FormField>
-
-                {avatarBase64 ? (
-                  <FormField label={t('profile.avatarPreview')}>
-                    <div
-                      className="flex h-20 w-20 items-center justify-center rounded-full border border-border overflow-hidden"
-                      style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
-                    >
-                      <img
-                        src={avatarBase64}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                  </FormField>
-                ) : null}
-
-                {user?.avatar_url && !avatarBase64 ? (
-                  <FormField label={t('profile.currentAvatar')}>
-                    <div className="flex flex-col gap-2">
-                      <div
-                        className="flex h-20 w-20 items-center justify-center rounded-full border border-border overflow-hidden"
-                        style={{ backgroundColor: branding.primaryColor || '#f3f4f6' }}
-                      >
-                        <img
-                          src={user.avatarUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={removeAvatar}
-                          onChange={event => setRemoveAvatar(event.target.checked)}
-                        />
-                        {t('profile.removeAvatar')}
-                      </label>
-                    </div>
-                  </FormField>
-                ) : null}
-              </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField

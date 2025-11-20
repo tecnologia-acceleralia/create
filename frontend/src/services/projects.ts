@@ -84,5 +84,8 @@ export async function createProjectForEvent(
 
 export async function joinProject(projectId: number) {
   const response = await apiClient.post(`/projects/${projectId}/join`, {});
-  return response.data.data as ProjectCard;
+  return response.data.data as {
+    project: ProjectCard;
+    previousTeam: { id: number; name: string } | null;
+  };
 }

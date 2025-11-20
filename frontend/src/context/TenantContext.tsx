@@ -298,25 +298,41 @@ export function TenantProvider({ children }: Props) {
       const target = e.target as HTMLElement;
       const link = target.closest('a[href]') as HTMLAnchorElement | null;
       
-      if (link && link.href) {
-        try {
-          const url = new URL(link.href, browserWindow.location.origin);
-          const pathSegments = url.pathname.split('/').filter(Boolean);
-          const firstSegment = pathSegments[0];
-          
-          if (firstSegment) {
-            const reservedSegments = new Set(['superadmin', 'dashboard', 'api']);
-            if (!reservedSegments.has(firstSegment.toLowerCase())) {
-              const newSlug = firstSegment.toLowerCase();
-              if (newSlug !== tenantSlug) {
-                // Actualizar el tenant inmediatamente antes de la navegación
-                setTenantSlug(newSlug);
-              }
+      if (!link || !link.href) {
+        return;
+      }
+
+      // Ignorar enlaces que se abren en una nueva pestaña/ventana
+      // Esto evita que se actualice el tenant cuando se hace clic en enlaces externos
+      if (link.target && link.target !== '_self' && link.target !== '') {
+        return;
+      }
+
+      // Ignorar enlaces externos (diferente hostname)
+      try {
+        const url = new URL(link.href, browserWindow.location.origin);
+        const currentUrl = new URL(browserWindow.location.href);
+        
+        // Si el hostname es diferente, es un enlace externo - ignorar
+        if (url.hostname !== currentUrl.hostname) {
+          return;
+        }
+
+        const pathSegments = url.pathname.split('/').filter(Boolean);
+        const firstSegment = pathSegments[0];
+        
+        if (firstSegment) {
+          const reservedSegments = new Set(['superadmin', 'dashboard', 'api']);
+          if (!reservedSegments.has(firstSegment.toLowerCase())) {
+            const newSlug = firstSegment.toLowerCase();
+            if (newSlug !== tenantSlug) {
+              // Actualizar el tenant inmediatamente antes de la navegación
+              setTenantSlug(newSlug);
             }
           }
-        } catch {
-          // Ignorar errores de parsing de URL
         }
+      } catch {
+        // Ignorar errores de parsing de URL
       }
     };
 

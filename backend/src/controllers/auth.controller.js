@@ -625,53 +625,6 @@ export class AuthController {
         updateData.language = String(language);
       }
 
-      // Manejar avatar: puede venir como base64 (avatar) o como URL (avatar_url)
-      const { avatar: rawAvatar, avatar_url: rawAvatarUrlFromBody } = req.body;
-      if (rawAvatar !== undefined || rawAvatarUrlFromBody !== undefined) {
-        if (rawAvatar) {
-          // Si viene como base64, subirlo a S3
-          try {
-            const { decodeBase64Image, uploadUserAvatar, deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
-            const { buffer, mimeType, extension } = decodeBase64Image(rawAvatar);
-            
-            // Eliminar avatar anterior si existe
-            if (user.avatar_url) {
-              try {
-                await deleteObjectByUrl(user.avatar_url);
-              } catch (deleteError) {
-                logger.warn('No se pudo eliminar el avatar anterior', { error: deleteError.message });
-              }
-            }
-            
-            const uploadResult = await uploadUserAvatar({
-              userId: user.id,
-              buffer,
-              contentType: mimeType,
-              extension
-            });
-            
-            updateData.avatar_url = uploadResult.url;
-          } catch (error) {
-            logger.error('Error subiendo avatar', { error: error.message });
-            return res.status(400).json({
-              success: false,
-              message: `Error al subir el avatar: ${error.message}`
-            });
-          }
-        } else if (rawAvatarUrlFromBody === null) {
-          // Si se envía null explícitamente, eliminar el avatar
-          if (user.avatar_url) {
-            try {
-              const { deleteObjectByUrl } = await import('../services/tenant-assets.service.js');
-              await deleteObjectByUrl(user.avatar_url);
-            } catch (deleteError) {
-              logger.warn('No se pudo eliminar el avatar', { error: deleteError.message });
-            }
-          }
-          updateData.avatar_url = null;
-        }
-      }
-
       // Manejar imagen de perfil: puede venir como base64 (profile_image) o como URL (profile_image_url)
       const { profile_image: rawProfileImage, profile_image_url: rawProfileImageUrlFromBody } = req.body;
       if (rawProfileImage !== undefined || rawProfileImageUrlFromBody !== undefined) {

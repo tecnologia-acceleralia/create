@@ -46,7 +46,7 @@ export function EventModel(sequelize) {
       max_team_size: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: false,
-        defaultValue: 8
+        defaultValue: 5
       },
       status: {
         type: DataTypes.ENUM('draft', 'published', 'archived'),

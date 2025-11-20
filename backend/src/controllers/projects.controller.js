@@ -324,6 +324,7 @@ export class ProjectsController {
         ]
       });
 
+      let previousTeamInfo = null;
       if (existingMembership) {
         const previousTeam = existingMembership.team;
         
@@ -347,6 +348,12 @@ export class ProjectsController {
           await transaction.rollback();
           return conflictResponse(res, 'projects.mustAssignCaptainBeforeChange');
         }
+
+        // Guardar información del equipo anterior antes de eliminarlo
+        previousTeamInfo = {
+          id: previousTeam.id,
+          name: previousTeam.name
+        };
 
         // Si no es capitán, eliminarlo automáticamente del equipo anterior
         await existingMembership.destroy({ transaction });
@@ -416,7 +423,10 @@ export class ProjectsController {
         req.user.id
       );
 
-      return successResponse(res, serialized, 201);
+      return successResponse(res, {
+        project: serialized,
+        previousTeam: previousTeamInfo
+      }, 201);
     } catch (error) {
       await transaction.rollback();
       next(error);

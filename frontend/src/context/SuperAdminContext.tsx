@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { superAdminLogin, setSuperAdminAuthToken, registerSuperAdminUnauthorizedHandler } from '@/services/superadmin';
+import { buildAvatarUrl } from '@/utils/avatar';
 
 const SUPERADMIN_AUTH_KEY = 'create.superadmin.auth';
 
@@ -36,15 +37,6 @@ const SuperAdminContext = createContext<SuperAdminContextValue | undefined>(unde
 type Props = {
   children: ReactNode;
 };
-
-function buildAvatarUrl(user: { first_name?: string; last_name?: string; email: string; profile_image_url?: string | null }) {
-  if (user.profile_image_url) {
-    return user.profile_image_url;
-  }
-  const seedSource = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email;
-  const seed = encodeURIComponent(seedSource.toLowerCase());
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
-}
 
 export function SuperAdminProvider({ children }: Props) {
   const [user, setUser] = useState<SuperAdminUser | null>(null);

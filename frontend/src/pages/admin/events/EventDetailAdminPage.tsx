@@ -9,7 +9,6 @@ import { Plus } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner, EmptyState, CardWithActions } from '@/components/common';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -21,21 +20,11 @@ import {
   TeamDetailsModal
 } from '@/components/admin/modals';
 import { formatDateValue } from '@/utils/date';
-import { z } from 'zod';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { FormField, FormGrid } from '@/components/form';
-import type { RegistrationSchema } from '@/services/public';
 import {
   phaseSchema,
   taskSchema,
   rubricSchema,
   eventSchema,
-  PhaseForm,
-  TaskForm,
-  RubricForm,
-  EventForm,
   type PhaseFormValues,
   type TaskFormValues,
   type RubricFormValues,
@@ -52,25 +41,21 @@ import {
   createRubric,
   updateRubric,
   deleteRubric,
-  getProjectRubrics,
   createProjectRubric,
   updateProjectRubric,
   deleteProjectRubric,
   updateEvent,
-  getEventStatistics,
   type Phase,
   type Task,
   type PhaseRubric,
   type RubricPayload,
   type Event,
-  type EventStatistics
 } from '@/services/events';
 import { getTeamsByEvent, type Team } from '@/services/teams';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { useTenant } from '@/context/TenantContext';
 import { EventAssetsManager } from '@/components/events/EventAssetsManager';
 import EventStatisticsTab from '@/components/events/EventStatisticsTab';
-import EventDeliverablesTrackingTab from '@/components/events/EventDeliverablesTrackingTab';
 
 type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 
@@ -95,7 +80,7 @@ function EventDetailAdminPage() {
     return <Navigate to={tenantPath(`dashboard/events/${eventId}/view?phase=${phaseParam}`)} replace />;
   }
 
-  if (isNaN(numericId) || isLoading) {
+  if (Number.isNaN(numericId) || isLoading) {
     return <Spinner fullHeight />;
   }
 
@@ -115,19 +100,18 @@ function EventDetailAdminPage() {
   return <EventDetailAdminView eventDetail={eventDetail} eventId={numericId} />;
 }
 
-function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDetailData; eventId: number }) {
+function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: EventDetailData; eventId: number }>) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const tenantPath = useTenantPath();
   const { branding } = useTenant();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Leer el tab de la URL, por defecto 'event-data'
   const activeTab = searchParams.get('tab') || 'event-data';
 
-  const phases = (eventDetail?.phases ?? []) as Phase[];
-  const tasks = (eventDetail?.tasks ?? []) as Task[];
-  const rubrics = (eventDetail?.rubrics ?? []) as PhaseRubric[];
+  const phases = eventDetail?.phases ?? [];
+  const tasks = eventDetail?.tasks ?? [];
+  const rubrics = eventDetail?.rubrics ?? [];
 
   // Función auxiliar para convertir fecha ISO a formato YYYY-MM-DD
   const formatDateForInput = (dateStr?: string | null): string => {
@@ -388,7 +372,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
   });
 
   // Query de equipos
-  const { data: teams, isLoading: isLoadingTeams } = useQuery<Team[]>({
+  const { data: teams } = useQuery<Team[]>({
     queryKey: ['teams', eventId],
     queryFn: () => getTeamsByEvent(eventId),
     enabled: Number.isInteger(eventId)
@@ -550,7 +534,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
       allow_open_registration: Boolean(values.allow_open_registration),
       publish_start_at: values.publish_start_at || undefined,
       publish_end_at: values.publish_end_at || undefined,
-      registration_schema: values.registration_schema !== undefined ? values.registration_schema : undefined
+      registration_schema: values.registration_schema ?? undefined
     };
     updateEventMutation.mutate(payload);
   };
@@ -635,36 +619,37 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
           rubricId: editingRubric.id,
           payload
         });
-      } else {
-        updateRubricMutation.mutate({
-          phaseId: values.phase_id ?? 0,
-          rubricId: editingRubric.id,
-          payload
-        });
+        return;
       }
-    } else {
-      if (isProject) {
-        createProjectRubricMutation.mutate(payload);
-      } else {
-        createRubricMutation.mutate({
-          phaseId: values.phase_id ?? 0,
-          payload
-        });
-      }
+      updateRubricMutation.mutate({
+        phaseId: values.phase_id ?? 0,
+        rubricId: editingRubric.id,
+        payload
+      });
+      return;
     }
+    
+    if (isProject) {
+      createProjectRubricMutation.mutate(payload);
+      return;
+    }
+    createRubricMutation.mutate({
+      phaseId: values.phase_id ?? 0,
+      payload
+    });
   };
 
   // Agrupar tareas por fase
   const tasksByPhase = useMemo(() => {
     const grouped = new Map<number, Task[]>();
-    tasks.forEach(task => {
+    for (const task of tasks) {
       const bucket = grouped.get(task.phase_id) ?? [];
       bucket.push(task);
       grouped.set(task.phase_id, bucket);
-    });
-    grouped.forEach(list => {
+    }
+    for (const list of grouped.values()) {
       list.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-    });
+    }
     return grouped;
   }, [tasks]);
 
@@ -682,32 +667,19 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
     [rubrics, selectedTaskPhase]
   );
 
-  const formatMimeTypes = (types?: string[] | null) => (types && types.length ? types.join(', ') : t('events.taskMimeAny'));
-  const formatTaskConstraints = (task: Task) => {
-    const maxFiles = task.max_files ?? 1;
-    const maxSize = task.max_file_size_mb ? `${task.max_file_size_mb} MB` : t('events.taskSizeUnlimited');
-    return `${t('events.taskMaxFilesLabel', { count: maxFiles })} · ${t('events.taskMaxSizeLabel', { size: maxSize })} · ${t('events.taskAllowedMimesLabel', { types: formatMimeTypes(task.allowed_mime_types) })}`;
-  };
-
-  const rubricMap = useMemo(() => new Map(rubrics.map(rubric => [rubric.id, rubric])), [rubrics]);
-
   const rubricsGroupedByPhase = useMemo(() => {
     const grouped = new Map<number | 'project', PhaseRubric[]>();
-    rubrics.forEach(rubric => {
+    for (const rubric of rubrics) {
       const key = rubric.rubric_scope === 'project' ? 'project' : (rubric.phase_id ?? 0);
       const existing = grouped.get(key) ?? [];
       existing.push(rubric);
       grouped.set(key, existing);
-    });
+    }
     return grouped;
   }, [rubrics]);
 
   const projectRubrics = useMemo(() => {
     return rubrics.filter(r => r.rubric_scope === 'project');
-  }, [rubrics]);
-
-  const phaseRubrics = useMemo(() => {
-    return rubrics.filter(r => r.rubric_scope === 'phase');
   }, [rubrics]);
 
   const primaryColor = branding.primaryColor || 'hsl(var(--primary))';
@@ -738,7 +710,7 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
     
     return () => {
       const existing = document.getElementById(styleId);
-      if (existing && existing.parentNode) {
+      if (existing?.parentNode) {
         existing.remove();
       }
     };
@@ -764,7 +736,6 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
           <TabsTrigger value="rubrics">{t('events.rubricsTitle')}</TabsTrigger>
           <TabsTrigger value="assets">{t('events.assetsTitle', { defaultValue: 'Recursos' })}</TabsTrigger>
           <TabsTrigger value="statistics">{t('events.statistics', { defaultValue: 'Estadísticas' })}</TabsTrigger>
-          <TabsTrigger value="deliverables-tracking">{t('events.deliverablesTracking.title', { defaultValue: 'Seguimiento de Entregables' })}</TabsTrigger>
         </TabsList>
 
         {/* Tab: Datos del evento */}
@@ -1108,11 +1079,6 @@ function EventDetailAdminView({ eventDetail, eventId }: { eventDetail: EventDeta
               }
             }}
           />
-        </TabsContent>
-
-        {/* Tab: Seguimiento de Entregables */}
-        <TabsContent value="deliverables-tracking" className="space-y-6">
-          <EventDeliverablesTrackingTab eventId={eventId} />
         </TabsContent>
       </Tabs>
 

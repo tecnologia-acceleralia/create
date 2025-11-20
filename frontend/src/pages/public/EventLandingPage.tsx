@@ -60,7 +60,7 @@ function EventLandingPage() {
   const tenantPath = useTenantPath();
   const { tenantSlug: tenantSlugFromParams, eventId } = useParams<{ tenantSlug?: string; eventId?: string }>();
   const { t, i18n } = useTranslation();
-  const { user, activeMembership, isSuperAdmin, loading: authLoading } = useAuth();
+  const { user, activeMembership, memberships, isSuperAdmin, loading: authLoading } = useAuth();
   const [eventDetail, setEventDetail] = useState<PublicEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -73,8 +73,16 @@ function EventLandingPage() {
     if (isSuperAdmin) {
       return true;
     }
-    return activeMembership?.tenant?.slug === effectiveTenantSlug;
-  }, [activeMembership?.tenant?.slug, effectiveTenantSlug, isSuperAdmin, user]);
+    // Verificar si el activeMembership coincide con el tenant actual
+    if (activeMembership?.tenant?.slug === effectiveTenantSlug && activeMembership.status === 'active') {
+      return true;
+    }
+    // Si no coincide, buscar en todas las membresías si hay una válida para este tenant
+    const validMembership = memberships.find(
+      membership => membership.tenant?.slug === effectiveTenantSlug && membership.status === 'active'
+    );
+    return Boolean(validMembership);
+  }, [activeMembership?.tenant?.slug, activeMembership?.status, effectiveTenantSlug, isSuperAdmin, user, memberships]);
 
   // Determinar la ruta correcta según el rol del usuario
   const getEventAccessPath = useMemo(() => {

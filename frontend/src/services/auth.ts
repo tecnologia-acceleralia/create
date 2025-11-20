@@ -47,8 +47,6 @@ export type UpdateProfilePayload = {
   last_name?: string;
   email?: string;
   language?: 'es' | 'en' | 'ca';
-  avatar?: string; // base64 image
-  avatar_url?: string | null;
   profile_image?: string; // base64 image
   profile_image_url?: string | null;
   grade?: string | null;

@@ -575,6 +575,8 @@ write_environment_summary() {
             
             # Demo tenant
             echo "Credenciales de demo (tenant 'demo'):"
+            echo "  - Frontend:   http://localhost:3100/demo"
+            echo ""
             echo "$passwords_json" | jq -r 'to_entries[] | select(.key | contains("@demo.com")) | "  - \(.key)\(if .value.role then " (\(.value.role))" else "" end) / \(.value.password)"' 2>/dev/null || true
             echo ""
             

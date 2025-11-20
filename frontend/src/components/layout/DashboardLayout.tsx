@@ -4,7 +4,7 @@ import { cn } from '@/utils/cn';
 
 type DashboardLayoutProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: string | ReactNode;
   actions?: ReactNode;
   icon?: React.ComponentType<{ className?: string }>;
   children: ReactNode;

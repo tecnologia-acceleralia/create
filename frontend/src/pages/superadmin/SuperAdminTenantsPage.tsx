@@ -9,6 +9,7 @@ import {
   deleteTenantSuperAdmin,
   listSuperAdminTenants,
   updateTenantSuperAdmin,
+  cleanEventSuperAdmin,
   type SuperAdminTenant,
   type TenantsListResponse
 } from '@/services/superadmin';
@@ -146,6 +147,16 @@ function SuperAdminTenantsPage() {
       toast.success(t('superadmin.tenants.deleteSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenants'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
+    },
+    onError: () => toast.error(t('common.error'))
+  });
+
+  const cleanEventMutation = useMutation({
+    mutationFn: cleanEventSuperAdmin,
+    onSuccess: (_, eventId) => {
+      const eventName = trackingEvents.find(e => e.id === eventId)?.name ?? '';
+      toast.success(t('superadmin.tenants.cleanEventSuccess', { eventName }));
+      void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenant-events'] });
     },
     onError: () => toast.error(t('common.error'))
   });
@@ -424,6 +435,10 @@ function SuperAdminTenantsPage() {
         trackingEvents={trackingEvents}
         isLoadingEvents={trackingEventsQuery.isLoading}
         onSubmit={handleTrackingSubmit}
+        onCleanEvent={async eventId => {
+          await cleanEventMutation.mutateAsync(eventId);
+        }}
+        isCleaningEvent={cleanEventMutation.isPending}
       />
 
       <TenantModal

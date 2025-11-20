@@ -9,7 +9,17 @@ import { TenantProvider } from '@/context/TenantContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { SuperAdminProvider } from '@/context/SuperAdminContext';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+      retry: 1,
+      staleTime: 5 * 60 * 1000 // 5 minutos
+    }
+  }
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

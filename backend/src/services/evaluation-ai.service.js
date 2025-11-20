@@ -150,3 +150,113 @@ export async function generateAiEvaluation({ rubric, submission, task, locale })
   };
 }
 
+function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale }) {
+  const instructions = [
+    'Eres un evaluador experto que utiliza rúbricas estructuradas.',
+    `Idioma requerido para la respuesta: ${locale ?? 'es-ES'}.`,
+    'Debes calificar todas las entregas proporcionadas como un conjunto, evaluando el trabajo completo de la fase/proyecto.',
+    'Proporciona puntajes por criterio y comentarios accionables considerando todas las entregas en conjunto.',
+    'Responde estrictamente en formato JSON con la siguiente estructura:',
+    `{
+  "overallScore": number,
+  "overallFeedback": string,
+  "criteria": [
+    {
+      "criterionId": number,
+      "score": number,
+      "feedback": string
+    }
+  ]
+}`,
+    'Las puntuaciones deben respetar el rango definido por la rúbrica (scaleMin, scaleMax o maxScore por criterio si está presente).',
+    'El feedback debe ser específico, orientado a mejoras y citar evidencias de las entregas evaluadas.'
+  ].join('\n');
+
+  const criteriaDescription = rubricSnapshot.criteria
+    .map(
+      criterion =>
+        `- ${criterion.title} (peso ${criterion.weight}${criterion.maxScore ? `, max ${criterion.maxScore}` : ''}): ${criterion.description || 'Sin descripción adicional'}`
+    )
+    .join('\n');
+
+  const submissionsContent = submissions
+    .map((submission, index) => {
+      const task = tasks.find(t => t.id === submission.task_id);
+      return `Entrega ${index + 1} - ${task?.title ?? 'Tarea sin título'}:
+${task?.description ? `Descripción: ${task.description}\n` : ''}Contenido: ${submission.content ?? 'Sin texto proporcionado'}
+${submission.files?.length
+  ? `Archivos:\n${submission.files
+    .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes) -> ${file.url}`)
+    .join('\n')}`
+  : 'Sin archivos adjuntos.'}
+Fecha de entrega: ${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString(locale ?? 'es-ES') : 'N/A'}
+---`;
+    })
+    .join('\n\n');
+
+  return `${instructions}
+
+Rúbrica:
+Nombre: ${rubricSnapshot.name}
+Escala global: ${rubricSnapshot.scaleMin} - ${rubricSnapshot.scaleMax}
+Criterios:
+${criteriaDescription}
+
+Entregas a evaluar (${submissions.length} en total):
+${submissionsContent}`;
+}
+
+export async function generateMultiSubmissionAiEvaluation({ rubric, submissions, tasks, locale }) {
+  const client = ensureClient();
+  const rubricSnapshot = buildRubricSnapshot(rubric);
+  const model = process.env.OPENAI_EVALUATION_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+  const prompt = buildMultiSubmissionPrompt({
+    rubricSnapshot,
+    submissions,
+    tasks,
+    locale: locale ?? 'es-ES'
+  });
+
+  const response = await client.chat.completions.create({
+    model,
+    temperature: 0.2,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content: 'Eres un evaluador especializado en innovación y hackatones que aplica rúbricas objetivas. Evalúa múltiples entregas como un conjunto coherente.'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ]
+  });
+
+  const messageContent = response.choices?.[0]?.message?.content;
+  if (!messageContent) {
+    throw new Error('La respuesta de OpenAI no contiene contenido');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(messageContent);
+  } catch (error) {
+    logger.error('No se pudo parsear la respuesta de OpenAI', {
+      error: error.message,
+      raw: messageContent
+    });
+    throw new Error('La respuesta de OpenAI no es JSON válido');
+  }
+
+  return {
+    rubricSnapshot,
+    overallScore: parsed.overallScore ?? null,
+    overallFeedback: parsed.overallFeedback ?? '',
+    criteria: Array.isArray(parsed.criteria) ? parsed.criteria : [],
+    raw: parsed,
+    usage: response.usage
+  };
+}
+

@@ -29,10 +29,6 @@ export function UserModel(sequelize) {
         type: DataTypes.STRING(150),
         allowNull: false
       },
-      avatar_url: {
-        type: DataTypes.STRING(500),
-        allowNull: true
-      },
       profile_image_url: {
         type: DataTypes.STRING(500),
         allowNull: true

@@ -157,6 +157,15 @@ export function initModels(sequelize) {
   models.Evaluation.belongsTo(models.Submission, { foreignKey: 'submission_id', as: 'submission' });
   models.Submission.hasMany(models.Evaluation, { foreignKey: 'submission_id', as: 'evaluations' });
 
+  models.Evaluation.belongsTo(models.Phase, { foreignKey: 'phase_id', as: 'phase' });
+  models.Phase.hasMany(models.Evaluation, { foreignKey: 'phase_id', as: 'evaluations' });
+
+  models.Evaluation.belongsTo(models.Project, { foreignKey: 'project_id', as: 'project' });
+  models.Project.hasMany(models.Evaluation, { foreignKey: 'project_id', as: 'evaluations' });
+
+  models.Evaluation.belongsTo(models.Team, { foreignKey: 'team_id', as: 'team' });
+  models.Team.hasMany(models.Evaluation, { foreignKey: 'team_id', as: 'evaluations' });
+
   models.Evaluation.belongsTo(models.User, { foreignKey: 'reviewer_id', as: 'reviewer' });
   models.User.hasMany(models.Evaluation, { foreignKey: 'reviewer_id', as: 'evaluations' });
 

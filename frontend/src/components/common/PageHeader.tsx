@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 
 type Props = {
   title: string;
-  subtitle?: string;
+  subtitle?: string | ReactNode;
   icon?: LucideIcon;
   className?: string;
   actions?: ReactNode;
@@ -29,7 +29,13 @@ export function PageHeader({ title, subtitle, icon: Icon, className, actions }: 
           ) : null}
           <div>
             <h1 className="text-2xl font-semibold leading-tight text-foreground md:text-3xl">{title}</h1>
-            {subtitle ? <p className="mt-1 text-sm text-muted-foreground md:text-base">{subtitle}</p> : null}
+            {subtitle ? (
+              typeof subtitle === 'string' ? (
+                <p className="mt-1 text-sm text-muted-foreground md:text-base">{subtitle}</p>
+              ) : (
+                <div className="mt-1 text-sm text-muted-foreground md:text-base">{subtitle}</div>
+              )
+            ) : null}
           </div>
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

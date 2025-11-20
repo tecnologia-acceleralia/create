@@ -103,8 +103,14 @@ function ProjectsPage() {
     onMutate: projectId => {
       setJoiningProjectId(projectId);
     },
-    onSuccess: () => {
-      toast.success(t('projects.joinSuccess'));
+    onSuccess: (data) => {
+      if (data.previousTeam) {
+        toast.success(t('projects.joinSuccessWithPreviousTeam', { teamName: data.previousTeam.name }), {
+          duration: 5000
+        });
+      } else {
+        toast.success(t('projects.joinSuccess'));
+      }
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
     },

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { apiClient, setAuthToken, clearSession, registerUnauthorizedHandler } from '@/services/api';
 import { useTenant } from './TenantContext';
+import { buildAvatarUrl } from '@/utils/avatar';
 
 type MembershipRole = {
   id: number;
@@ -34,11 +35,17 @@ type User = {
   email: string;
   first_name: string;
   last_name: string;
-  avatar_url: string | null;
   profile_image_url: string | null;
   is_super_admin: boolean;
   roleScopes: string[];
   avatarUrl: string;
+};
+
+export type EventSession = {
+  eventId: number;
+  teamId: number | null;
+  teamRole: 'captain' | 'member' | 'evaluator' | null;
+  lastAccessed: string; // ISO timestamp
 };
 
 type StoredAuth = {
@@ -48,6 +55,8 @@ type StoredAuth = {
   memberships: Membership[];
   activeMembership: Membership | null;
   isSuperAdmin: boolean;
+  currentEventId: number | null;
+  eventSessions: Record<number, EventSession>; // Map de eventId -> EventSession
 };
 
 type AuthResponsePayload = {
@@ -65,28 +74,79 @@ type AuthContextValue = {
   tokens: Tokens | null;
   isSuperAdmin: boolean;
   loading: boolean;
+  currentEventId: number | null;
+  currentEventSession: EventSession | null;
   login: (values: { email: string; password: string }) => Promise<void>;
   hydrateSession: (payload: AuthResponsePayload) => void;
   logout: (shouldNavigate?: boolean) => void;
+  updateEventSession: (eventId: number, session: Partial<EventSession>) => void;
+  setCurrentEvent: (eventId: number | null) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 type Props = { children: ReactNode };
 
-const STORAGE_KEY = 'create.auth';
+const STORAGE_KEY_PREFIX = 'create.auth';
+const STORAGE_KEY_LEGACY = 'create.auth'; // Para migración desde versión anterior
 
-function buildAvatarUrl(user: { first_name?: string; last_name?: string; email: string; avatar_url?: string | null; profile_image_url?: string | null }) {
-  // Prioridad: avatar_url > profile_image_url > generado
-  if (user.avatar_url) {
-    return user.avatar_url;
+/**
+ * Obtiene la clave de almacenamiento para un tenant específico
+ */
+function getStorageKey(tenantSlug: string | null): string {
+  if (!tenantSlug) {
+    // Para la home o sin tenant, usar una clave especial
+    return `${STORAGE_KEY_PREFIX}:home`;
   }
-  if (user.profile_image_url) {
-    return user.profile_image_url;
+  return `${STORAGE_KEY_PREFIX}:${tenantSlug}`;
+}
+
+/**
+ * Obtiene todas las claves de sesión almacenadas para un usuario
+ */
+function getAllSessionKeys(): string[] {
+  const keys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(`${STORAGE_KEY_PREFIX}:`)) {
+      keys.push(key);
+    }
   }
-  const seedSource = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.email;
-  const seed = encodeURIComponent(seedSource.toLowerCase());
-  return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}`;
+  return keys;
+}
+
+/**
+ * Migra datos de la clave legacy a la nueva estructura por tenant
+ */
+function migrateLegacySession(): StoredAuth | null {
+  try {
+    const legacyData = localStorage.getItem(STORAGE_KEY_LEGACY);
+    if (!legacyData) {
+      return null;
+    }
+    const parsed = JSON.parse(legacyData);
+    // Migrar a la nueva estructura con campos de eventos
+    const migrated: StoredAuth = {
+      tenantSlug: parsed.tenantSlug ?? null,
+      user: parsed.user,
+      tokens: parsed.tokens,
+      memberships: parsed.memberships ?? [],
+      activeMembership: parsed.activeMembership ?? null,
+      isSuperAdmin: Boolean(parsed.isSuperAdmin),
+      currentEventId: parsed.currentEventId ?? null,
+      eventSessions: parsed.eventSessions ?? {}
+    };
+    // Si tiene tenantSlug, migrar a la nueva clave
+    if (migrated.tenantSlug) {
+      const newKey = getStorageKey(migrated.tenantSlug);
+      localStorage.setItem(newKey, JSON.stringify(migrated));
+      localStorage.removeItem(STORAGE_KEY_LEGACY);
+      return migrated;
+    }
+    return migrated;
+  } catch {
+    return null;
+  }
 }
 
 function mapUser(rawUser: any, roleScopes: string[]): User {
@@ -95,7 +155,6 @@ function mapUser(rawUser: any, roleScopes: string[]): User {
     email: rawUser.email,
     first_name: rawUser.first_name,
     last_name: rawUser.last_name,
-    avatar_url: rawUser.avatar_url ?? null,
     profile_image_url: rawUser.profile_image_url ?? null,
     is_super_admin: Boolean(rawUser.is_super_admin),
     roleScopes,
@@ -114,6 +173,24 @@ function findActiveMembership(memberships: Membership[], candidateSlug: string |
   return fallback ?? null;
 }
 
+/**
+ * Detecta el eventId de una ruta
+ */
+function detectEventIdFromPath(pathname: string): number | null {
+  const segments = pathname.split('/').filter(Boolean);
+  const dashboardIndex = segments.indexOf('dashboard');
+  if (dashboardIndex === -1) return null;
+  
+  const nextSegment = segments[dashboardIndex + 1];
+  if (nextSegment !== 'events') return null;
+  
+  const eventIdSegment = segments[dashboardIndex + 2] ?? null;
+  if (!eventIdSegment) return null;
+  
+  const eventId = Number(eventIdSegment);
+  return Number.isFinite(eventId) && eventId > 0 ? eventId : null;
+}
+
 export function AuthProvider({ children }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
@@ -121,46 +198,170 @@ export function AuthProvider({ children }: Props) {
   const [tokens, setTokens] = useState<Tokens | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [currentEventId, setCurrentEventId] = useState<number | null>(null);
+  const [eventSessions, setEventSessions] = useState<Record<number, EventSession>>({});
   const { tenantSlug } = useTenant();
+  
+  // Detectar evento actual desde la URL cuando cambia la ruta
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const detectAndSetEventId = () => {
+      const eventId = detectEventIdFromPath(window.location.pathname);
+      setCurrentEventId(eventId);
+    };
+    
+    // Detectar inicialmente
+    detectAndSetEventId();
+    
+    // Escuchar cambios de navegación
+    const handlePopState = () => {
+      detectAndSetEventId();
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    // También escuchar cambios de pushState/replaceState usando un intervalo pequeño
+    let lastPathname = window.location.pathname;
+    const intervalId = setInterval(() => {
+      if (window.location.pathname !== lastPathname) {
+        lastPathname = window.location.pathname;
+        detectAndSetEventId();
+      }
+    }, 100);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      clearInterval(intervalId);
+    };
+  }, []);
+  
+  // Obtener sesión del evento actual
+  const currentEventSession = useMemo(() => {
+    if (!currentEventId) return null;
+    return eventSessions[currentEventId] ?? null;
+  }, [currentEventId, eventSessions]);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
+    // Intentar migrar sesión legacy si existe
+    const legacySession = migrateLegacySession();
+    
+    // Obtener la clave de almacenamiento para el tenant actual
+    const storageKey = getStorageKey(tenantSlug);
+    const stored = localStorage.getItem(storageKey);
+    
+    // Si no hay sesión para este tenant, intentar cargar desde legacy o buscar en otros tenants
+    if (!stored && !legacySession) {
+      // Buscar si hay alguna sesión en otros tenants (útil para superadmins o usuarios con múltiples tenants)
+      const allSessionKeys = getAllSessionKeys();
+      if (allSessionKeys.length > 0) {
+        // Cargar la primera sesión encontrada (preferiblemente la más reciente)
+        // Esto permite que superadmins mantengan su sesión al navegar
+        const firstSessionKey = allSessionKeys[0];
+        const firstStored = localStorage.getItem(firstSessionKey);
+        if (firstStored) {
+          try {
+            const parsed: StoredAuth = JSON.parse(firstStored);
+            // Solo usar esta sesión si el usuario es superadmin o si tiene membresía para el tenant actual
+            const isStoredSuperAdmin = Boolean(parsed.isSuperAdmin);
+            if (isStoredSuperAdmin || (tenantSlug && findActiveMembership(parsed.memberships ?? [], tenantSlug, null))) {
+              // Cargar la sesión y guardarla también en el tenant actual para mantener configuración separada
+              const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
+              setAuthToken(parsed.tokens.token);
+              setTokens(parsed.tokens);
+              setMemberships(parsed.memberships ?? []);
+              setIsSuperAdmin(isStoredSuperAdmin);
+              setActiveMembership(active);
+              const roleScopes = active?.roles?.map(role => role.scope) ?? parsed.user.roleScopes ?? [];
+              setUser(mapUser(parsed.user, roleScopes));
+              
+              // Guardar la sesión en el tenant actual con su configuración específica
+              const sessionForCurrentTenant: StoredAuth = {
+                tenantSlug,
+                user: parsed.user,
+                tokens: parsed.tokens,
+                memberships: parsed.memberships ?? [],
+                activeMembership: active,
+                isSuperAdmin: isStoredSuperAdmin,
+                currentEventId: parsed.currentEventId ?? null,
+                eventSessions: parsed.eventSessions ?? {}
+              };
+              localStorage.setItem(storageKey, JSON.stringify(sessionForCurrentTenant));
+              setEventSessions(parsed.eventSessions ?? {});
+              setCurrentEventId(parsed.currentEventId ?? null);
+              
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // Ignorar errores de parsing
+          }
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Usar sesión legacy migrada o la sesión del tenant actual
+    const sessionData = stored || (legacySession ? JSON.stringify(legacySession) : null);
+    if (!sessionData) {
       setLoading(false);
       return;
     }
 
     try {
-      const parsed: StoredAuth = JSON.parse(stored);
+      const parsed: StoredAuth = JSON.parse(sessionData);
       const isStoredSuperAdmin = Boolean(parsed.isSuperAdmin);
       
-      // Si el tenantSlug cambió, solo limpiar sesión si NO es superadmin
-      // Los superadmins pueden navegar entre tenants sin perder su sesión
-      if (parsed?.tenantSlug && parsed.tenantSlug !== tenantSlug && !isStoredSuperAdmin) {
-        localStorage.removeItem(STORAGE_KEY);
-        setUser(null);
-        setMemberships([]);
-        setActiveMembership(null);
-        setTokens(null);
-        setIsSuperAdmin(false);
-        setAuthToken(null);
-        return;
-      }
-
       if (parsed?.tokens?.token && parsed.user) {
         setAuthToken(parsed.tokens.token);
         setTokens(parsed.tokens);
         setMemberships(parsed.memberships ?? []);
         setIsSuperAdmin(isStoredSuperAdmin);
+        
+        // Buscar membresía activa para el tenant actual
         const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
         setActiveMembership(active);
-        const roleScopes = active?.roles?.map(role => role.scope) ?? [];
+        const roleScopes = active?.roles?.map(role => role.scope) ?? parsed.user.roleScopes ?? [];
         setUser(mapUser(parsed.user, roleScopes));
+        
+        // Cargar información de eventos
+        setEventSessions(parsed.eventSessions ?? {});
+        setCurrentEventId(parsed.currentEventId ?? null);
+        
+        // Si el tenantSlug almacenado es diferente al actual, actualizar la clave de almacenamiento
+        // Esto puede pasar cuando migramos desde legacy o cuando cambiamos de tenant
+        if (parsed.tenantSlug !== tenantSlug) {
+          const updated: StoredAuth = {
+            ...parsed,
+            tenantSlug,
+            activeMembership: active,
+            currentEventId: parsed.currentEventId ?? null,
+            eventSessions: parsed.eventSessions ?? {}
+          };
+          // Guardar en la nueva clave del tenant actual
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+          // Si había una clave anterior diferente, mantenerla (para permitir volver a ese tenant)
+          if (parsed.tenantSlug && parsed.tenantSlug !== tenantSlug) {
+            const oldKey = getStorageKey(parsed.tenantSlug);
+            // Solo mantener si es diferente a la nueva clave
+            if (oldKey !== storageKey) {
+              localStorage.setItem(oldKey, JSON.stringify({ 
+                ...parsed, 
+                activeMembership: parsed.activeMembership,
+                currentEventId: parsed.currentEventId ?? null,
+                eventSessions: parsed.eventSessions ?? {}
+              }));
+            }
+          }
+        }
       } else {
-        localStorage.removeItem(STORAGE_KEY);
+        // Datos corruptos, limpiar solo esta sesión del tenant actual
+        localStorage.removeItem(storageKey);
       }
     } catch {
-      localStorage.removeItem(STORAGE_KEY);
+      // Error de parsing, limpiar solo esta sesión del tenant actual
+      localStorage.removeItem(storageKey);
     } finally {
       setLoading(false);
     }
@@ -172,12 +373,58 @@ export function AuthProvider({ children }: Props) {
       return;
     }
     const updatedActive = findActiveMembership(memberships, tenantSlug, activeMembership);
-    setActiveMembership(updatedActive);
-    if (user) {
-      const roleScopes = updatedActive?.roles?.map(role => role.scope) ?? [];
-      setUser(mapUser(user, roleScopes));
+    // Solo actualizar si cambió la membresía activa
+    const currentId = activeMembership?.id ?? null;
+    const newId = updatedActive?.id ?? null;
+    if (currentId !== newId) {
+      setActiveMembership(updatedActive);
+      if (user) {
+        const roleScopes = updatedActive?.roles?.map(role => role.scope) ?? [];
+        setUser(mapUser(user, roleScopes));
+      }
+      // Actualizar localStorage para mantener consistencia
+      const storageKey = getStorageKey(tenantSlug);
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        try {
+          const parsed: StoredAuth = JSON.parse(stored);
+          const updated: StoredAuth = {
+            ...parsed,
+            tenantSlug,
+            activeMembership: updatedActive,
+            currentEventId: parsed.currentEventId ?? null,
+            eventSessions: parsed.eventSessions ?? {}
+          };
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        } catch {
+          // Ignorar errores de parsing
+        }
+      }
     }
   }, [tenantSlug, memberships]);
+  
+  // Actualizar sesión cuando cambia el evento desde la URL
+  useEffect(() => {
+    if (!tenantSlug) return;
+    
+    const storageKey = getStorageKey(tenantSlug);
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      try {
+        const parsed: StoredAuth = JSON.parse(stored);
+        // Si el evento cambió, actualizar currentEventId
+        if (parsed.currentEventId !== currentEventId) {
+          const updated: StoredAuth = {
+            ...parsed,
+            currentEventId: currentEventId ?? null
+          };
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        }
+      } catch {
+        // Ignorar errores de parsing
+      }
+    }
+  }, [currentEventId, tenantSlug]);
 
   const applyAuthPayload = useCallback(
     (payload: AuthResponsePayload) => {
@@ -205,12 +452,79 @@ export function AuthProvider({ children }: Props) {
         tokens: loginTokens,
         memberships: responseMemberships ?? [],
         activeMembership: active,
-        isSuperAdmin: Boolean(isSuperAdmin)
+        isSuperAdmin: Boolean(isSuperAdmin),
+        currentEventId: null,
+        eventSessions: {}
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+      // Guardar la sesión en la clave específica del tenant
+      const storageKey = getStorageKey(tenantSlug);
+      localStorage.setItem(storageKey, JSON.stringify(stored));
+      setEventSessions({});
+      setCurrentEventId(null);
     },
     [tenantSlug]
   );
+  
+  // Función para actualizar la sesión de un evento específico
+  const updateEventSession = useCallback((eventId: number, session: Partial<EventSession>) => {
+    if (!tenantSlug) return;
+    
+    const storageKey = getStorageKey(tenantSlug);
+    const stored = localStorage.getItem(storageKey);
+    if (!stored) return;
+    
+    try {
+      const parsed: StoredAuth = JSON.parse(stored);
+      const existingSession = parsed.eventSessions?.[eventId] ?? {
+        eventId,
+        teamId: null,
+        teamRole: null,
+        lastAccessed: new Date().toISOString()
+      };
+      
+      const updatedSession: EventSession = {
+        ...existingSession,
+        ...session,
+        lastAccessed: new Date().toISOString()
+      };
+      
+      const updated: StoredAuth = {
+        ...parsed,
+        currentEventId: eventId,
+        eventSessions: {
+          ...parsed.eventSessions,
+          [eventId]: updatedSession
+        }
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setEventSessions(updated.eventSessions);
+      setCurrentEventId(eventId);
+    } catch {
+      // Ignorar errores de parsing
+    }
+  }, [tenantSlug]);
+  
+  // Función para establecer el evento actual
+  const setCurrentEvent = useCallback((eventId: number | null) => {
+    setCurrentEventId(eventId);
+    if (!tenantSlug) return;
+    
+    const storageKey = getStorageKey(tenantSlug);
+    const stored = localStorage.getItem(storageKey);
+    if (stored) {
+      try {
+        const parsed: StoredAuth = JSON.parse(stored);
+        const updated: StoredAuth = {
+          ...parsed,
+          currentEventId: eventId
+        };
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {
+        // Ignorar errores de parsing
+      }
+    }
+  }, [tenantSlug]);
 
   const login = useCallback(async ({ email, password }: { email: string; password: string }) => {
     const response = await apiClient.post('/auth/login', { email, password });
@@ -225,7 +539,12 @@ export function AuthProvider({ children }: Props) {
     setIsSuperAdmin(false);
     setAuthToken(null);
     clearSession();
-    localStorage.removeItem(STORAGE_KEY);
+    
+    // Limpiar solo la sesión del tenant actual
+    const storageKey = getStorageKey(tenantSlug);
+    localStorage.removeItem(storageKey);
+    // También limpiar la clave legacy si existe
+    localStorage.removeItem(STORAGE_KEY_LEGACY);
     
     // Navegar a la home del tenant después de cerrar sesión (solo si shouldNavigate es true)
     // Por defecto, la navegación se maneja desde el componente que llama logout
@@ -255,11 +574,15 @@ export function AuthProvider({ children }: Props) {
       tokens,
       isSuperAdmin,
       loading,
+      currentEventId,
+      currentEventSession,
       login,
       hydrateSession: applyAuthPayload,
-      logout
+      logout,
+      updateEventSession,
+      setCurrentEvent
     }),
-    [user, memberships, activeMembership, tokens, isSuperAdmin, loading, login, applyAuthPayload, logout]
+    [user, memberships, activeMembership, tokens, isSuperAdmin, loading, currentEventId, currentEventSession, login, applyAuthPayload, logout, updateEventSession, setCurrentEvent]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -273,5 +596,5 @@ export function useAuth() {
   return ctx;
 }
 
-export { buildAvatarUrl, mapUser };
+export { mapUser, type EventSession };
 

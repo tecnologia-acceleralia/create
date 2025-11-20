@@ -1,7 +1,7 @@
 ﻿import { useMemo, useState, useRef, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { Bell, ChevronDown, ChevronUp, Globe, Home, LogOut, Menu, Settings, UserRound, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Globe, Home, LogOut, Menu, Settings, UserRound, X, BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from '@/context/TenantContext';
@@ -36,8 +36,14 @@ export function SiteHeader() {
   const isParticipantOnly = roleScopes.has('participant') && !isEventAdmin && !roleScopes.has('evaluator');
   // Usuarios que no son admin/organizer/evaluator (incluyendo capitanes) deben usar rutas de participante
   const isNonAdminUser = !isEventAdmin && !roleScopes.has('evaluator');
+  // Usuarios que pueden acceder al menú de seguimiento: superadmin, admin y evaluador
+  const canAccessTracking = isSuperAdmin || isEventAdmin || roleScopes.has('evaluator');
 
-  const { isEventRoute, eventId: activeEventId } = useMemo(() => {
+  // Clave para almacenar el evento activo en sessionStorage
+  const ACTIVE_EVENT_STORAGE_KEY = `activeEventId_${tenantSlug ?? 'default'}`;
+
+  // Detectar evento desde la URL
+  const { isEventRoute, eventId: eventIdFromUrl } = useMemo(() => {
     const segments = location.pathname.split('/').filter(Boolean);
     const dashboardIndex = segments.indexOf('dashboard');
     if (dashboardIndex === -1) {
@@ -56,6 +62,39 @@ export function SiteHeader() {
 
     return { isEventRoute: true, eventId: eventIdSegment };
   }, [location.pathname]);
+
+  // Detectar evento desde query params (fallback)
+  const eventIdFromQuery = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get('eventId');
+  }, [location.search]);
+
+  // Obtener evento desde sessionStorage
+  const eventIdFromStorage = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return sessionStorage.getItem(ACTIVE_EVENT_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  }, [ACTIVE_EVENT_STORAGE_KEY]);
+
+  // Determinar el evento activo: prioridad URL > query params > sessionStorage
+  const activeEventId = useMemo(() => {
+    return eventIdFromUrl || eventIdFromQuery || eventIdFromStorage;
+  }, [eventIdFromUrl, eventIdFromQuery, eventIdFromStorage]);
+
+  // Guardar evento activo en sessionStorage cuando se detecta desde la URL o query params
+  useEffect(() => {
+    const eventIdToStore = eventIdFromUrl || eventIdFromQuery;
+    if (eventIdToStore && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(ACTIVE_EVENT_STORAGE_KEY, eventIdToStore);
+      } catch {
+        // Ignorar errores de sessionStorage (puede estar deshabilitado)
+      }
+    }
+  }, [eventIdFromUrl, eventIdFromQuery, ACTIVE_EVENT_STORAGE_KEY]);
 
   const headerTheme = useMemo(() => createSurfaceTheme(branding.primaryColor), [branding.primaryColor]);
   const headerStyle = useMemo<CSSProperties>(
@@ -81,6 +120,7 @@ export function SiteHeader() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [openPhaseMenu, setOpenPhaseMenu] = useState<number | null>(null);
   const [openHomeMenu, setOpenHomeMenu] = useState(false);
+  const [openTrackingMenu, setOpenTrackingMenu] = useState(false);
   const [menuPositions, setMenuPositions] = useState<Record<string, { top: number; left: number }>>({});
   
   const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -159,10 +199,10 @@ export function SiteHeader() {
   }, [phases, isEventAdmin]);
   const eventPhases = useMemo(
     () =>
-      activeEventId && isEventRoute
+      activeEventId
         ? visiblePhases.filter(phase => String(phase.eventId) === activeEventId)
         : [],
-    [activeEventId, isEventRoute, visiblePhases]
+    [activeEventId, visiblePhases]
   );
 
   // Detectar la Fase 0 para mostrarla como menú separado
@@ -229,7 +269,7 @@ export function SiteHeader() {
   // Determinar la ruta principal del evento según el rol del usuario
   // La nueva página de inicio siempre apunta a /home
   const eventHomePath = useMemo(() => {
-    if (!isEventRoute || !activeEventId) {
+    if (!activeEventId) {
       return null;
     }
 
@@ -239,9 +279,9 @@ export function SiteHeader() {
 
     // La nueva página de inicio siempre es /home
     return tenantPath(`dashboard/events/${activeEventId}/home`);
-  }, [isEventRoute, activeEventId, user, isSuperAdminSession, tenantPath]);
+  }, [activeEventId, user, isSuperAdminSession, tenantPath]);
 
-  const canViewPhases = (user || isSuperAdminSession) && isEventRoute && (eventHomePath !== null || phaseLinks.length > 0 || phaseZero !== null);
+  const canViewPhases = (user || isSuperAdminSession) && activeEventId && (eventHomePath !== null || phaseLinks.length > 0 || phaseZero !== null);
 
   const numericEventId = useMemo(() => {
     if (!activeEventId) {
@@ -252,8 +292,8 @@ export function SiteHeader() {
   }, [activeEventId]);
 
   const canFetchTasks = useMemo(
-    () => Boolean((user || isSuperAdminSession) && isEventRoute && numericEventId),
-    [user, isSuperAdminSession, isEventRoute, numericEventId]
+    () => Boolean((user || isSuperAdminSession) && activeEventId && numericEventId),
+    [user, isSuperAdminSession, activeEventId, numericEventId]
   );
 
   const { data: eventTasks } = useQuery({
@@ -476,10 +516,10 @@ export function SiteHeader() {
           ) : null}
         </div>
 
-        <div className="hidden items-center justify-center min-w-0 md:flex relative overflow-visible">
+        <div className="hidden items-center justify-center min-w-0 md:flex relative overflow-hidden w-full">
           {canViewPhases ? (
-            <nav className="flex flex-nowrap items-center gap-2 rounded-full border border-[color:var(--header-border)] bg-[color:var(--header-surface)] px-2 py-1 w-full max-w-full [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] [contain:none]">
-              <div className="flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-visible w-full [contain:none]">
+            <nav className="flex flex-nowrap items-center gap-2 rounded-full border border-[color:var(--header-border)] bg-[color:var(--header-surface)] px-2 py-1 w-full max-w-full [contain:none]">
+              <div className="flex flex-nowrap items-center gap-2 [contain:none]">
               {isEventAdmin && activeEventId ? (
                 <Link
                   to={tenantPath(`dashboard/events/${activeEventId}`)}
@@ -496,6 +536,73 @@ export function SiteHeader() {
                   <span className="hidden sm:inline">{t('navigation.config')}</span>
                 </Link>
               ) : null}
+              {canAccessTracking && (user || isSuperAdminSession) ? (() => {
+                const trackingMenuItems = [
+                  {
+                    key: 'deliverables',
+                    label: t('navigation.trackingDeliverables'),
+                    href: tenantPath('dashboard/tracking/deliverables')
+                  }
+                ];
+                const hasTrackingMenu = trackingMenuItems.length > 0;
+                return (
+                  <div 
+                    ref={(el) => { if (hasTrackingMenu) menuRefs.current['tracking'] = el; }}
+                    className="relative flex-shrink-0 overflow-visible"
+                    onMouseEnter={() => hasTrackingMenu && setOpenTrackingMenu(true)}
+                    onMouseLeave={() => hasTrackingMenu && setOpenTrackingMenu(false)}
+                  >
+                    <Link
+                      to={tenantPath('dashboard/tracking/deliverables')}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                        location.pathname.includes('/tracking/')
+                          ? 'bg-[color:var(--header-hover)] text-[color:var(--header-fg)] shadow-sm'
+                          : 'text-[color:var(--header-muted)] hover:bg-[color:var(--header-hover)] hover:text-[color:var(--header-fg)]'
+                      )}
+                      aria-label={t('navigation.tracking')}
+                      title={t('navigation.tracking')}
+                      aria-haspopup={hasTrackingMenu ? 'menu' : undefined}
+                    >
+                      <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                      <span className="hidden sm:inline">{t('navigation.tracking')}</span>
+                    </Link>
+                    {hasTrackingMenu && openTrackingMenu ? (
+                      <div
+                        className={cn(
+                          'fixed z-[110] w-72 rounded-xl border border-border/70 bg-card/95 p-3 text-foreground shadow-xl backdrop-blur transition-opacity duration-150',
+                          'pointer-events-auto opacity-100'
+                        )}
+                        role="menu"
+                        aria-label={t('navigation.tracking')}
+                        onMouseEnter={() => setOpenTrackingMenu(true)}
+                        onMouseLeave={() => setOpenTrackingMenu(false)}
+                        style={{ 
+                          top: menuPositions['tracking']?.top ?? 64,
+                          left: menuPositions['tracking']?.left ?? '50%',
+                          marginTop: 4,
+                          paddingTop: 14
+                        }}
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {t('navigation.tracking')}
+                        </p>
+                        <div className="mt-2 space-y-1">
+                          {trackingMenuItems.map(item => (
+                            <Link
+                              key={item.key}
+                              to={item.href}
+                              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+                            >
+                              {item.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })() : null}
               {eventHomePath ? (() => {
                 // Submenús para la página de inicio: Descripción y Cronograma
                 const homeMenuItems = activeEventId
@@ -821,7 +928,7 @@ export function SiteHeader() {
                 {user ? (
                   <div className="flex flex-col gap-2">
                     <Link
-                      to={tenantPath('dashboard/profile')}
+                      to={activeEventId ? `${tenantPath('dashboard/profile')}?eventId=${activeEventId}` : tenantPath('dashboard/profile')}
                       onClick={() => setProfileOpen(false)}
                       className="rounded-xl px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
                     >
@@ -901,6 +1008,18 @@ export function SiteHeader() {
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </Badge>
               ) : null}
+            </Link>
+          ) : null}
+
+          {/* Menú de Seguimiento en móvil */}
+          {canAccessTracking && (user || isSuperAdminSession) ? (
+            <Link
+              to={tenantPath('dashboard/tracking/deliverables')}
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--header-border)] px-3 py-2 text-sm font-medium text-[color:var(--header-muted)] transition-colors hover:border-[color:var(--header-fg)] hover:text-[color:var(--header-fg)]"
+            >
+              <BarChart3 className="h-5 w-5" aria-hidden="true" />
+              <span>{t('navigation.tracking')}</span>
             </Link>
           ) : null}
 
@@ -1112,7 +1231,7 @@ export function SiteHeader() {
                     className="justify-start hover:bg-muted/40"
                     asChild
                   >
-                    <Link to={tenantPath('dashboard/profile')} onClick={() => setMobileOpen(false)}>
+                    <Link to={activeEventId ? `${tenantPath('dashboard/profile')}?eventId=${activeEventId}` : tenantPath('dashboard/profile')} onClick={() => setMobileOpen(false)}>
                       {t('navigation.profile')}
                     </Link>
                   </Button>

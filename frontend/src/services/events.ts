@@ -329,13 +329,6 @@ export type UserStatistics = {
   roles: string[];
 };
 
-export type GradeSummaryEntry = {
-  grade: string;
-  withTeam: number;
-  withoutTeam: number;
-  total: number;
-};
-
 export type CustomField = {
   name: string;
   label: string;
@@ -384,6 +377,9 @@ export type TeamDeliverable = {
   attachmentUrl: string | null;
   content: string | null;
   submittedAt: string | null;
+  hasFinalEvaluation?: boolean;
+  hasPendingEvaluation?: boolean;
+  finalEvaluationId?: number | null;
 };
 
 export type TeamDeliverablesData = {

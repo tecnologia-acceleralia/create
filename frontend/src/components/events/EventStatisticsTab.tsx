@@ -41,14 +41,8 @@ function resolveSchemaLabel(
     return label[normalized] ?? fallback;
   }
 
-  // Fallback a español si está disponible
-  if (label.es) {
-    return label.es;
-  }
-
-  // Fallback al primer valor disponible
-  const firstKey = Object.keys(label)[0];
-  return firstKey ? label[firstKey] : fallback;
+  // Fallback: español, inglés, catalán, o el fallback proporcionado
+  return label.es ?? label.en ?? label.ca ?? fallback;
 }
 
 function getGradeLabel(
@@ -60,11 +54,22 @@ function getGradeLabel(
     return '';
   }
 
-  if (!registrationSchema?.grade?.options) {
+  if (!registrationSchema || typeof registrationSchema !== 'object') {
     return gradeCode;
   }
 
-  const gradeOption = registrationSchema.grade.options.find(option => option.value === gradeCode);
+  // El schema tiene campos en el nivel raíz, buscar el campo 'grade'
+  const gradeField = (registrationSchema as Record<string, unknown>).grade;
+  if (!gradeField || typeof gradeField !== 'object') {
+    return gradeCode;
+  }
+
+  const gradeFieldObj = gradeField as { options?: Array<{ value: string; label?: Record<string, string> | string }> };
+  if (!Array.isArray(gradeFieldObj.options) || gradeFieldObj.options.length === 0) {
+    return gradeCode;
+  }
+
+  const gradeOption = gradeFieldObj.options.find(option => option.value === gradeCode);
   if (!gradeOption) {
     return gradeCode;
   }
@@ -75,7 +80,7 @@ function getGradeLabel(
 function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number; readonly onViewTeam?: (teamId: number) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
-  const { branding } = useTenant();
+  const { branding, registrationSchema: tenantRegistrationSchema } = useTenant();
   const [selectedCustomField, setSelectedCustomField] = useState<string>('');
 
   const { data: statistics, isLoading, isError } = useQuery<EventStatistics>({
@@ -278,7 +283,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     const csvData = sortedGradeSummary.map(entry => {
       const gradeLabel = entry.grade === '__NO_GRADE__'
         ? t('events.statisticsSection.grades.noGrade')
-        : getGradeLabel(entry.grade, eventDetail, locale);
+        : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
       return {
         [headers[0]]: gradeLabel,
         [headers[1]]: String(entry.withTeam || 0),
@@ -590,7 +595,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                     const gradeLabel =
                       entry.grade === '__NO_GRADE__'
                         ? t('events.statisticsSection.grades.noGrade', { defaultValue: 'Sin grado' })
-                        : getGradeLabel(entry.grade, eventDetail, locale);
+                        : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
                     return (
                       <TableRow key={entry.grade}>
                         <TableCell className="font-medium">{gradeLabel}</TableCell>
