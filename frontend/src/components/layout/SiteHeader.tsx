@@ -281,7 +281,8 @@ export function SiteHeader() {
     return tenantPath(`dashboard/events/${activeEventId}/home`);
   }, [activeEventId, user, isSuperAdminSession, tenantPath]);
 
-  const canViewPhases = (user || isSuperAdminSession) && activeEventId && (eventHomePath !== null || phaseLinks.length > 0 || phaseZero !== null);
+  // Solo mostrar el menú de fases si estamos en una ruta de evento (no en /dashboard general)
+  const canViewPhases = (user || isSuperAdminSession) && activeEventId && isEventRoute && (eventHomePath !== null || phaseLinks.length > 0 || phaseZero !== null);
 
   const numericEventId = useMemo(() => {
     if (!activeEventId) {
@@ -504,7 +505,7 @@ export function SiteHeader() {
       className="sticky top-0 z-[100] border-b border-[color:var(--header-border)] bg-[color:var(--header-bg)] text-[color:var(--header-fg)] shadow-sm backdrop-blur overflow-visible"
       style={headerStyle}
     >
-      <div className="mx-auto grid h-16 w-full max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-4 px-4 sm:px-6 lg:px-8 overflow-visible">
+      <div className="mx-auto grid h-16 w-full max-w-full grid-cols-[auto_1fr_auto] items-center gap-4 px-4 sm:px-6 lg:px-8 overflow-visible [&>*:nth-child(2)]:min-w-0 [&>*:nth-child(2)]:overflow-visible">
         <div className="flex items-center gap-3 flex-shrink-0">
           <Link to="/" className="text-xl font-semibold text-[color:var(--header-fg)]">
             {brandLabel}
@@ -516,10 +517,10 @@ export function SiteHeader() {
           ) : null}
         </div>
 
-        <div className="hidden items-center justify-center min-w-0 md:flex relative overflow-hidden w-full">
+        <div className="hidden items-center justify-center min-w-0 md:flex relative overflow-visible flex-1">
           {canViewPhases ? (
-            <nav className="flex flex-nowrap items-center gap-2 rounded-full border border-[color:var(--header-border)] bg-[color:var(--header-surface)] px-2 py-1 w-full max-w-full [contain:none]">
-              <div className="flex flex-nowrap items-center gap-2 [contain:none]">
+            <nav className="flex flex-nowrap items-center gap-2 rounded-full border border-[color:var(--header-border)] bg-[color:var(--header-surface)] px-2 py-1 w-auto min-w-fit max-w-none [contain:none]">
+              <div className="flex flex-nowrap items-center gap-2 w-auto [contain:none]">
               {isEventAdmin && activeEventId ? (
                 <Link
                   to={tenantPath(`dashboard/events/${activeEventId}`)}
@@ -992,7 +993,7 @@ export function SiteHeader() {
         className={cn(
           'md:hidden bg-[color:var(--header-bg)] text-[color:var(--header-fg)] transition-all duration-300 ease-in-out',
           mobileOpen
-            ? 'max-h-[32rem] border-t border-[color:var(--header-border)] pb-6'
+            ? 'max-h-[32rem] border-t border-[color:var(--header-border)] pb-6 overflow-y-auto'
             : 'max-h-0 overflow-hidden'
         )}
       >
