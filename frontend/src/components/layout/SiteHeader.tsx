@@ -1,18 +1,20 @@
 ﻿import { useMemo, useState, useRef, useEffect } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { ChevronDown, ChevronUp, Globe, Home, LogOut, Menu, Settings, UserRound, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronUp, Globe, Home, LogOut, Menu, Settings, UserRound, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { useSuperAdminSession } from '@/context/SuperAdminContext';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/utils/cn';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { createSurfaceTheme, pickContrastColor } from '@/utils/color';
 import { getEventTasks, getEventDetail, type Task } from '@/services/events';
 import { getMyTeams } from '@/services/teams';
+import { getNotifications } from '@/services/notifications';
 
 export function SiteHeader() {
   const { t, i18n } = useTranslation();
@@ -277,6 +279,22 @@ export function SiteHeader() {
     staleTime: 30_000,
     gcTime: 5 * 60_000
   });
+
+  const { data: notifications } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: getNotifications,
+    enabled: Boolean(user && !isSuperAdminSession),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    refetchInterval: 60_000 // Refrescar cada minuto
+  });
+
+  const unreadCount = useMemo(() => {
+    if (!notifications || !Array.isArray(notifications)) {
+      return 0;
+    }
+    return notifications.filter(n => !n.is_read).length;
+  }, [notifications]);
 
   const hasTeam = useMemo(() => {
     if (!numericEventId || !myTeams || !Array.isArray(myTeams)) {
@@ -744,6 +762,25 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 justify-end">
+          {user && !isSuperAdminSession ? (
+            <Link
+              to={tenantPath('dashboard/notifications')}
+              className="relative hidden items-center justify-center rounded-full border border-[color:var(--header-border)] p-2 text-[color:var(--header-muted)] transition-colors hover:border-[color:var(--header-fg)] hover:text-[color:var(--header-fg)] md:inline-flex"
+              aria-label={t('notifications.title')}
+              title={t('notifications.title')}
+            >
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              {unreadCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px] font-bold"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              ) : null}
+            </Link>
+          ) : null}
+
           <button
             type="button"
             onClick={toggleLanguage}
@@ -848,6 +885,25 @@ export function SiteHeader() {
         )}
       >
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4 sm:px-6">
+          {user && !isSuperAdminSession ? (
+            <Link
+              to={tenantPath('dashboard/notifications')}
+              onClick={() => setMobileOpen(false)}
+              className="relative inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--header-border)] px-3 py-2 text-sm font-medium text-[color:var(--header-muted)] transition-colors hover:border-[color:var(--header-fg)] hover:text-[color:var(--header-fg)]"
+            >
+              <Bell className="h-5 w-5" aria-hidden="true" />
+              <span>{t('notifications.title')}</span>
+              {unreadCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold"
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Badge>
+              ) : null}
+            </Link>
+          ) : null}
+
           <button
             type="button"
             onClick={() => {

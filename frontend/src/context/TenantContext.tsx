@@ -264,6 +264,48 @@ export function TenantProvider({ children }: Props) {
   const [registrationSchema, setRegistrationSchema] = useState<import('@/services/public').RegistrationSchema | null>(initialCachedBranding?.registrationSchema ?? null);
   const [tenantNotFound, setTenantNotFound] = useState(false);
 
+  // Escuchar cambios en la URL para detectar cambios de tenant
+  // Usamos un enfoque que detecta cambios de URL sin interferir con React Router
+  useEffect(() => {
+    const browserWindow = getBrowserWindow();
+    if (!browserWindow) {
+      return;
+    }
+
+    let lastPathname = browserWindow.location.pathname;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const checkUrlForTenant = () => {
+      const currentPathname = browserWindow.location.pathname;
+      if (currentPathname !== lastPathname) {
+        lastPathname = currentPathname;
+        const currentSlug = detectInitialSlug();
+        if (currentSlug !== tenantSlug) {
+          setTenantSlug(currentSlug);
+        }
+      }
+    };
+
+    // Verificar inmediatamente
+    checkUrlForTenant();
+
+    // Escuchar cambios de popstate (navegación del navegador)
+    browserWindow.addEventListener('popstate', checkUrlForTenant);
+
+    // Usar un intervalo corto solo cuando no hay tenant activo para detectar cambios rápidamente
+    // Esto ayuda a detectar cambios de tenant antes de que React Router complete la navegación
+    if (!tenantSlug) {
+      timeoutId = setInterval(checkUrlForTenant, 100); // Verificar cada 100ms cuando no hay tenant
+    }
+
+    return () => {
+      browserWindow.removeEventListener('popstate', checkUrlForTenant);
+      if (timeoutId !== null) {
+        clearInterval(timeoutId);
+      }
+    };
+  }, [tenantSlug]);
+
   const refreshBranding = useCallback(async () => {
     if (!tenantSlug) {
       setTenantNotFound(false);

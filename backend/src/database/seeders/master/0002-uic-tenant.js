@@ -1033,7 +1033,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recurso recomendado</strong>
     <ul>
-      <li><a href="{{asset:10-pasos-para-hacer-un-analisis-de-sector.pdf}}" target="_blank" rel="noopener">10 pasos para hacer un análisis de sector</a></li>
+      <li>{{asset:10-pasos-para-hacer-un-analisis-de-sector.pdf}}</li>
     </ul>
   </div>
 
@@ -1051,7 +1051,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Plantilla-de-las-5-Fuerzas-de-Porter.pptx}}" target="_blank" rel="noopener">Descargar plantilla de Porter</a></li>
+      <li>{{asset:Plantilla-de-las-5-Fuerzas-de-Porter.pptx}}</li>
     </ul>
   </div>
 
@@ -1092,14 +1092,14 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recurso recomendado</strong>
     <ul>
-      <li><a href="{{asset:Como-hacer-un-analisis-pestel.pdf}}" target="_blank" rel="noopener">Cómo hacer un análisis PESTEL</a></li>
+      <li>{{asset:Como-hacer-un-analisis-pestel.pdf}}</li>
     </ul>
   </div>
 
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Analisis-Pestel.pptx}}" target="_blank" rel="noopener">Descargar plantilla PESTEL</a></li>
+      <li>{{asset:Analisis-Pestel.pptx}}</li>
     </ul>
   </div>
 
@@ -1145,7 +1145,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Plantillas-para-realizar-un-analisis-FODA.pptx}}" target="_blank" rel="noopener">Descargar plantilla de análisis DAFO</a></li>
+      <li>{{asset:Plantillas-para-realizar-un-analisis-FODA.pptx}}</li>
     </ul>
   </div>
 
@@ -1193,15 +1193,15 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
-      <li><a href="{{asset:Guia-practica-para-entender-el-mercado-los-clientes-y-consumidores.pdf}}" target="_blank" rel="noopener">Guía práctica para entender el mercado, los clientes y consumidores</a></li>
-      <li><a href="{{asset:investigacion-de-mercado-para-Pymes.pdf}}" target="_blank" rel="noopener">Investigación de mercado para Pymes</a></li>
+      <li>{{asset:Guia-practica-para-entender-el-mercado-los-clientes-y-consumidores.pdf}}</li>
+      <li>{{asset:investigacion-de-mercado-para-Pymes.pdf}}</li>
     </ul>
   </div>
 
   <div class="task-callout">
     <strong>Plantillas y toolbox</strong>
     <ul>
-      <li><a href="{{asset:Plantilla-de-tipos-de-cliente-1.pptx}}" target="_blank" rel="noopener">Plantilla de tipos de clientes</a></li>
+      <li>{{asset:Plantilla-de-tipos-de-cliente-1.pptx}}</li>
       <li><a href="https://www.youtube.com/watch?v=j2_BDsaKfEs&feature=youtu.be" target="_blank" rel="noopener">Vídeo: Qué valora el cliente</a></li>
     </ul>
   </div>
@@ -1243,7 +1243,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:competitive-analysis-file-pdf.pdf}}" target="_blank" rel="noopener">Plantilla de análisis de la competencia</a></li>
+      <li>{{asset:competitive-analysis-file-pdf.pdf}}</li>
     </ul>
   </div>
 
@@ -1290,7 +1290,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:PLANTILLA-TAM-SAM-SOM-1.pptx}}" target="_blank" rel="noopener">Plantilla TAM · SAM · SOM</a></li>
+      <li>{{asset:PLANTILLA-TAM-SAM-SOM-1.pptx}}</li>
     </ul>
   </div>
 
@@ -1331,15 +1331,15 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
-      <li><a href="{{asset:Como-realizar-un-analisis-de-mercado-para-su-producto.pdf}}" target="_blank" rel="noopener">Cómo realizar un análisis de mercado para su producto</a></li>
-      <li><a href="{{asset:Segmentacion-de-mercado-Que-es-y-como-segmentarlo-paso-a-paso.pdf}}" target="_blank" rel="noopener">Segmentación de mercado: guía paso a paso</a></li>
+      <li>{{asset:Como-realizar-un-analisis-de-mercado-para-su-producto.pdf}}</li>
+      <li>{{asset:Segmentacion-de-mercado-Que-es-y-como-segmentarlo-paso-a-paso.pdf}}</li>
     </ul>
   </div>
 
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Plantilla-para-hacer-segmentacion-de-mercado-1.pptx}}" target="_blank" rel="noopener">Plantilla de segmentación de mercado</a></li>
+      <li>{{asset:Plantilla-para-hacer-segmentacion-de-mercado-1.pptx}}</li>
     </ul>
   </div>
 
@@ -1375,17 +1375,17 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos recomendados</strong>
     <ul>
-      <li><a href="{{asset:Como-formular-la-propuesta-de-valor-de-una-empresa.pdf}}" target="_blank" rel="noopener">Cómo formular la propuesta de valor de una empresa</a></li>
-      <li><a href="{{asset:La-propuesta-de-valor-modelos-de-negocio-a-fondo.pdf}}" target="_blank" rel="noopener">La propuesta de valor en modelos de negocio</a></li>
-      <li><a href="{{asset:Como-definir-la-mision-vision-y-valores-de-una-empresa-ejemplos.pdf}}" target="_blank" rel="noopener">Cómo definir misión, visión y valores</a></li>
-      <li><a href="{{asset:Valores-corporativos-que-son-y-10-ejemplos.pdf}}" target="_blank" rel="noopener">Valores corporativos: qué son y ejemplos</a></li>
+      <li>{{asset:Como-formular-la-propuesta-de-valor-de-una-empresa.pdf}}</li>
+      <li>{{asset:La-propuesta-de-valor-modelos-de-negocio-a-fondo.pdf}}</li>
+      <li>{{asset:Como-definir-la-mision-vision-y-valores-de-una-empresa-ejemplos.pdf}}</li>
+      <li>{{asset:Valores-corporativos-que-son-y-10-ejemplos.pdf}}</li>
     </ul>
   </div>
 
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:plantilla-propuesta-de-valor.pdf}}" target="_blank" rel="noopener">Plantilla de propuesta de valor</a></li>
+      <li>{{asset:plantilla-propuesta-de-valor.pdf}}</li>
     </ul>
   </div>
 
@@ -1430,7 +1430,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Plantilla-para-implementar-la-estrategia-oceanos-azules.pptx}}" target="_blank" rel="noopener">Plantilla estrategia Océanos Azules</a></li>
+      <li>{{asset:Plantilla-para-implementar-la-estrategia-oceanos-azules.pptx}}</li>
     </ul>
   </div>
 
@@ -1465,7 +1465,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Modelo-Canvas.doc}}" target="_blank" rel="noopener">Plantilla Business Model Canvas</a></li>
+      <li>{{asset:Modelo-Canvas.doc}}</li>
     </ul>
   </div>
 
@@ -1510,7 +1510,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Plantilla descargable</strong>
     <ul>
-      <li><a href="{{asset:Plantilla-de-ventaja-comparativa-1.pptx}}" target="_blank" rel="noopener">Plantilla de ventaja comparativa</a></li>
+      <li>{{asset:Plantilla-de-ventaja-comparativa-1.pptx}}</li>
     </ul>
   </div>
 
@@ -1559,7 +1559,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
-      <li><a href="{{asset:Pitch-deck.pptx}}" target="_blank" rel="noopener">Plantilla editable de pitch</a></li>
+      <li>{{asset:Pitch-deck.pptx}}</li>
       <li><a href="https://www.youtube.com/watch?v=WOvhpKwxeKc" target="_blank" rel="noopener">Vídeo: rol play elevator pitch</a></li>
     </ul>
   </div>
@@ -1593,7 +1593,7 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
-      <li><a href="{{asset:Encuestas-de-investigacion-de-mercado-1.pdf}}" target="_blank" rel="noopener">Encuestas de investigación de mercado y entrevistas de validación</a></li>
+      <li>{{asset:Encuestas-de-investigacion-de-mercado-1.pdf}}</li>
     </ul>
   </div>
 
@@ -1671,10 +1671,10 @@ export async function up(queryInterface) {
   <div class="task-callout">
     <strong>Recursos</strong>
     <ul>
-      <li><a href="{{asset:Que-es-y-para-que-sirve-un-diagrama-de-Gantt_.pdf}}" target="_blank" rel="noopener">¿Qué es y para qué sirve un diagrama de Gantt?</a></li>
-      <li><a href="{{asset:Crea-una-plantilla-para-tus-cronogramas-con-Excel.pdf}}" target="_blank" rel="noopener">Plantilla de cronograma en Excel</a></li>
-      <li><a href="{{asset:Crea-un-diagrama-de-Gantt-con-Canva.pdf}}" target="_blank" rel="noopener">Cómo crear un Gantt con Canva</a></li>
-      <li><a href="{{asset:Plantilla-de-Diagrama-de-Gantt.xlsx}}" target="_blank" rel="noopener">Plantilla Excel de diagrama de Gantt</a></li>
+      <li>{{asset:Que-es-y-para-que-sirve-un-diagrama-de-Gantt_.pdf}}</li>
+      <li>{{asset:Crea-una-plantilla-para-tus-cronogramas-con-Excel.pdf}}</li>
+      <li>{{asset:Crea-un-diagrama-de-Gantt-con-Canva.pdf}}</li>
+      <li>{{asset:Plantilla-de-Diagrama-de-Gantt.xlsx}}</li>
     </ul>
   </div>
 

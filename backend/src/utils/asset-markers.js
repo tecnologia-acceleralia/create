@@ -68,12 +68,68 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
 
   // Reemplazar cada marcador por un link HTML
   let resolvedHtml = html;
-  // Procesar solo marcadores únicos para evitar trabajo duplicado
+  
+  // Primero procesar marcadores que están dentro de elementos <a> para evitar links anidados
+  // Regex para encontrar <a> tags completos que contienen marcadores en el href
+  // Maneja atributos en cualquier orden, espacios, y contenido del link (incluyendo múltiples líneas)
+  // El patrón busca: <a ... href="..." o href='...' ...> contenido </a>
+  const linkWithMarkerRegex = /<a\s+[^>]*href\s*=\s*["']\{\{asset:([a-zA-Z0-9_.-]+)\}\}["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const linkMatches = [...html.matchAll(linkWithMarkerRegex)];
+  
+  // Crear un Set de marcadores que ya fueron procesados como parte de <a> tags
+  const processedInLinks = new Set();
+  
+  // Procesar cada <a> que contiene un marcador
+  linkMatches.forEach(linkMatch => {
+    const [fullLinkMatch, assetName, linkText] = linkMatch;
+    
+    // Buscar el asset
+    let asset = assetMapByName.get(assetName);
+    if (!asset) {
+      asset = assetMapByNameLower.get(assetName.toLowerCase());
+    }
+    
+    if (asset) {
+      // Usar el texto del link existente si está disponible, sino usar descripción/archivo del asset
+      const finalLinkText = linkText.trim() || asset.description || asset.original_filename || asset.name;
+      const escapedText = escapeHtml(finalLinkText);
+      const escapedUrl = escapeHtml(asset.url);
+      
+      // Crear nuevo link HTML reemplazando todo el <a> completo
+      const newLinkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+      
+      // Escapar el link completo para regex
+      const escapedLinkMatch = escapeRegex(fullLinkMatch);
+      const linkRegex = new RegExp(escapedLinkMatch, 'g');
+      resolvedHtml = resolvedHtml.replace(linkRegex, newLinkHtml);
+      
+      // Marcar este marcador como procesado
+      processedInLinks.add(`{{asset:${assetName}}}`);
+    } else {
+      logger.warn('Marcador de asset no encontrado en <a> tag', {
+        assetName,
+        eventId,
+        tenantId
+      });
+      // Eliminar el <a> completo si el asset no existe
+      const escapedLinkMatch = escapeRegex(fullLinkMatch);
+      const linkRegex = new RegExp(escapedLinkMatch, 'g');
+      resolvedHtml = resolvedHtml.replace(linkRegex, '');
+      
+      // Marcar como procesado para no intentar reemplazarlo de nuevo
+      processedInLinks.add(`{{asset:${assetName}}}`);
+    }
+  });
+  
+  // Ahora procesar marcadores que NO están dentro de <a> tags (marcadores sueltos)
   const uniqueMarkers = new Map();
   matches.forEach(match => {
     const [fullMatch, assetName] = match;
-    if (!uniqueMarkers.has(fullMatch)) {
-      uniqueMarkers.set(fullMatch, assetName);
+    // Solo procesar si no fue procesado como parte de un <a>
+    if (!processedInLinks.has(fullMatch)) {
+      if (!uniqueMarkers.has(fullMatch)) {
+        uniqueMarkers.set(fullMatch, assetName);
+      }
     }
   });
 
