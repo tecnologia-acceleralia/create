@@ -76,7 +76,7 @@ evaluationsRouter.post(
     param('teamId').isInt(),
     body('submission_ids').isArray({ min: 1 }),
     body('submission_ids.*').isInt(),
-    body('score').optional().isFloat({ min: 0, max: 10 }),
+    body('score').optional().isInt({ min: 0, max: 100 }),
     body('comment').isString().notEmpty(),
     body('source').optional().isIn(['manual', 'ai_assisted']),
     body('status').optional().isIn(['draft', 'final']),

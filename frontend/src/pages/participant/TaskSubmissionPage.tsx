@@ -97,6 +97,7 @@ function TaskSubmissionPage() {
 
   const [evaluations, setEvaluations] = useState<Record<number, Evaluation[]>>({});
   const [finalEvaluations, setFinalEvaluations] = useState<Record<number, Evaluation>>({});
+  const [showAllEvaluations, setShowAllEvaluations] = useState(false);
 
   const form = useForm<SubmissionFormValues>({
     resolver: zodResolver(submissionSchema),
@@ -175,6 +176,49 @@ function TaskSubmissionPage() {
       );
     }
   }, [submissions, isReviewer]);
+
+  // Verificar si hay evaluaciones para alguna entrega
+  const hasAnyEvaluations = useMemo(() => {
+    if (!submissions) return false;
+    // Verificar si alguna submission tiene evaluación final cargada
+    if (Object.keys(finalEvaluations).length > 0) return true;
+    // Verificar si hay evaluaciones cargadas en el estado
+    if (Object.keys(evaluations).some(key => evaluations[Number(key)]?.length > 0)) return true;
+    // Verificar si alguna submission tiene el flag has_final_evaluation
+    return submissions.some(sub => sub.has_final_evaluation === true);
+  }, [submissions, finalEvaluations, evaluations]);
+
+  // Cargar todas las evaluaciones cuando se muestra el panel
+  const handleViewAllEvaluations = async () => {
+    if (submissions) {
+      const loadedEvaluations: Record<number, Evaluation[]> = {};
+      await Promise.all(
+        submissions.map(async (submission) => {
+          if (!evaluations[submission.id]) {
+            try {
+              const evals = await getEvaluations(submission.id);
+              loadedEvaluations[submission.id] = evals;
+              setEvaluations(prev => ({ ...prev, [submission.id]: evals }));
+              // Guardar evaluación final si existe
+              const finalEval = evals.find(e => e.status === 'final');
+              if (finalEval) {
+                setFinalEvaluations(prev => ({ ...prev, [submission.id]: finalEval }));
+              }
+            } catch {
+              loadedEvaluations[submission.id] = [];
+            }
+          } else {
+            loadedEvaluations[submission.id] = evaluations[submission.id];
+          }
+        })
+      );
+      // Solo mostrar el panel si hay al menos una evaluación
+      const hasAny = Object.values(loadedEvaluations).some(evals => evals.length > 0);
+      if (hasAny) {
+        setShowAllEvaluations(true);
+      }
+    }
+  };
 
   const evaluationMutation = useMutation({
     mutationFn: (values: EvaluationFormValues) => createEvaluation(selectedSubmission!.id, {
@@ -523,6 +567,85 @@ function TaskSubmissionPage() {
               <CardTitle>{t('submissions.list')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {/* Botón para ver todas las evaluaciones - solo si hay evaluaciones */}
+              {hasAnyEvaluations && (
+                <div className="mb-4 flex items-center gap-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleViewAllEvaluations}
+                    className={showAllEvaluations ? 'bg-primary/10' : ''}
+                  >
+                    {t('submissions.viewEvaluations')}
+                  </Button>
+                </div>
+              )}
+              
+              {/* Panel de todas las evaluaciones */}
+              {showAllEvaluations && hasAnyEvaluations && (
+                <div className="mb-4 space-y-4 rounded-md border border-dashed border-border/60 p-4">
+                  <h3 className="font-semibold text-sm">{t('submissions.allEvaluations')}</h3>
+                  {submissions?.map(submission => {
+                    const submissionEvaluations = evaluations[submission.id] || [];
+                    if (submissionEvaluations.length === 0) return null;
+                    
+                    return (
+                      <div key={submission.id} className="space-y-2 rounded-md border border-border/40 p-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{t('submissions.submissionDate')}: {new Date(submission.submitted_at).toLocaleString()}</span>
+                          <Badge variant={submission.status === 'final' ? 'success' : 'secondary'} className="text-xs">
+                            {submission.status === 'final' ? t('submissions.final') : t('submissions.draft')}
+                          </Badge>
+                        </div>
+                        {submissionEvaluations.map(evaluation => (
+                          <div key={evaluation.id} className="text-sm">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">
+                                {t('submissions.score')}: {evaluation.score ?? 'N/A'}
+                              </p>
+                              <span
+                                className={cn(
+                                  'rounded-full px-2 py-0.5 text-xs',
+                                  evaluation.source === 'ai_assisted'
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-muted text-muted-foreground'
+                                )}
+                              >
+                                {evaluation.source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                              </span>
+                              {evaluation.status === 'final' && (
+                                <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
+                                  {t('evaluations.final', { defaultValue: 'Final' })}
+                                </Badge>
+                              )}
+                            </div>
+                            <p>{evaluation.comment}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {t('submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
+                            </p>
+                            {evaluation.metadata?.criteria?.length ? (
+                              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                {evaluation.metadata.criteria.map((criterion, idx) => (
+                                  <li key={`${evaluation.id}-criterion-${idx}`}>
+                                    {t('evaluations.criteriaScore', {
+                                      index: idx + 1,
+                                      score: criterion.score ?? 'N/A'
+                                    })}: {criterion.feedback}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {submissions?.every(sub => !evaluations[sub.id] || evaluations[sub.id].length === 0) && (
+                    <p className="text-muted-foreground text-sm">{t('submissions.noEvaluations')}</p>
+                  )}
+                </div>
+              )}
+
               {submissions?.length ? submissions.map(submission => (
               <div key={submission.id} className="rounded-md border border-border p-4">
                 <div className="flex flex-col gap-1 text-sm">
@@ -557,13 +680,8 @@ function TaskSubmissionPage() {
                     </ul>
                   ) : null}
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={() => handleViewEvaluations(submission)}>
-                    {t('submissions.viewEvaluations')}
-                  </Button>
-                </div>
 
-                {selectedSubmission?.id === submission.id ? (
+                {selectedSubmission?.id === submission.id && isReviewer ? (
                   <div className="mt-3 space-y-2 rounded-md border border-dashed border-border/60 p-3 text-sm">
                     {evaluations[submission.id]?.length ? (
                       evaluations[submission.id].map(evaluation => (
@@ -604,40 +722,38 @@ function TaskSubmissionPage() {
                     ) : (
                       <p className="text-muted-foreground">{t('submissions.noEvaluations')}</p>
                     )}
-                    {isReviewer ? (
-                      <form
-                        className="mt-3 space-y-3"
-                        onSubmit={evaluationForm.handleSubmit(values => evaluationMutation.mutate(values))}
-                      >
-                        <FormGrid columns={2}>
-                          <FormField label={t('evaluations.score')} htmlFor="evaluation-score">
-                            <Input
-                              id="evaluation-score"
-                              type="number"
-                              step="0.1"
-                              {...evaluationForm.register('score', { valueAsNumber: true })}
-                            />
-                          </FormField>
-                          <FormField className="md:col-span-2" label={t('evaluations.comment')} htmlFor="evaluation-comment">
-                            <Textarea id="evaluation-comment" rows={3} {...evaluationForm.register('comment')} />
-                          </FormField>
-                        </FormGrid>
-                        <div className="flex flex-wrap gap-3 pt-1">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={aiEvaluationMutation.isPending}
-                            onClick={() => aiEvaluationMutation.mutate()}
-                          >
-                            {aiEvaluationMutation.isPending ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
-                          </Button>
-                          <Button type="submit" size="sm" disabled={evaluationMutation.isPending}>
-                            {evaluationMutation.isPending ? t('common.loading') : t('evaluations.submit')}
-                          </Button>
-                        </div>
-                      </form>
-                    ) : null}
+                    <form
+                      className="mt-3 space-y-3"
+                      onSubmit={evaluationForm.handleSubmit(values => evaluationMutation.mutate(values))}
+                    >
+                      <FormGrid columns={2}>
+                        <FormField label={t('evaluations.score')} htmlFor="evaluation-score">
+                          <Input
+                            id="evaluation-score"
+                            type="number"
+                            step="0.1"
+                            {...evaluationForm.register('score', { valueAsNumber: true })}
+                          />
+                        </FormField>
+                        <FormField className="md:col-span-2" label={t('evaluations.comment')} htmlFor="evaluation-comment">
+                          <Textarea id="evaluation-comment" rows={3} {...evaluationForm.register('comment')} />
+                        </FormField>
+                      </FormGrid>
+                      <div className="flex flex-wrap gap-3 pt-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={aiEvaluationMutation.isPending}
+                          onClick={() => aiEvaluationMutation.mutate()}
+                        >
+                          {aiEvaluationMutation.isPending ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
+                        </Button>
+                        <Button type="submit" size="sm" disabled={evaluationMutation.isPending}>
+                          {evaluationMutation.isPending ? t('common.loading') : t('evaluations.submit')}
+                        </Button>
+                      </div>
+                    </form>
                   </div>
                 ) : null}
                 {/* Mostrar evaluación final debajo de cada entrega */}

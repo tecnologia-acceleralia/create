@@ -42,6 +42,7 @@ type EventCardProps = {
   children?: ReactNode;
   showVideo?: boolean;
   showStatus?: boolean;
+  showPublishWindow?: boolean;
 };
 
 function resolveVideoUrl(raw?: string | null) {
@@ -116,7 +117,7 @@ function normalizeEvent(event: EventLike) {
   };
 }
 
-export function EventCard({ event, to, className, actions, children, showVideo = false, showStatus = true }: EventCardProps) {
+export function EventCard({ event, to, className, actions, children, showVideo = false, showStatus = true, showPublishWindow = true }: EventCardProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
   const normalized = useMemo(() => normalizeEvent(event), [event]);
@@ -173,7 +174,7 @@ export function EventCard({ event, to, className, actions, children, showVideo =
             >
               {normalized.isPublic ? t('events.publicBadge') : t('events.privateBadge')}
             </span>
-            {publishWindowAvailable ? (
+            {showPublishWindow && publishWindowAvailable ? (
               <span className="text-muted-foreground">
                 {t('events.publishWindow', {
                   start: formatDate(locale, normalized.publishStartAt ?? null),

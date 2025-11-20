@@ -156,16 +156,40 @@ export class EventsController {
     };
 
     const { TeamMember, Team } = getModels();
+    
+    // Buscar registros de eventos del usuario (el scoping del tenant se aplica automáticamente)
     const registrations = await EventRegistration.findAll({
       attributes: ['event_id', 'status'],
-      where: { user_id: req.user.id },
-      raw: true
+      where: { user_id: req.user.id }
     });
     const registeredIds = Array.from(new Set(registrations.map(registration => registration.event_id)));
 
+    // Buscar eventos donde el usuario está en un equipo
+    const teamMemberships = await TeamMember.findAll({
+      where: { user_id: req.user.id },
+      include: [
+        {
+          model: Team,
+          as: 'team',
+          attributes: ['id', 'name', 'event_id'],
+          required: true
+        }
+      ],
+      attributes: ['id', 'team_id', 'role']
+    });
+    const eventIdsFromTeams = Array.from(new Set(
+      teamMemberships
+        .map(membership => membership.team?.event_id)
+        .filter(Boolean)
+    ));
+
+    // Construir cláusulas WHERE: eventos registrados, eventos públicos, o eventos donde está en equipo
     const whereClauses = [];
     if (registeredIds.length) {
       whereClauses.push({ id: { [Op.in]: registeredIds } });
+    }
+    if (eventIdsFromTeams.length) {
+      whereClauses.push({ id: { [Op.in]: eventIdsFromTeams } });
     }
     whereClauses.push(publicVisibilityClause);
 
@@ -180,15 +204,18 @@ export class EventsController {
           model: EventRegistration,
           as: 'registrations',
           attributes: ['id', 'status'],
-          where: { user_id: req.user.id },
+          where: { 
+            user_id: req.user.id,
+            tenant_id: req.tenant.id
+          },
           required: false
         }
       ]
     });
 
-    // Obtener información de equipos del usuario para todos los eventos
+    // Obtener información de equipos del usuario para todos los eventos encontrados
     const eventIds = events.map(event => event.id);
-    const teamMemberships = eventIds.length > 0 ? await TeamMember.findAll({
+    const teamMembershipsForEvents = eventIds.length > 0 ? await TeamMember.findAll({
       where: { user_id: req.user.id },
       include: [
         {
@@ -204,7 +231,7 @@ export class EventsController {
 
     // Crear un mapa de event_id -> team
     const teamByEventId = new Map();
-    teamMemberships.forEach(membership => {
+    teamMembershipsForEvents.forEach(membership => {
       const team = membership.team;
       if (team) {
         teamByEventId.set(team.event_id, {
@@ -240,9 +267,12 @@ export class EventsController {
         }
       }
       
+      // Un usuario está "registrado" si tiene registro O está en un equipo del evento
+      const isRegistered = Boolean(firstRegistration) || Boolean(teamInfo);
+      
       return {
         ...eventJson,
-        is_registered: Boolean(firstRegistration),
+        is_registered: isRegistered,
         registration_status: firstRegistration?.status ?? null,
         has_team: Boolean(teamInfo),
         team_id: teamInfo?.id ?? null,

@@ -54,6 +54,7 @@ import {
 import { getTeamsByEvent, type Team } from '@/services/teams';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { useTenant } from '@/context/TenantContext';
+import { useAuth } from '@/context/AuthContext';
 import { EventAssetsManager } from '@/components/events/EventAssetsManager';
 import EventStatisticsTab from '@/components/events/EventStatisticsTab';
 
@@ -65,13 +66,32 @@ function EventDetailAdminPage() {
   const numericId = Number(eventId);
   const { t } = useTranslation();
   const tenantPath = useTenantPath();
+  const { user, activeMembership, isSuperAdmin, loading: authLoading } = useAuth();
+
+  // Verificar autorización: solo superadmin y admin/organizer pueden acceder
+  const roleScopes = new Set(
+    activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []
+  );
+  const isAuthorized = isSuperAdmin || 
+    roleScopes.has('tenant_admin') || 
+    roleScopes.has('organizer');
+
+  // Esperar a que termine la carga de autenticación
+  if (authLoading) {
+    return <Spinner fullHeight />;
+  }
+
+  // Si el usuario está autenticado pero no está autorizado, redirigir a la vista de participante
+  if (user && !isAuthorized) {
+    return <Navigate to={tenantPath(`dashboard/events/${eventId}/home`)} replace />;
+  }
 
   // Ejecutar todos los hooks antes de cualquier return condicional
   // Usar raw=true para obtener HTML crudo (necesario para edición)
   const { data: eventDetail, isLoading } = useQuery({
     queryKey: ['events', numericId, 'raw'],
     queryFn: () => getEventDetail(numericId, true),
-    enabled: Number.isInteger(numericId)
+    enabled: Number.isInteger(numericId) && isAuthorized
   });
 
   // Si hay un parámetro phase en la URL, redirigir a la vista de participante

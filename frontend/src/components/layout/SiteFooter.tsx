@@ -103,6 +103,9 @@ export function SiteFooter() {
     ];
   });
 
+  const tenantLogoUrl = branding.logoUrl?.trim() ? branding.logoUrl : undefined;
+  const hasTenantLogo = Boolean(tenantLogoUrl);
+
   return (
     <footer
       className="relative mt-auto overflow-hidden border-t border-[color:var(--footer-border)] bg-[color:var(--footer-bg)] text-[color:var(--footer-fg)]"
@@ -117,6 +120,20 @@ export function SiteFooter() {
           <div className="space-y-4">
             <span className="text-lg font-semibold text-[color:var(--footer-fg)]">Create</span>
             <p className="text-sm text-[color:var(--footer-muted)]">{t('footer.description')}</p>
+            {hasTenantLogo && tenantLogoUrl ? (
+              <div className="flex pt-2">
+                <div
+                  className="flex h-12 w-auto items-center justify-center rounded border border-[color:var(--footer-border)] p-2"
+                  style={{ backgroundColor: branding.primaryColor || footerTheme.background }}
+                >
+                  <img
+                    src={tenantLogoUrl}
+                    alt="Tenant logo"
+                    className="h-full w-auto max-h-full max-w-full object-contain"
+                  />
+                </div>
+              </div>
+            ) : null}
             {socialLinks.length ? (
               <div className="flex flex-wrap gap-3 pt-2">
                 {socialLinks.map(({ key, Icon, href, label }) => (

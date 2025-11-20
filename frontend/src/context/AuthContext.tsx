@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient, setAuthToken, clearSession, registerUnauthorizedHandler } from '@/services/api';
 import { useTenant } from './TenantContext';
 import { buildAvatarUrl } from '@/utils/avatar';
@@ -88,7 +89,6 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 type Props = { children: ReactNode };
 
 const STORAGE_KEY_PREFIX = 'create.auth';
-const STORAGE_KEY_LEGACY = 'create.auth'; // Para migración desde versión anterior
 
 /**
  * Obtiene la clave de almacenamiento para un tenant específico
@@ -113,40 +113,6 @@ function getAllSessionKeys(): string[] {
     }
   }
   return keys;
-}
-
-/**
- * Migra datos de la clave legacy a la nueva estructura por tenant
- */
-function migrateLegacySession(): StoredAuth | null {
-  try {
-    const legacyData = localStorage.getItem(STORAGE_KEY_LEGACY);
-    if (!legacyData) {
-      return null;
-    }
-    const parsed = JSON.parse(legacyData);
-    // Migrar a la nueva estructura con campos de eventos
-    const migrated: StoredAuth = {
-      tenantSlug: parsed.tenantSlug ?? null,
-      user: parsed.user,
-      tokens: parsed.tokens,
-      memberships: parsed.memberships ?? [],
-      activeMembership: parsed.activeMembership ?? null,
-      isSuperAdmin: Boolean(parsed.isSuperAdmin),
-      currentEventId: parsed.currentEventId ?? null,
-      eventSessions: parsed.eventSessions ?? {}
-    };
-    // Si tiene tenantSlug, migrar a la nueva clave
-    if (migrated.tenantSlug) {
-      const newKey = getStorageKey(migrated.tenantSlug);
-      localStorage.setItem(newKey, JSON.stringify(migrated));
-      localStorage.removeItem(STORAGE_KEY_LEGACY);
-      return migrated;
-    }
-    return migrated;
-  } catch {
-    return null;
-  }
 }
 
 function mapUser(rawUser: any, roleScopes: string[]): User {
@@ -201,6 +167,7 @@ export function AuthProvider({ children }: Props) {
   const [currentEventId, setCurrentEventId] = useState<number | null>(null);
   const [eventSessions, setEventSessions] = useState<Record<number, EventSession>>({});
   const { tenantSlug } = useTenant();
+  const queryClient = useQueryClient();
   
   // Detectar evento actual desde la URL cuando cambia la ruta
   useEffect(() => {
@@ -243,15 +210,12 @@ export function AuthProvider({ children }: Props) {
   }, [currentEventId, eventSessions]);
 
   useEffect(() => {
-    // Intentar migrar sesión legacy si existe
-    const legacySession = migrateLegacySession();
-    
     // Obtener la clave de almacenamiento para el tenant actual
     const storageKey = getStorageKey(tenantSlug);
     const stored = localStorage.getItem(storageKey);
     
-    // Si no hay sesión para este tenant, intentar cargar desde legacy o buscar en otros tenants
-    if (!stored && !legacySession) {
+    // Si no hay sesión para este tenant, buscar en otros tenants
+    if (!stored) {
       // Buscar si hay alguna sesión en otros tenants (útil para superadmins o usuarios con múltiples tenants)
       const allSessionKeys = getAllSessionKeys();
       if (allSessionKeys.length > 0) {
@@ -302,15 +266,9 @@ export function AuthProvider({ children }: Props) {
       return;
     }
 
-    // Usar sesión legacy migrada o la sesión del tenant actual
-    const sessionData = stored || (legacySession ? JSON.stringify(legacySession) : null);
-    if (!sessionData) {
-      setLoading(false);
-      return;
-    }
-
+    // Usar la sesión del tenant actual
     try {
-      const parsed: StoredAuth = JSON.parse(sessionData);
+      const parsed: StoredAuth = JSON.parse(stored);
       const isStoredSuperAdmin = Boolean(parsed.isSuperAdmin);
       
       if (parsed?.tokens?.token && parsed.user) {
@@ -330,7 +288,7 @@ export function AuthProvider({ children }: Props) {
         setCurrentEventId(parsed.currentEventId ?? null);
         
         // Si el tenantSlug almacenado es diferente al actual, actualizar la clave de almacenamiento
-        // Esto puede pasar cuando migramos desde legacy o cuando cambiamos de tenant
+        // Esto puede pasar cuando cambiamos de tenant
         if (parsed.tenantSlug !== tenantSlug) {
           const updated: StoredAuth = {
             ...parsed,
@@ -540,11 +498,35 @@ export function AuthProvider({ children }: Props) {
     setAuthToken(null);
     clearSession();
     
-    // Limpiar solo la sesión del tenant actual
-    const storageKey = getStorageKey(tenantSlug);
-    localStorage.removeItem(storageKey);
-    // También limpiar la clave legacy si existe
-    localStorage.removeItem(STORAGE_KEY_LEGACY);
+    // Limpiar TODAS las sesiones de autenticación de todos los tenants
+    const allSessionKeys = getAllSessionKeys();
+    allSessionKeys.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    
+    // Limpiar sessionStorage del evento activo para todos los posibles tenants
+    if (typeof window !== 'undefined') {
+      try {
+        // Limpiar el evento activo del tenant actual
+        if (tenantSlug) {
+          sessionStorage.removeItem(`activeEventId_${tenantSlug}`);
+        }
+        // Limpiar cualquier otro evento activo que pueda existir
+        // Iteramos sobre todas las claves de sessionStorage que empiecen con 'activeEventId_'
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith('activeEventId_')) {
+            sessionStorage.removeItem(key);
+          }
+        }
+      } catch {
+        // Ignorar errores de sessionStorage (puede estar deshabilitado)
+      }
+    }
+    
+    // Limpiar toda la caché de React Query para evitar que datos del usuario anterior
+    // se muestren si otro usuario inicia sesión en el mismo navegador
+    queryClient.clear();
     
     // Navegar a la home del tenant después de cerrar sesión (solo si shouldNavigate es true)
     // Por defecto, la navegación se maneja desde el componente que llama logout
@@ -552,7 +534,7 @@ export function AuthProvider({ children }: Props) {
       const homePath = tenantSlug ? `/${tenantSlug}` : '/';
       window.location.replace(homePath);
     }
-  }, [tenantSlug]);
+  }, [tenantSlug, queryClient]);
 
   useEffect(() => {
     const unsubscribe = registerUnauthorizedHandler(() => {
@@ -596,5 +578,5 @@ export function useAuth() {
   return ctx;
 }
 
-export { mapUser, type EventSession };
+export { mapUser };
 

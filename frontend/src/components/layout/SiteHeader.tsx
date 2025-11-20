@@ -616,6 +616,11 @@ export function SiteHeader() {
                         key: 'timeline',
                         label: t('events.timeline'),
                         href: tenantPath(`dashboard/events/${activeEventId}/home?tab=timeline`)
+                      },
+                      {
+                        key: 'dashboard',
+                        label: t('navigation.dashboard'),
+                        href: tenantPath('dashboard')
                       }
                     ]
                   : [];
@@ -1050,6 +1055,11 @@ export function SiteHeader() {
                         key: 'timeline',
                         label: t('events.timeline'),
                         href: tenantPath(`dashboard/events/${activeEventId}/home?tab=timeline`)
+                      },
+                      {
+                        key: 'dashboard',
+                        label: t('navigation.dashboard'),
+                        href: tenantPath('dashboard')
                       }
                     ]
                   : [];

@@ -1,19 +1,15 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
-import { useTenantPath } from '@/hooks/useTenantPath';
 
 import { Spinner, EmptyState } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashboardEventCard } from '@/components/ui/dashboard';
 import { getEvents, type Event } from '@/services/events';
-import { EventCard } from '@/components/events/EventCard';
 
 function ParticipantDashboardPage() {
   const { t } = useTranslation();
-  const tenantPath = useTenantPath();
   const { data: events, isLoading } = useQuery<Event[]>({ queryKey: ['events'], queryFn: getEvents });
 
   const { registeredEvents, tenantEvents } = useMemo(() => {
@@ -46,47 +42,9 @@ function ParticipantDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
-                {registeredEvents.map(event => {
-                  const hasTeam = Boolean(event.has_team);
-                  return (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      to={tenantPath(`dashboard/events/${event.id}/view`)}
-                      showStatus={false}
-                      actions={
-                        <>
-                          {hasTeam ? (
-                            <>
-                              <Button asChild>
-                                <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{t('teams.title')}</Link>
-                              </Button>
-                              <Button asChild variant="outline">
-                                <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{t('auth.submit')}</Link>
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button asChild variant="outline">
-                                <Link to={tenantPath(`dashboard/events/${event.id}/projects`)}>
-                                  {t('projects.title')}
-                                </Link>
-                              </Button>
-                              <Button asChild>
-                                <Link to={tenantPath(`dashboard/events/${event.id}/projects#create`)}>
-                                  {t('projects.create')}
-                                </Link>
-                              </Button>
-                              <Button asChild variant="outline">
-                                <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{t('auth.submit')}</Link>
-                              </Button>
-                            </>
-                          )}
-                        </>
-                      }
-                    />
-                  );
-                })}
+                {registeredEvents.map(event => (
+                  <DashboardEventCard key={event.id} event={event} />
+                ))}
                 {registeredEvents.length === 0 ? (
                   <EmptyState message={t('events.noRegisteredEvents')} />
                 ) : null}
@@ -103,17 +61,7 @@ function ParticipantDashboardPage() {
             <CardContent>
               <div className="grid gap-4">
                 {tenantEvents.map(event => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    to={tenantPath(`events/${event.id}`)}
-                    showStatus={false}
-                    actions={
-                      <Button asChild variant="outline">
-                        <Link to={tenantPath(`events/${event.id}`)}>{t('events.viewDetails')}</Link>
-                      </Button>
-                    }
-                  />
+                  <DashboardEventCard key={event.id} event={event} />
                 ))}
                 {tenantEvents.length === 0 ? (
                   <EmptyState message={t('events.empty')} />

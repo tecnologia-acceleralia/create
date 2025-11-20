@@ -401,7 +401,7 @@ export default function DeliverablesTrackingPage() {
   const location = useLocation();
   const { eventId: eventIdParam } = useParams<{ eventId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isSuperAdmin, activeMembership, user } = useAuth();
+  const { isSuperAdmin, activeMembership, user, currentEventId } = useAuth();
   const roleScopes = useMemo(
     () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
     [activeMembership, user]
@@ -421,22 +421,30 @@ export default function DeliverablesTrackingPage() {
     return eventIdSegment ? Number(eventIdSegment) : null;
   }, [location.pathname]);
   
-  // Obtener eventId de la URL, search params o contexto de evento
-  const eventIdFromUrl = eventIdParam || searchParams.get('eventId') || (activeEventIdFromPath ? String(activeEventIdFromPath) : null);
-  const selectedEventId = eventIdFromUrl ? Number(eventIdFromUrl) : null;
-  
-  // Si hay un evento activo en la URL pero no está seleccionado, seleccionarlo automáticamente
-  useEffect(() => {
-    if (activeEventIdFromPath && !eventIdParam && !searchParams.get('eventId')) {
-      setSearchParams({ eventId: String(activeEventIdFromPath) }, { replace: true });
-    }
-  }, [activeEventIdFromPath, eventIdParam, searchParams, setSearchParams]);
-
   // Obtener lista de eventos
   const { data: events, isLoading: isLoadingEvents } = useQuery<Event[]>({
     queryKey: ['events'],
     queryFn: getEvents
   });
+
+  // Obtener eventId de la URL, search params, contexto de evento o evento actual del AuthContext
+  const eventIdFromUrl = eventIdParam || searchParams.get('eventId') || (activeEventIdFromPath ? String(activeEventIdFromPath) : null);
+  const selectedEventId = eventIdFromUrl ? Number(eventIdFromUrl) : (currentEventId ?? null);
+  
+  // Si hay un evento activo en la URL o en el contexto pero no está seleccionado, seleccionarlo automáticamente
+  // También verificar que el evento existe en la lista de eventos disponibles
+  useEffect(() => {
+    if (isLoadingEvents || !events) return;
+    
+    const eventIdToSelect = activeEventIdFromPath || currentEventId;
+    if (eventIdToSelect && !eventIdParam && !searchParams.get('eventId')) {
+      // Verificar que el evento existe en la lista de eventos disponibles
+      const eventExists = events.some(event => event.id === eventIdToSelect);
+      if (eventExists) {
+        setSearchParams({ eventId: String(eventIdToSelect) }, { replace: true });
+      }
+    }
+  }, [activeEventIdFromPath, currentEventId, eventIdParam, searchParams, setSearchParams, events, isLoadingEvents]);
 
   // Obtener datos de seguimiento si hay un evento seleccionado
   const { data: trackingData, isLoading: isLoadingTracking, isError } = useQuery<EventDeliverablesTracking>({

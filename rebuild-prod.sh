@@ -108,133 +108,47 @@ else
     exit 1
 fi
 
-# 4. Verificar si hay cambios que requieren rebuild
-log "🔍 Verificando cambios que requieren rebuild..."
+# 4. Reconstruir siempre frontend y backend (sin verificar cambios en git)
+log "🔄 Reconstruyendo contenedores (frontend y backend siempre se reconstruyen)..."
 
-# Verificar si hay commits previos para comparar
-HAS_PREVIOUS_COMMIT=false
-if git rev-parse --verify HEAD~1 > /dev/null 2>&1; then
-    HAS_PREVIOUS_COMMIT=true
+# Parar servicios (manteniendo volúmenes)
+log "⏹️  Parando servicios..."
+if ! docker-compose --profile prod down; then
+    error "Error al parar servicios"
+    exit 1
 fi
 
-# Verificar cambios en archivos de Docker
-if [ "$HAS_PREVIOUS_COMMIT" = true ]; then
-    DOCKER_CHANGES=$(git diff --name-only HEAD~1 HEAD | grep -E "(docker-compose\.yml|Dockerfile|package\.json|pnpm-lock\.yaml)" || true)
-    FRONTEND_CHANGES=$(git diff --name-only HEAD~1 HEAD | grep -E "^frontend/" || true)
-    BACKEND_CHANGES=$(git diff --name-only HEAD~1 HEAD | grep -E "^backend/" || true)
-else
-    log "ℹ️  No hay commits previos para comparar. Se reconstruirán todos los contenedores."
-    DOCKER_CHANGES="docker-compose.yml"  # Forzar rebuild
-    FRONTEND_CHANGES=""
-    BACKEND_CHANGES=""
+# Rebuild sin cache de frontend y backend
+log "🔨 Reconstruyendo imágenes de frontend y backend..."
+if ! docker-compose --profile prod build --no-cache frontend-prod backend; then
+    error "Error al reconstruir imágenes"
+    exit 1
 fi
 
-# Determinar si se necesita rebuild
-NEEDS_REBUILD=false
-REBUILD_REASON=""
-
-if [ -n "$DOCKER_CHANGES" ]; then
-    NEEDS_REBUILD=true
-    REBUILD_REASON="archivos de Docker"
+# Levantar servicios
+log "🚀 Levantando servicios..."
+if ! docker-compose --profile prod up -d; then
+    error "Error al levantar servicios"
+    exit 1
 fi
 
-if [ -n "$FRONTEND_CHANGES" ]; then
-    NEEDS_REBUILD=true
-    if [ -n "$REBUILD_REASON" ]; then
-        REBUILD_REASON="$REBUILD_REASON y frontend"
-    else
-        REBUILD_REASON="frontend"
-    fi
-fi
+# Esperar a que los servicios estén listos
+log "⏳ Esperando a que los servicios estén listos..."
+sleep 10
 
-if [ -n "$BACKEND_CHANGES" ]; then
-    NEEDS_REBUILD=true
-    if [ -n "$REBUILD_REASON" ]; then
-        REBUILD_REASON="$REBUILD_REASON y backend"
-    else
-        REBUILD_REASON="backend"
+# Verificar health checks
+log "🏥 Verificando health checks..."
+for i in {1..30}; do
+    if docker-compose --profile prod ps | grep -q "healthy"; then
+        success "Servicios saludables"
+        break
     fi
-fi
-
-if [ "$NEEDS_REBUILD" = true ]; then
-    log "📝 Cambios detectados en: $REBUILD_REASON"
-    if [ -n "$DOCKER_CHANGES" ]; then
-        log "   Archivos de Docker:"
-        echo "$DOCKER_CHANGES" | sed 's/^/     - /'
-    fi
-    if [ -n "$FRONTEND_CHANGES" ]; then
-        log "   Archivos de frontend:"
-        echo "$FRONTEND_CHANGES" | head -5 | sed 's/^/     - /'
-        if [ $(echo "$FRONTEND_CHANGES" | wc -l) -gt 5 ]; then
-            log "     ... y $(($(echo "$FRONTEND_CHANGES" | wc -l) - 5)) archivos más"
-        fi
-    fi
-    if [ -n "$BACKEND_CHANGES" ]; then
-        log "   Archivos de backend:"
-        echo "$BACKEND_CHANGES" | head -5 | sed 's/^/     - /'
-        if [ $(echo "$BACKEND_CHANGES" | wc -l) -gt 5 ]; then
-            log "     ... y $(($(echo "$BACKEND_CHANGES" | wc -l) - 5)) archivos más"
-        fi
-    fi
-    log "🔄 Reconstruyendo contenedores..."
-    
-    # Parar servicios (manteniendo volúmenes)
-    log "⏹️  Parando servicios..."
-    if ! docker-compose --profile prod down; then
-        error "Error al parar servicios"
+    if [ $i -eq 30 ]; then
+        error "Timeout esperando health checks"
         exit 1
     fi
-    
-    # Rebuild sin cache
-    log "🔨 Reconstruyendo imágenes..."
-    if ! docker-compose --profile prod build --no-cache; then
-        error "Error al reconstruir imágenes"
-        exit 1
-    fi
-    
-    # Levantar servicios
-    log "🚀 Levantando servicios..."
-    if ! docker-compose --profile prod up -d; then
-        error "Error al levantar servicios"
-        exit 1
-    fi
-    
-    # Esperar a que los servicios estén listos
-    log "⏳ Esperando a que los servicios estén listos..."
-    sleep 10
-    
-    # Verificar health checks
-    log "🏥 Verificando health checks..."
-    for i in {1..30}; do
-        if docker-compose --profile prod ps | grep -q "healthy"; then
-            success "Servicios saludables"
-            break
-        fi
-        if [ $i -eq 30 ]; then
-            error "Timeout esperando health checks"
-            exit 1
-        fi
-        sleep 2
-    done
-    
-else
-    log "ℹ️  No hay cambios en código o archivos de Docker."
-    
-    # Verificar si el contenedor frontend-prod existe
-    if ! docker ps -a --format '{{.Names}}' | grep -q "^create-frontend-prod$"; then
-        log "🔨 Contenedor frontend-prod no existe. Construyendo y levantando servicios..."
-        if ! docker-compose --profile prod up -d --build frontend-prod; then
-            error "Error al construir y levantar frontend-prod"
-            exit 1
-        fi
-    else
-        log "🔄 Reiniciando servicios existentes..."
-        if ! docker-compose --profile prod restart; then
-            error "Error al reiniciar servicios"
-            exit 1
-        fi
-    fi
-fi
+    sleep 2
+done
 
 # 5. Ejecutar migraciones faltantes
 log "🗄️  Verificando migraciones de base de datos..."

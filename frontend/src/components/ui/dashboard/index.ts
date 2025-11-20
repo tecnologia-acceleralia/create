@@ -1,0 +1,2 @@
+export { DashboardEventCard } from './DashboardEventCard';
+

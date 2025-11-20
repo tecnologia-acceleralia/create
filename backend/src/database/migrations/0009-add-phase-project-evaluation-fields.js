@@ -50,17 +50,8 @@ export async function up(queryInterface, Sequelize) {
     comment: 'ID del equipo evaluado (para phase y project)'
   });
 
-  // Hacer submission_id nullable para permitir evaluaciones de fase/proyecto sin submission específico
-  await queryInterface.changeColumn('evaluations', 'submission_id', {
-    type: Sequelize.INTEGER.UNSIGNED,
-    allowNull: true,
-    references: {
-      model: 'submissions',
-      key: 'id'
-    },
-    onDelete: 'CASCADE',
-    comment: 'ID de la submission evaluada (nullable para evaluaciones de fase/proyecto)'
-  });
+  // Nota: submission_id se hace nullable en la migración 0010-fix-submission-id-nullable.js
+  // porque requiere eliminar y recrear la foreign key constraint
 }
 
 export async function down(queryInterface, Sequelize) {

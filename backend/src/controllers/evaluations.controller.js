@@ -4,6 +4,7 @@ import { generateAiEvaluation, generateMultiSubmissionAiEvaluation } from '../se
 import { isReviewer } from '../utils/authorization.js';
 import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse, errorResponse } from '../utils/response.js';
 import { logger } from '../utils/logger.js';
+import { t } from '../utils/i18n.js';
 import { Op } from 'sequelize';
 
 async function notifyTeam(teamId, title, message) {
@@ -28,7 +29,7 @@ export class EvaluationsController {
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return notFoundResponse(res, 'Entrega no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.submissionNotFound'));
       }
 
       // Obtener tenant_id de la submission para asegurar consistencia
@@ -39,14 +40,14 @@ export class EvaluationsController {
           submissionTenantId: submission.tenant_id,
           reqTenant: req.tenant
         });
-        return errorResponse(res, 'No se pudo determinar el tenant para la evaluación', 500);
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
       const status = req.body.status ?? 'draft';
       
       // Validar que el comentario esté presente y no esté vacío
       if (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0)) {
-        return badRequestResponse(res, 'El comentario es requerido');
+        return badRequestResponse(res, t(req, 'evaluations.commentRequired'));
       }
 
       // Validar que el score esté en el rango correcto si se proporciona
@@ -54,7 +55,7 @@ export class EvaluationsController {
       if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
         const score = Number(req.body.score);
         if (isNaN(score) || score < 0 || score > 10) {
-          return badRequestResponse(res, 'La puntuación debe estar entre 0 y 10');
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange10'));
         }
         scoreValue = score;
       }
@@ -115,13 +116,13 @@ export class EvaluationsController {
 
       if (!submission) {
         await transaction.rollback();
-        return notFoundResponse(res, 'Entrega no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.submissionNotFound'));
       }
 
       const task = submission.task;
       if (!task) {
         await transaction.rollback();
-        return badRequestResponse(res, 'La tarea asociada a la entrega no está disponible');
+        return badRequestResponse(res, t(req, 'evaluations.taskNotAvailable'));
       }
 
       let rubric = null;
@@ -143,7 +144,7 @@ export class EvaluationsController {
 
       if (!rubric || !Array.isArray(rubric.criteria) || rubric.criteria.length === 0) {
         await transaction.rollback();
-        return conflictResponse(res, 'No hay una rúbrica configurada para esta fase o tarea');
+        return conflictResponse(res, t(req, 'evaluations.rubricNotConfigured'));
       }
 
       const sortedCriteria = [...rubric.criteria].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
@@ -173,7 +174,7 @@ export class EvaluationsController {
           submissionTenantId: submission.tenant_id,
           reqTenant: req.tenant
         });
-        return errorResponse(res, 'No se pudo determinar el tenant para la evaluación', 500);
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
       const status = req.body.status ?? 'draft';
@@ -213,7 +214,7 @@ export class EvaluationsController {
         body: req.body
       });
       if (error?.message?.includes?.('OPENAI_API_KEY')) {
-        return errorResponse(res, 'Servicio de IA no configurado', 500);
+        return errorResponse(res, t(req, 'evaluations.aiServiceNotConfigured'), 500);
       }
       next(error);
     }
@@ -225,7 +226,7 @@ export class EvaluationsController {
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return notFoundResponse(res, 'Entrega no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.submissionNotFound'));
       }
 
       if (!isReviewer(req)) {
@@ -257,7 +258,7 @@ export class EvaluationsController {
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return notFoundResponse(res, 'Entrega no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.submissionNotFound'));
       }
 
       const evaluation = await Evaluation.findOne({
@@ -268,7 +269,7 @@ export class EvaluationsController {
       });
 
       if (!evaluation) {
-        return notFoundResponse(res, 'Evaluación no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.evaluationNotFound'));
       }
 
       // Guardar el estado anterior
@@ -276,7 +277,7 @@ export class EvaluationsController {
 
       // Validar que el comentario esté presente si se proporciona
       if (req.body.comment !== undefined && (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0))) {
-        return badRequestResponse(res, 'El comentario no puede estar vacío');
+        return badRequestResponse(res, t(req, 'evaluations.commentCannotBeEmpty'));
       }
 
       // Validar que el score esté en el rango correcto si se proporciona
@@ -284,7 +285,7 @@ export class EvaluationsController {
       if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
         const score = Number(req.body.score);
         if (isNaN(score) || score < 0 || score > 10) {
-          return badRequestResponse(res, 'La puntuación debe estar entre 0 y 10');
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange10'));
         }
         scoreValue = score;
       } else if (req.body.score === null || req.body.score === '') {
@@ -328,7 +329,7 @@ export class EvaluationsController {
       const submission = await Submission.findOne({ where: { id: req.params.submissionId } });
 
       if (!submission) {
-        return notFoundResponse(res, 'Entrega no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.submissionNotFound'));
       }
 
       if (!isReviewer(req)) {
@@ -348,7 +349,7 @@ export class EvaluationsController {
       });
 
       if (!evaluation) {
-        return notFoundResponse(res, 'No hay evaluación final para esta entrega');
+        return notFoundResponse(res, t(req, 'evaluations.noFinalEvaluation'));
       }
 
       return successResponse(res, evaluation);
@@ -370,23 +371,23 @@ export class EvaluationsController {
 
       const phase = await Phase.findOne({ where: { id: phaseId } });
       if (!phase) {
-        return notFoundResponse(res, 'Fase no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.phaseNotFound'));
       }
 
       const team = await Team.findOne({ where: { id: teamId } });
       if (!team) {
-        return notFoundResponse(res, 'Equipo no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
       }
 
       // Validar que el equipo pertenece al mismo evento que la fase
       if (team.event_id !== phase.event_id) {
-        return badRequestResponse(res, 'El equipo no pertenece al mismo evento que la fase');
+        return badRequestResponse(res, t(req, 'evaluations.teamNotInSameEvent'));
       }
 
       // Validar submission_ids proporcionados
       const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
       if (submissionIds.length === 0) {
-        return badRequestResponse(res, 'Debe proporcionar al menos una entrega para evaluar');
+        return badRequestResponse(res, t(req, 'evaluations.atLeastOneSubmissionRequired'));
       }
 
       // Verificar que las submissions pertenecen al equipo y a tareas de la fase
@@ -402,29 +403,29 @@ export class EvaluationsController {
       });
 
       if (submissions.length !== submissionIds.length) {
-        return badRequestResponse(res, 'Algunas entregas no pertenecen al equipo o a tareas de esta fase');
+        return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrPhase'));
       }
 
       const status = req.body.status ?? 'draft';
       
       // Validar que el comentario esté presente y no esté vacío
       if (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0)) {
-        return badRequestResponse(res, 'El comentario es requerido');
+        return badRequestResponse(res, t(req, 'evaluations.commentRequired'));
       }
 
       // Validar que el score esté en el rango correcto si se proporciona
       let scoreValue = null;
       if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
         const score = Number(req.body.score);
-        if (isNaN(score) || score < 0 || score > 10) {
-          return badRequestResponse(res, 'La puntuación debe estar entre 0 y 10');
+        if (isNaN(score) || score < 0 || score > 100) {
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange100'));
         }
         scoreValue = score;
       }
 
       const tenantId = phase.tenant_id || req.tenant?.id;
       if (!tenantId) {
-        return errorResponse(res, 'No se pudo determinar el tenant para la evaluación', 500);
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
       const evaluation = await Evaluation.create({
@@ -432,7 +433,7 @@ export class EvaluationsController {
         evaluation_scope: 'phase',
         phase_id: phaseId,
         team_id: teamId,
-        submission_id: null, // No hay submission específica para evaluaciones de fase
+        submission_id: null, // Nullable para evaluaciones de fase (migración 0009)
         evaluated_submission_ids: submissionIds,
         score: scoreValue,
         comment: req.body.comment.trim(),
@@ -487,20 +488,20 @@ export class EvaluationsController {
       const phase = await Phase.findOne({ where: { id: phaseId } });
       if (!phase) {
         await transaction.rollback();
-        return notFoundResponse(res, 'Fase no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.phaseNotFound'));
       }
 
       const team = await Team.findOne({ where: { id: teamId } });
       if (!team) {
         await transaction.rollback();
-        return notFoundResponse(res, 'Equipo no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
       }
 
       // Validar submission_ids proporcionados
       const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
       if (submissionIds.length === 0) {
         await transaction.rollback();
-        return badRequestResponse(res, 'Debe proporcionar al menos una entrega para evaluar');
+        return badRequestResponse(res, t(req, 'evaluations.atLeastOneSubmissionRequired'));
       }
 
       // Obtener tareas de la fase
@@ -522,7 +523,7 @@ export class EvaluationsController {
 
       if (submissions.length !== submissionIds.length) {
         await transaction.rollback();
-        return badRequestResponse(res, 'Algunas entregas no pertenecen al equipo o a tareas de esta fase');
+        return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrPhase'));
       }
 
       // Buscar rúbrica de la fase
@@ -537,7 +538,7 @@ export class EvaluationsController {
 
       if (!rubric || !Array.isArray(rubric.criteria) || rubric.criteria.length === 0) {
         await transaction.rollback();
-        return conflictResponse(res, 'No hay una rúbrica configurada para esta fase');
+        return conflictResponse(res, t(req, 'evaluations.rubricNotConfiguredForPhase'));
       }
 
       const sortedCriteria = [...rubric.criteria].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
@@ -566,7 +567,7 @@ export class EvaluationsController {
       const tenantId = phase.tenant_id || req.tenant?.id;
       if (!tenantId) {
         await transaction.rollback();
-        return errorResponse(res, 'No se pudo determinar el tenant para la evaluación', 500);
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
       const status = req.body.status ?? 'draft';
@@ -576,7 +577,7 @@ export class EvaluationsController {
           evaluation_scope: 'phase',
           phase_id: phaseId,
           team_id: teamId,
-          submission_id: null,
+          submission_id: null, // Nullable para evaluaciones de fase (migración 0009)
           evaluated_submission_ids: submissionIds,
           reviewer_id: req.user.id,
           score: evaluationResult.overallScore,
@@ -611,7 +612,7 @@ export class EvaluationsController {
         body: req.body
       });
       if (error?.message?.includes?.('OPENAI_API_KEY')) {
-        return errorResponse(res, 'Servicio de IA no configurado', 500);
+        return errorResponse(res, t(req, 'evaluations.aiServiceNotConfigured'), 500);
       }
       next(error);
     }
@@ -626,12 +627,12 @@ export class EvaluationsController {
 
       const phase = await Phase.findOne({ where: { id: phaseId } });
       if (!phase) {
-        return notFoundResponse(res, 'Fase no encontrada');
+        return notFoundResponse(res, t(req, 'evaluations.phaseNotFound'));
       }
 
       const team = await Team.findOne({ where: { id: teamId } });
       if (!team) {
-        return notFoundResponse(res, 'Equipo no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
       }
 
       // Verificar permisos: solo revisores o miembros del equipo
@@ -670,12 +671,12 @@ export class EvaluationsController {
 
       const project = await Project.findOne({ where: { id: projectId } });
       if (!project) {
-        return notFoundResponse(res, 'Proyecto no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.projectNotFound'));
       }
 
       const team = await Team.findOne({ where: { id: project.team_id } });
       if (!team) {
-        return notFoundResponse(res, 'Equipo no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
       }
 
       // Validar que todas las fases con tareas obligatorias estén evaluadas
@@ -702,7 +703,7 @@ export class EvaluationsController {
         });
 
         if (!phaseEvaluation) {
-          return badRequestResponse(res, `Debe evaluar primero la fase "${phase.name}" antes de evaluar el proyecto completo`);
+          return badRequestResponse(res, t(req, 'evaluations.mustEvaluatePhaseFirst', { phaseName: phase.name }));
         }
       }
 
@@ -724,7 +725,7 @@ export class EvaluationsController {
         });
 
         if (submissions.length !== submissionIds.length) {
-          return badRequestResponse(res, 'Algunas entregas no pertenecen al equipo o al evento');
+          return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrEvent'));
         }
       }
 
@@ -732,7 +733,7 @@ export class EvaluationsController {
       
       // Validar que el comentario esté presente y no esté vacío
       if (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0)) {
-        return badRequestResponse(res, 'El comentario es requerido');
+        return badRequestResponse(res, t(req, 'evaluations.commentRequired'));
       }
 
       // Validar que el score esté en el rango correcto si se proporciona
@@ -740,14 +741,14 @@ export class EvaluationsController {
       if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
         const score = Number(req.body.score);
         if (isNaN(score) || score < 0 || score > 10) {
-          return badRequestResponse(res, 'La puntuación debe estar entre 0 y 10');
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange10'));
         }
         scoreValue = score;
       }
 
       const tenantId = project.tenant_id || req.tenant?.id;
       if (!tenantId) {
-        return errorResponse(res, 'No se pudo determinar el tenant para la evaluación', 500);
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
       const evaluation = await Evaluation.create({
@@ -755,7 +756,7 @@ export class EvaluationsController {
         evaluation_scope: 'project',
         project_id: projectId,
         team_id: team.id,
-        submission_id: null,
+        submission_id: null, // Nullable para evaluaciones de proyecto (migración 0009)
         evaluated_submission_ids: submissionIds.length > 0 ? submissionIds : null,
         score: scoreValue,
         comment: req.body.comment.trim(),
@@ -791,12 +792,12 @@ export class EvaluationsController {
 
       const project = await Project.findOne({ where: { id: projectId } });
       if (!project) {
-        return notFoundResponse(res, 'Proyecto no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.projectNotFound'));
       }
 
       const team = await Team.findOne({ where: { id: project.team_id } });
       if (!team) {
-        return notFoundResponse(res, 'Equipo no encontrado');
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
       }
 
       // Verificar permisos: solo revisores o miembros del equipo

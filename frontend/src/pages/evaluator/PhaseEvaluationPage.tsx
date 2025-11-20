@@ -33,7 +33,7 @@ import { cn } from '@/utils/cn';
 const evaluationSchema = z.object({
   comment: z.string().min(1, 'El comentario es requerido'),
   score: z.union([
-    z.number().min(0, 'La puntuación mínima es 0').max(10, 'La puntuación máxima es 10'),
+    z.number().int().min(0, 'La puntuación mínima es 0').max(100, 'La puntuación máxima es 100'),
     z.nan()
   ]).optional()
 });
@@ -227,7 +227,7 @@ function PhaseEvaluationPage() {
     onSuccess: (data) => {
       toast.success(t('evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
       setAiEvaluationText(data.comment || '');
-      form.setValue('comment', data.comment || '');
+      // No copiar automáticamente el comentario al campo final, el usuario lo hará con el botón de copiar
       if (data.score) {
         form.setValue('score', Number(data.score));
       }
@@ -260,7 +260,12 @@ function PhaseEvaluationPage() {
 
   const saveDraftMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
-      const payload = {
+      const payload: {
+        submission_ids: number[];
+        comment: string;
+        status: 'draft';
+        score?: number;
+      } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
         status: 'draft' as const
@@ -299,7 +304,12 @@ function PhaseEvaluationPage() {
 
   const saveFinalMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
-      const payload = {
+      const payload: {
+        submission_ids: number[];
+        comment: string;
+        status: 'final';
+        score?: number;
+      } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
         status: 'final' as const
@@ -627,18 +637,18 @@ function PhaseEvaluationPage() {
                 )}
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">
+                <label className="text-sm font-medium block mb-2">
                   {t('evaluations.score', { defaultValue: 'Puntuación' })}
                 </label>
                 <input
                   type="number"
-                  step="0.1"
+                  step="1"
                   min="0"
-                  max="10"
+                  max="100"
                   {...form.register('score', { 
                     valueAsNumber: true,
                     min: { value: 0, message: t('evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
-                    max: { value: 10, message: t('evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 10' }) }
+                    max: { value: 100, message: t('evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 100' }) }
                   })}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
