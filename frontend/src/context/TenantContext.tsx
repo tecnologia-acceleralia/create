@@ -266,7 +266,7 @@ export function TenantProvider({ children }: Props) {
 
   // Escuchar cambios en la URL para detectar cambios de tenant
   // Usamos un enfoque que detecta cambios de URL sin interferir con React Router
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const browserWindow = getBrowserWindow();
     if (!browserWindow) {
       return;
@@ -274,6 +274,7 @@ export function TenantProvider({ children }: Props) {
 
     let lastPathname = browserWindow.location.pathname;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let rafId: number | null = null;
 
     const checkUrlForTenant = () => {
       const currentPathname = browserWindow.location.pathname;
@@ -292,16 +293,73 @@ export function TenantProvider({ children }: Props) {
     // Escuchar cambios de popstate (navegación del navegador)
     browserWindow.addEventListener('popstate', checkUrlForTenant);
 
-    // Usar un intervalo corto solo cuando no hay tenant activo para detectar cambios rápidamente
-    // Esto ayuda a detectar cambios de tenant antes de que React Router complete la navegación
+    // Interceptar clics en enlaces para detectar cambios de tenant antes de la navegación
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a[href]') as HTMLAnchorElement | null;
+      
+      if (link && link.href) {
+        try {
+          const url = new URL(link.href, browserWindow.location.origin);
+          const pathSegments = url.pathname.split('/').filter(Boolean);
+          const firstSegment = pathSegments[0];
+          
+          if (firstSegment) {
+            const reservedSegments = new Set(['superadmin', 'dashboard', 'api']);
+            if (!reservedSegments.has(firstSegment.toLowerCase())) {
+              const newSlug = firstSegment.toLowerCase();
+              if (newSlug !== tenantSlug) {
+                // Actualizar el tenant inmediatamente antes de la navegación
+                setTenantSlug(newSlug);
+              }
+            }
+          }
+        } catch {
+          // Ignorar errores de parsing de URL
+        }
+      }
+    };
+
+    browserWindow.addEventListener('click', handleLinkClick, true); // Usar capture phase
+
+    // Usar requestAnimationFrame para detectar cambios de URL de manera eficiente
+    // Esto es necesario porque React Router usa pushState internamente
+    const scheduleCheck = () => {
+      if (rafId !== null) {
+        return;
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        checkUrlForTenant();
+        // Si detectamos un cambio, programar otra verificación
+        if (browserWindow.location.pathname !== lastPathname) {
+          scheduleCheck();
+        }
+      });
+    };
+
+    // Usar un intervalo más frecuente cuando no hay tenant activo
+    // Esto ayuda a detectar cambios de tenant rápidamente en producción
     if (!tenantSlug) {
-      timeoutId = setInterval(checkUrlForTenant, 100); // Verificar cada 100ms cuando no hay tenant
+      timeoutId = setInterval(() => {
+        checkUrlForTenant();
+        scheduleCheck();
+      }, 50); // Verificar cada 50ms cuando no hay tenant (más frecuente en producción)
+    } else {
+      // Cuando hay tenant, verificar menos frecuentemente pero aún monitorear cambios
+      timeoutId = setInterval(() => {
+        scheduleCheck();
+      }, 200);
     }
 
     return () => {
       browserWindow.removeEventListener('popstate', checkUrlForTenant);
+      browserWindow.removeEventListener('click', handleLinkClick, true);
       if (timeoutId !== null) {
         clearInterval(timeoutId);
+      }
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
       }
     };
   }, [tenantSlug]);
