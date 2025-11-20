@@ -30,12 +30,36 @@ function normalizeAssetName(name: string): string {
 }
 
 /**
- * Reemplaza los marcadores de assets en HTML por links con descripción.
+ * Determina si un asset es una imagen basándose en su mime_type o extensión del archivo.
+ */
+function isImageAsset(asset: EventAsset): boolean {
+  // Verificar por mime_type primero
+  if (asset.mime_type) {
+    const mimeType = asset.mime_type.toLowerCase().trim();
+    // Verificar si comienza con 'image/' (cubre image/jpeg, image/png, image/jpg, etc.)
+    if (mimeType.startsWith('image/')) {
+      return true;
+    }
+  }
+  
+  // Fallback: verificar por extensión del archivo si el mime_type no está disponible
+  if (asset.original_filename || asset.url) {
+    const fileName = (asset.original_filename || asset.url || '').toLowerCase();
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+    return imageExtensions.some(ext => fileName.endsWith(ext));
+  }
+  
+  return false;
+}
+
+/**
+ * Reemplaza los marcadores de assets en HTML por links con descripción o imágenes.
  * Los marcadores tienen el formato: {{asset:nombre-del-recurso}}
+ * Si el asset es una imagen, se renderiza como <img>, si no, como <a>.
  *
  * @param html - Contenido HTML que puede contener marcadores
  * @param assets - Array de assets del evento
- * @returns HTML con los marcadores reemplazados por links HTML
+ * @returns HTML con los marcadores reemplazados por links HTML o imágenes
  */
 export function resolveAssetMarkers(html: string | null | undefined, assets: EventAsset[]): string {
   if (!html || typeof html !== 'string') {
@@ -51,7 +75,7 @@ export function resolveAssetMarkers(html: string | null | undefined, assets: Eve
 
   // Debug: Log para ver qué marcadores se encontraron
   console.log('[resolveAssetMarkers] Marcadores encontrados:', matches.map(m => m[1]));
-  console.log('[resolveAssetMarkers] Assets disponibles:', assets.map(a => ({ name: a.name, original_filename: a.original_filename, description: a.description })));
+  console.log('[resolveAssetMarkers] Assets disponibles:', assets.map(a => ({ name: a.name, original_filename: a.original_filename, description: a.description, mime_type: a.mime_type })));
 
   // Crear mapas de búsqueda por name y original_filename (case-insensitive para mayor robustez)
   const assetMapByName = new Map<string, EventAsset>();
@@ -71,7 +95,7 @@ export function resolveAssetMarkers(html: string | null | undefined, assets: Eve
     }
   }
 
-  // Reemplazar cada marcador por un link HTML
+  // Reemplazar cada marcador por un link HTML o imagen
   let resolvedHtml = html;
   // Procesar solo marcadores únicos para evitar trabajo duplicado
   const uniqueMarkers = new Map<string, string>();
@@ -115,18 +139,39 @@ export function resolveAssetMarkers(html: string | null | undefined, assets: Eve
     }
 
     if (asset) {
-      // Usar descripción si existe, sino usar el nombre original del archivo o el nombre del asset
-      const linkText = asset.description || asset.original_filename || asset.name;
-      const escapedText = escapeHtml(linkText);
       const escapedUrl = escapeHtml(asset.url);
+      const isImage = isImageAsset(asset);
       
-      // Crear link HTML que se abre en nueva pestaña
+      // Debug: Log detallado para depuración
+      console.log(`[resolveAssetMarkers] Procesando asset: ${asset.name}`, {
+        mime_type: asset.mime_type,
+        original_filename: asset.original_filename,
+        url: asset.url,
+        isImage,
+        detectionMethod: asset.mime_type ? 'mime_type' : 'file_extension'
+      });
+      
+      // Si es una imagen, crear un elemento <img>
+      if (isImage) {
+        const altText = asset.description || asset.original_filename || asset.name;
+        const escapedAlt = escapeHtml(altText);
+        const imgHtml = `<img src="${escapedUrl}" alt="${escapedAlt}" class="max-w-full h-auto" />`;
+        
+        // Escapar caracteres especiales del regex para reemplazo seguro
+        const escapedMatch = escapeRegex(fullMatch);
+        resolvedHtml = resolvedHtml.replaceAll(escapedMatch, imgHtml);
+        console.log(`[resolveAssetMarkers] ✅ Reemplazado (imagen): ${fullMatch} -> ${asset.name} (mime_type: ${asset.mime_type || 'N/A'})`);
+      } else {
+        // Si no es una imagen, crear un link HTML que se abre en nueva pestaña
+        const linkText = asset.description || asset.original_filename || asset.name;
+        const escapedText = escapeHtml(linkText);
       const linkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
       
       // Escapar caracteres especiales del regex para reemplazo seguro
       const escapedMatch = escapeRegex(fullMatch);
       resolvedHtml = resolvedHtml.replaceAll(escapedMatch, linkHtml);
-      console.log(`[resolveAssetMarkers] ✅ Reemplazado: ${fullMatch} -> ${asset.name} (${linkHtml.substring(0, 80)}...)`);
+        console.log(`[resolveAssetMarkers] ✅ Reemplazado (link): ${fullMatch} -> ${asset.name} (mime_type: ${asset.mime_type || 'N/A'})`);
+      }
     } else {
       // Dejar el marcador sin reemplazar si no se encuentra el asset
       const foundByName = assetMapByName.has(assetName);

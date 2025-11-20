@@ -43,6 +43,7 @@ type UserFilters = {
   status: StatusFilter;
   isSuperAdmin: '' | 'true' | 'false';
   tenantId?: number;
+  lastLoginFilter: '' | 'never' | 'last7days' | 'last30days' | 'last90days';
   page: number;
 };
 
@@ -51,6 +52,7 @@ const DEFAULT_FILTERS: UserFilters = {
   status: '',
   isSuperAdmin: '',
   tenantId: undefined,
+  lastLoginFilter: '',
   page: 1
 };
 
@@ -111,6 +113,7 @@ function SuperAdminUsersPage() {
         status: filters.status ? [filters.status] : undefined,
         isSuperAdmin: filters.isSuperAdmin ? filters.isSuperAdmin === 'true' : undefined,
         tenantId: filters.tenantId,
+        lastLoginFilter: filters.lastLoginFilter || undefined,
         sortField: 'created_at',
         sortOrder: 'desc'
       }),
@@ -163,12 +166,14 @@ function SuperAdminUsersPage() {
     const isSuperAdmin = (formData.get('isSuperAdmin') as '' | 'true' | 'false') ?? '';
     const tenantIdRaw = String(formData.get('tenantId') ?? '').trim();
     const tenantId = tenantIdRaw ? Number.parseInt(tenantIdRaw, 10) : undefined;
+    const lastLoginFilter = (formData.get('lastLoginFilter') as '' | 'never' | 'last7days' | 'last30days' | 'last90days') ?? '';
 
     setFilters({
       search,
       status,
       isSuperAdmin,
       tenantId: Number.isNaN(tenantId!) ? undefined : tenantId,
+      lastLoginFilter,
       page: 1
     });
   };
@@ -280,6 +285,17 @@ function SuperAdminUsersPage() {
       render: user => formatDateValue(user.created_at ?? user.createdAt) ?? t('common.notAvailable')
     },
     {
+      key: 'lastLogin',
+      header: t('superadmin.users.table.lastLogin'),
+      render: user => {
+        const lastLogin = user.last_login_at;
+        if (!lastLogin) {
+          return <span className="text-muted-foreground">{t('superadmin.users.neverLoggedIn')}</span>;
+        }
+        return formatDateValue(lastLogin) ?? t('common.notAvailable');
+      }
+    },
+    {
       key: 'actions',
       header: t('superadmin.users.table.actions'),
       className: 'text-right',
@@ -377,6 +393,15 @@ function SuperAdminUsersPage() {
                 {tenant.name}
               </option>
             ))}
+          </Select>
+        </FormField>
+        <FormField label={t('superadmin.users.filterLastLogin')}>
+          <Select name="lastLoginFilter" defaultValue={filters.lastLoginFilter}>
+            <option value="">{t('superadmin.users.allLastLogins')}</option>
+            <option value="never">{t('superadmin.users.neverLoggedIn')}</option>
+            <option value="last7days">{t('superadmin.users.last7days')}</option>
+            <option value="last30days">{t('superadmin.users.last30days')}</option>
+            <option value="last90days">{t('superadmin.users.last90days')}</option>
           </Select>
         </FormField>
       </FilterCard>

@@ -5,6 +5,7 @@ import { ensureUserNotInOtherTeam, findTeamOr404 } from '../services/team.servic
 import { isTenantAdmin, canManageTeam } from '../utils/authorization.js';
 import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 import { ensureParticipantRole, ensureTeamCaptainRole, removeTeamCaptainRole } from '../utils/role-management.js';
+import { t } from '../utils/i18n.js';
 import { Op } from 'sequelize';
 
 export class TeamsController {
@@ -133,14 +134,14 @@ export class TeamsController {
         const user = await User.findOne({ where: { email: req.body.user_email } });
         if (!user) {
           await transaction.rollback();
-          return notFoundResponse(res, `No se encontró ningún usuario con el correo electrónico ${req.body.user_email}. El usuario debe estar registrado previamente en la plataforma.`);
+          return notFoundResponse(res, t(req, 'teams.userNotFoundByEmail', { email: req.body.user_email }));
         }
         userId = user.id;
       }
 
       if (!userId) {
         await transaction.rollback();
-        return badRequestResponse(res, 'Debes indicar user_id o user_email');
+        return badRequestResponse(res, t(req, 'teams.userIdOrEmailRequired'));
       }
 
       await ensureUserNotInOtherTeam(userId, team.event_id);
@@ -182,7 +183,7 @@ export class TeamsController {
       });
 
       if (!member) {
-        return notFoundResponse(res, 'Miembro no encontrado');
+        return notFoundResponse(res, t(req, 'teams.memberNotFound'));
       }
 
       // Si es capitán, validar que haya otro miembro que pueda ser capitán
@@ -195,12 +196,12 @@ export class TeamsController {
         });
 
         if (otherMembers.length === 0) {
-          return badRequestResponse(res, 'No puedes eliminar al capitán si es el único miembro del equipo');
+          return badRequestResponse(res, t(req, 'teams.cannotRemoveCaptainIfOnlyMember'));
         }
 
         // Si es auto-eliminación del capitán, debe haber asignado otro capitán primero
         if (isSelfRemoval) {
-          return badRequestResponse(res, 'Debes asignar otro capitán antes de abandonar el equipo');
+          return badRequestResponse(res, t(req, 'teams.mustAssignCaptainBeforeLeave'));
         }
       }
 
@@ -228,7 +229,13 @@ export class TeamsController {
 
       if (!member) {
         await transaction.rollback();
-        return notFoundResponse(res, 'El usuario no es miembro del equipo');
+        return notFoundResponse(res, t(req, 'teams.userNotMemberOfTeam'));
+      }
+
+      // Validar que el miembro tenga estado activo para poder ser capitán
+      if (member.status !== 'active') {
+        await transaction.rollback();
+        return badRequestResponse(res, t(req, 'teams.onlyActiveMembersCanBeCaptain'));
       }
 
       // Si hay un capitán anterior, cambiar su rol a 'member'
@@ -300,7 +307,7 @@ export class TeamsController {
         const project = await Project.findOne({ where: { team_id: team.id } });
         if (project && project.status !== 'active') {
           await transaction.rollback();
-          return conflictResponse(res, 'No se puede abrir un equipo cuyo proyecto está inactivo');
+          return conflictResponse(res, t(req, 'teams.cannotOpenTeamWithInactiveProject'));
         }
       }
 
@@ -337,7 +344,7 @@ export class TeamsController {
       // Verificar si el equipo está abierto
       if (team.status !== 'open') {
         await transaction.rollback();
-        return badRequestResponse(res, 'El equipo no está abierto para nuevos miembros');
+        return badRequestResponse(res, t(req, 'teams.teamNotOpenForMembers'));
       }
 
       // Verificar si ya es miembro de este equipo
@@ -347,7 +354,7 @@ export class TeamsController {
 
       if (existingMember) {
         await transaction.rollback();
-        return conflictResponse(res, 'Ya eres miembro de este equipo');
+        return conflictResponse(res, t(req, 'teams.alreadyMemberOfTeam'));
       }
 
       // Buscar si está en otro equipo del mismo evento
@@ -367,9 +374,11 @@ export class TeamsController {
       // Si está en otro equipo, abandonarlo primero
       if (otherMembership) {
         // Si es capitán del otro equipo, no puede abandonarlo sin asignar otro capitán
-        if (otherMembership.team.captain_id === userId) {
+        const otherCaptainId = otherMembership.team.captain_id != null ? Number(otherMembership.team.captain_id) : null;
+        const normalizedUserId = userId != null ? Number(userId) : null;
+        if (otherCaptainId !== null && normalizedUserId !== null && otherCaptainId === normalizedUserId) {
           await transaction.rollback();
-          return badRequestResponse(res, 'Debes asignar otro capitán a tu equipo actual antes de unirte a otro equipo');
+          return badRequestResponse(res, t(req, 'teams.mustAssignCaptainBeforeJoinOtherTeam'));
         }
 
         await otherMembership.destroy({ transaction });
@@ -426,11 +435,13 @@ export class TeamsController {
 
       if (!member) {
         await transaction.rollback();
-        return notFoundResponse(res, 'No eres miembro de este equipo');
+        return notFoundResponse(res, t(req, 'teams.notMemberOfTeam'));
       }
 
       // Si es capitán, validar que haya otro capitán asignado
-      if (team.captain_id === userId) {
+      const captainId = team.captain_id != null ? Number(team.captain_id) : null;
+      const normalizedUserId = userId != null ? Number(userId) : null;
+      if (captainId !== null && normalizedUserId !== null && captainId === normalizedUserId) {
         // Verificar si hay otro miembro que pueda ser capitán
         const otherMembers = await TeamMember.findAll({
           where: {
@@ -441,14 +452,14 @@ export class TeamsController {
 
         if (otherMembers.length === 0) {
           await transaction.rollback();
-          return badRequestResponse(res, 'No puedes abandonar el equipo si eres el único miembro');
+          return badRequestResponse(res, t(req, 'teams.cannotLeaveIfOnlyMember'));
         }
 
         // Verificar si hay otro capitán asignado (no debería pasar, pero por seguridad)
         const hasOtherCaptain = otherMembers.some(m => m.role === 'captain');
         if (!hasOtherCaptain) {
           await transaction.rollback();
-          return badRequestResponse(res, 'Debes asignar otro capitán antes de abandonar el equipo');
+          return badRequestResponse(res, t(req, 'teams.mustAssignCaptainBeforeLeave'));
         }
 
         // Remover rol team_captain si ya no es capitán de ningún otro equipo
@@ -471,7 +482,9 @@ export class TeamsController {
       logger.info('Usuario abandonó un equipo', {
         userId,
         teamId: team.id,
-        wasCaptain: team.captain_id === userId,
+        wasCaptain: team.captain_id != null && userId != null 
+          ? Number(team.captain_id) === Number(userId)
+          : false,
         tenantId: req.tenant.id
       });
 

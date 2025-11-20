@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiClient, setAuthToken, clearSession, registerUnauthorizedHandler } from '@/services/api';
 import { useTenant } from './TenantContext';
 import { buildAvatarUrl } from '@/utils/avatar';
+import { ensureSuperAdminMembership } from '@/services/auth';
+import i18n from '@/i18n/config';
 
 type MembershipRole = {
   id: number;
@@ -37,6 +39,7 @@ type User = {
   first_name: string;
   last_name: string;
   profile_image_url: string | null;
+  language: 'es' | 'en' | 'ca';
   is_super_admin: boolean;
   roleScopes: string[];
   avatarUrl: string;
@@ -116,12 +119,19 @@ function getAllSessionKeys(): string[] {
 }
 
 function mapUser(rawUser: any, roleScopes: string[]): User {
+  // Validar y normalizar el idioma del usuario
+  const userLanguage = rawUser.language;
+  const validLanguage = userLanguage && ['es', 'en', 'ca'].includes(userLanguage) 
+    ? userLanguage as 'es' | 'en' | 'ca'
+    : 'es'; // Por defecto español
+  
   return {
     id: rawUser.id,
     email: rawUser.email,
     first_name: rawUser.first_name,
     last_name: rawUser.last_name,
     profile_image_url: rawUser.profile_image_url ?? null,
+    language: validLanguage,
     is_super_admin: Boolean(rawUser.is_super_admin),
     roleScopes,
     avatarUrl: buildAvatarUrl(rawUser)
@@ -166,6 +176,7 @@ export function AuthProvider({ children }: Props) {
   const [loading, setLoading] = useState(true);
   const [currentEventId, setCurrentEventId] = useState<number | null>(null);
   const [eventSessions, setEventSessions] = useState<Record<number, EventSession>>({});
+  const [ensuringMembership, setEnsuringMembership] = useState(false);
   const { tenantSlug } = useTenant();
   const queryClient = useQueryClient();
   
@@ -360,6 +371,63 @@ export function AuthProvider({ children }: Props) {
       }
     }
   }, [tenantSlug, memberships]);
+
+  // Efecto para asegurar membresía automáticamente cuando superadmin accede a un tenant diferente
+  useEffect(() => {
+    if (!tenantSlug || !user || !isSuperAdmin || loading || ensuringMembership) {
+      return;
+    }
+
+    // Verificar si el superadmin tiene membresía activa para el tenant actual
+    const hasActiveMembership = activeMembership?.tenant?.slug === tenantSlug && activeMembership.status === 'active';
+    
+    // Si no tiene membresía activa, crear/activar automáticamente
+    if (!hasActiveMembership && tokens?.token) {
+      setEnsuringMembership(true);
+      ensureSuperAdminMembership()
+        .then(response => {
+          if (response.success && response.data) {
+            const { tokens: newTokens, user: userData, memberships: responseMemberships, activeMembership: responseActiveMembership } = response.data;
+            
+            // Actualizar tokens
+            setAuthToken(newTokens.token);
+            setTokens(newTokens);
+            
+            // Actualizar membresías
+            setMemberships(responseMemberships);
+            setActiveMembership(responseActiveMembership);
+            
+            // Actualizar usuario
+            const roleScopes = responseActiveMembership?.roles?.map(role => role.scope) ?? userData.roleScopes ?? [];
+            const mappedUser = mapUser(userData, roleScopes);
+            setUser(mappedUser);
+            
+            // Guardar en localStorage
+            const storageKey = getStorageKey(tenantSlug);
+            const stored: StoredAuth = {
+              tenantSlug,
+              user: userData,
+              tokens: newTokens,
+              memberships: responseMemberships,
+              activeMembership: responseActiveMembership,
+              isSuperAdmin: true,
+              currentEventId: currentEventId,
+              eventSessions: eventSessions
+            };
+            localStorage.setItem(storageKey, JSON.stringify(stored));
+          }
+        })
+        .catch(error => {
+          // Log error pero no bloquear el acceso
+          if (import.meta.env.DEV) {
+            console.warn('Error al asegurar membresía de superadmin:', error);
+          }
+        })
+        .finally(() => {
+          setEnsuringMembership(false);
+        });
+    }
+  }, [tenantSlug, user, isSuperAdmin, activeMembership, tokens, loading, ensuringMembership, currentEventId, eventSessions]);
   
   // Actualizar sesión cuando cambia el evento desde la URL
   useEffect(() => {
@@ -536,6 +604,20 @@ export function AuthProvider({ children }: Props) {
     }
   }, [tenantSlug, queryClient]);
 
+  // Actualizar idioma de i18n cuando cambia el usuario
+  useEffect(() => {
+    if (user?.language) {
+      const userLanguage = user.language;
+      // Validar que el idioma sea uno de los soportados
+      if (['es', 'en', 'ca'].includes(userLanguage)) {
+        // Solo cambiar el idioma si es diferente al actual
+        if (i18n.language !== userLanguage) {
+          void i18n.changeLanguage(userLanguage);
+        }
+      }
+    }
+  }, [user?.language]);
+
   useEffect(() => {
     const unsubscribe = registerUnauthorizedHandler(() => {
       // No navegar automáticamente desde logout porque el handler maneja la navegación al login
@@ -555,7 +637,7 @@ export function AuthProvider({ children }: Props) {
       activeMembership,
       tokens,
       isSuperAdmin,
-      loading,
+      loading: loading || ensuringMembership,
       currentEventId,
       currentEventSession,
       login,
@@ -564,7 +646,7 @@ export function AuthProvider({ children }: Props) {
       updateEventSession,
       setCurrentEvent
     }),
-    [user, memberships, activeMembership, tokens, isSuperAdmin, loading, currentEventId, currentEventSession, login, applyAuthPayload, logout, updateEventSession, setCurrentEvent]
+    [user, memberships, activeMembership, tokens, isSuperAdmin, loading, ensuringMembership, currentEventId, currentEventSession, login, applyAuthPayload, logout, updateEventSession, setCurrentEvent]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

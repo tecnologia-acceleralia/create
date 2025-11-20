@@ -13,10 +13,6 @@ export async function authenticate(req, res, next) {
   try {
     const payload = jwt.verify(token, appConfig.jwtSecret);
 
-    if (req.tenant && payload.tenantId && Number(payload.tenantId) !== Number(req.tenant.id)) {
-      return res.status(403).json({ success: false, message: 'Tenant inválido para el token' });
-    }
-
     const { User, UserTenant, Role, Tenant } = getModels();
     const user = await User.findOne({
       where: { id: payload.sub }
@@ -24,6 +20,14 @@ export async function authenticate(req, res, next) {
 
     if (!user) {
       return res.status(401).json({ success: false, message: 'Usuario no encontrado' });
+    }
+
+    const isSuperAdmin = Boolean(user.is_super_admin);
+
+    // Permitir superadmins incluso si el tenantId del token no coincide con req.tenant
+    // Esto permite que superadmins accedan a cualquier tenant
+    if (req.tenant && payload.tenantId && Number(payload.tenantId) !== Number(req.tenant.id) && !isSuperAdmin) {
+      return res.status(403).json({ success: false, message: 'Tenant inválido para el token' });
     }
 
     let membership = null;
@@ -52,10 +56,13 @@ export async function authenticate(req, res, next) {
         return res.status(403).json({ success: false, message: 'Acceso al tenant revocado' });
       }
 
+      // Permitir superadmins incluso si la membresía es de otro tenant
+      // Esto permite que superadmins accedan a cualquier tenant
       if (
         membership &&
         req.tenant &&
-        Number(membership.tenant_id) !== Number(req.tenant.id)
+        Number(membership.tenant_id) !== Number(req.tenant.id) &&
+        !Boolean(user.is_super_admin)
       ) {
         return res.status(403).json({ success: false, message: 'Tenant inválido para la membresía' });
       }
@@ -66,7 +73,6 @@ export async function authenticate(req, res, next) {
     }
 
     const roleScopes = membership?.assignedRoles?.map(role => role.scope) ?? payload.roleScopes ?? [];
-    const isSuperAdmin = Boolean(user.is_super_admin);
 
     req.auth = {
       user,

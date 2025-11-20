@@ -3,6 +3,7 @@ import { body } from 'express-validator';
 import { validateRequest } from '../../middleware/validation.middleware.js';
 import { AuthController } from '../../controllers/auth.controller.js';
 import { PasswordResetController } from '../../controllers/password-reset.controller.js';
+import { authenticate } from '../../middleware/auth.middleware.js';
 
 export const authRouter = Router();
 
@@ -65,5 +66,12 @@ authRouter.post(
   ],
   validateRequest,
   (req, res, next) => PasswordResetController.confirmReset(req, res, next)
+);
+
+// Endpoint para que superadmin asegure membresía en un tenant
+authRouter.post(
+  '/ensure-membership',
+  authenticate,
+  (req, res, next) => AuthController.ensureSuperAdminMembership(req, res, next)
 );
 

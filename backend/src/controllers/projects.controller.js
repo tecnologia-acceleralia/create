@@ -44,7 +44,9 @@ function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
     max_team_size: eventMaxTeamSize,
     can_join: Boolean(canJoin),
     is_member: isMember,
-    is_captain: team?.captain_id === currentUserId,
+    is_captain: currentUserId != null && team?.captain_id != null 
+      ? Number(team.captain_id) === Number(currentUserId)
+      : false,
     is_pending_member: hasPending,
     captain: captain
       ? {
@@ -329,7 +331,9 @@ export class ProjectsController {
         const previousTeam = existingMembership.team;
         
         // Si el usuario es capitán del equipo anterior, validar restricciones
-        if (previousTeam.captain_id === req.user.id) {
+        const previousCaptainId = previousTeam.captain_id != null ? Number(previousTeam.captain_id) : null;
+        const currentUserId = req.user?.id != null ? Number(req.user.id) : null;
+        if (previousCaptainId !== null && currentUserId !== null && previousCaptainId === currentUserId) {
           const otherMembers = await TeamMember.findAll({
             where: {
               team_id: previousTeam.id,

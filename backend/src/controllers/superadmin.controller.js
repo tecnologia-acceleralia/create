@@ -48,7 +48,8 @@ const USER_SORT_MAP = {
   last_name: 'last_name',
   status: 'status',
   created_at: 'created_at',
-  updated_at: 'updated_at'
+  updated_at: 'updated_at',
+  last_login_at: 'last_login_at'
 };
 
 function buildRolePayloads(tenantId) {
@@ -727,6 +728,7 @@ export class SuperAdminController {
       status,
       tenantId: tenantIdParam,
       isSuperAdmin,
+      lastLoginFilter,
       sortField,
       sortOrder
     } = req.query;
@@ -747,6 +749,22 @@ export class SuperAdminController {
         where.is_super_admin = true;
       } else if (isSuperAdmin === 'false') {
         where.is_super_admin = false;
+      }
+    }
+
+    if (lastLoginFilter) {
+      const now = new Date();
+      if (lastLoginFilter === 'never') {
+        where.last_login_at = null;
+      } else if (lastLoginFilter === 'last7days') {
+        const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        where.last_login_at = { [Op.gte]: sevenDaysAgo };
+      } else if (lastLoginFilter === 'last30days') {
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        where.last_login_at = { [Op.gte]: thirtyDaysAgo };
+      } else if (lastLoginFilter === 'last90days') {
+        const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+        where.last_login_at = { [Op.gte]: ninetyDaysAgo };
       }
     }
 
@@ -778,7 +796,8 @@ export class SuperAdminController {
                 search: search?.trim() ?? '',
                 status: statuses,
                 tenantId,
-                isSuperAdmin: typeof where.is_super_admin === 'boolean' ? where.is_super_admin : undefined
+                isSuperAdmin: typeof where.is_super_admin === 'boolean' ? where.is_super_admin : undefined,
+                lastLoginFilter: lastLoginFilter || undefined
               }
             }
           });
@@ -835,7 +854,8 @@ export class SuperAdminController {
             search: search?.trim() ?? '',
             status: statuses,
             tenantId: tenantIdParam ? Number.parseInt(tenantIdParam, 10) : undefined,
-            isSuperAdmin: typeof where.is_super_admin === 'boolean' ? where.is_super_admin : undefined
+            isSuperAdmin: typeof where.is_super_admin === 'boolean' ? where.is_super_admin : undefined,
+            lastLoginFilter: lastLoginFilter || undefined
           },
           sort: {
             field: sortField ?? 'created_at',
@@ -1138,25 +1158,106 @@ export class SuperAdminController {
   }
 
   static async deleteUser(req, res) {
-    const { User, UserTenant } = getModels();
+    const { 
+      User, 
+      UserTenant, 
+      UserTenantRole, 
+      PasswordResetToken, 
+      Notification,
+      TeamMember,
+      Submission,
+      Evaluation,
+      EventRegistration
+    } = getModels();
+    const sequelize = getSequelize();
     const { userId } = req.params;
 
+    const transaction = await sequelize.transaction();
+
     try {
-      const user = await User.findByPk(userId);
+      const user = await User.findByPk(userId, { transaction });
       if (!user) {
+        await transaction.rollback();
         return notFoundResponse(res, 'Usuario no encontrado');
       }
 
       // Guardar URL antes de borrar el usuario
       const profileImageUrl = user.profile_image_url;
 
-      // Borrar relaciones primero
-      await UserTenant.destroy({
+      // Obtener todas las membresías del usuario para borrar sus roles
+      const userTenants = await UserTenant.findAll({
         where: { user_id: user.id },
-        skipTenant: true
+        skipTenant: true,
+        transaction
       });
 
-      // Borrar archivos de S3 antes de borrar el usuario
+      // Borrar relaciones con tenant scoping explícitamente (en orden de dependencias)
+      // 1. Borrar UserTenantRole primero (depende de UserTenant)
+      if (userTenants.length > 0) {
+        const userTenantIds = userTenants.map(ut => ut.id);
+        await UserTenantRole.destroy({
+          where: { user_tenant_id: { [Op.in]: userTenantIds } },
+          skipTenant: true,
+          transaction
+        });
+      }
+
+      // 2. Borrar Evaluation (tiene tenant scoping, referencia reviewer_id)
+      await Evaluation.destroy({
+        where: { reviewer_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 3. Borrar Submission (tiene tenant scoping, referencia submitted_by)
+      await Submission.destroy({
+        where: { submitted_by: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 4. Borrar TeamMember (tiene tenant scoping, referencia user_id)
+      await TeamMember.destroy({
+        where: { user_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 5. Borrar EventRegistration (tiene tenant scoping, referencia user_id)
+      await EventRegistration.destroy({
+        where: { user_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 6. Borrar PasswordResetToken (tiene tenant scoping)
+      await PasswordResetToken.destroy({
+        where: { user_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 7. Borrar Notification (tiene tenant scoping)
+      await Notification.destroy({
+        where: { user_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // 8. Borrar UserTenant después
+      await UserTenant.destroy({
+        where: { user_id: user.id },
+        skipTenant: true,
+        transaction
+      });
+
+      // Borrar el usuario (las demás relaciones tienen CASCADE o SET NULL y se manejan automáticamente)
+      await user.destroy({ transaction });
+
+      // Confirmar transacción
+      await transaction.commit();
+
+      // Borrar archivos de S3 después de confirmar la transacción (operación externa)
       await Promise.allSettled([
         profileImageUrl ? deleteObjectByUrl(profileImageUrl).catch(error => {
           logger.warn('Error al borrar imagen de perfil de usuario de S3', {
@@ -1167,13 +1268,23 @@ export class SuperAdminController {
         }) : Promise.resolve()
       ]);
 
-      // Borrar el usuario
-      await user.destroy();
-
       return res.json({ success: true });
     } catch (error) {
-      logger.error('Error eliminando usuario (superadmin)', { error: error.message, userId });
-      return res.status(500).json({ success: false, message: 'No se pudo eliminar el usuario' });
+      await transaction.rollback();
+      logger.error('Error eliminando usuario (superadmin)', { 
+        error: error.message, 
+        stack: error.stack,
+        userId,
+        name: error.name,
+        code: error.parent?.code,
+        sqlState: error.parent?.sqlState,
+        sqlMessage: error.parent?.sqlMessage
+      });
+      return res.status(500).json({ 
+        success: false, 
+        message: 'No se pudo eliminar el usuario',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   }
 

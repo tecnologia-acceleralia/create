@@ -876,7 +876,7 @@ export function SiteHeader() {
         <div className="flex items-center gap-2 flex-shrink-0 justify-end">
           {user && !isSuperAdminSession ? (
             <Link
-              to={tenantPath('dashboard/notifications')}
+              to={activeEventId ? tenantPath(`dashboard/events/${activeEventId}/notifications`) : tenantPath('dashboard/notifications')}
               className="relative hidden items-center justify-center rounded-full border border-[color:var(--header-border)] p-2 text-[color:var(--header-muted)] transition-colors hover:border-[color:var(--header-fg)] hover:text-[color:var(--header-fg)] md:inline-flex"
               aria-label={t('notifications.title')}
               title={t('notifications.title')}
@@ -999,7 +999,7 @@ export function SiteHeader() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 pt-4 sm:px-6">
           {user && !isSuperAdminSession ? (
             <Link
-              to={tenantPath('dashboard/notifications')}
+              to={activeEventId ? tenantPath(`dashboard/events/${activeEventId}/notifications`) : tenantPath('dashboard/notifications')}
               onClick={() => setMobileOpen(false)}
               className="relative inline-flex items-center justify-center gap-2 rounded-xl border border-[color:var(--header-border)] px-3 py-2 text-sm font-medium text-[color:var(--header-muted)] transition-colors hover:border-[color:var(--header-fg)] hover:text-[color:var(--header-fg)]"
             >

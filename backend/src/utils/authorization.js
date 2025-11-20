@@ -70,9 +70,10 @@ export function canEditProject(user, team) {
   if (roleScopes.includes('tenant_admin') || roleScopes.includes('organizer')) return true;
 
   // Verificar si el usuario es el capitán del equipo
-  const isCaptain = team.captain_id != null && user.id != null 
-    ? Number(team.captain_id) === Number(user.id)
-    : false;
+  // Normalizar ambos valores a números para evitar problemas de comparación de tipos
+  const captainId = team.captain_id != null ? Number(team.captain_id) : null;
+  const userId = user?.id != null ? Number(user.id) : null;
+  const isCaptain = captainId !== null && userId !== null && captainId === userId;
 
   // Si el usuario es capitán del equipo, puede editar (incluso sin scopes asignados)
   // Ser capitán es una condición suficiente para editar el proyecto del equipo
@@ -100,8 +101,14 @@ export function canViewProject(user, team) {
   }
 
   if (roleScopes.some(scope => scope === 'team_captain' || scope === 'participant')) {
-    if (team.captain_id === user.id) return true;
-    return team.members?.some(member => member.user_id === user.id);
+    // Normalizar comparación de IDs para evitar problemas de tipo
+    const captainId = team.captain_id != null ? Number(team.captain_id) : null;
+    const userId = user?.id != null ? Number(user.id) : null;
+    if (captainId !== null && userId !== null && captainId === userId) return true;
+    return team.members?.some(member => {
+      const memberUserId = member.user_id != null ? Number(member.user_id) : null;
+      return memberUserId !== null && userId !== null && memberUserId === userId;
+    });
   }
   return false;
 }
@@ -119,6 +126,9 @@ export function canManageTeam(req, team) {
   if (isTenantAdmin(req)) {
     return true;
   }
-  return team.captain_id === req.user.id;
+  // Normalizar ambos valores a números para evitar problemas de comparación de tipos
+  const captainId = team.captain_id != null ? Number(team.captain_id) : null;
+  const userId = req.user?.id != null ? Number(req.user.id) : null;
+  return captainId !== null && userId !== null && captainId === userId;
 }
 

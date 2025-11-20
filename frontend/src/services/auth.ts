@@ -57,3 +57,71 @@ export async function updateProfile(payload: UpdateProfilePayload) {
   return response.data;
 }
 
+export type EnsureMembershipResponse = {
+  success: boolean;
+  data: {
+    tokens: {
+      token: string;
+      refreshToken: string;
+    };
+    user: {
+      id: number;
+      email: string;
+      first_name: string;
+      last_name: string;
+      profile_image_url: string | null;
+      is_super_admin: boolean;
+      roleScopes: string[];
+      avatarUrl: string;
+    };
+    tenant: {
+      id: number;
+      slug: string;
+      name: string;
+      status: string;
+    };
+    isSuperAdmin: boolean;
+    memberships: Array<{
+      id: number;
+      tenantId: number;
+      status: string;
+      tenant: {
+        id: number;
+        slug: string;
+        name: string;
+        status: string;
+      } | null;
+      roles: Array<{
+        id: number;
+        name: string;
+        scope: string;
+      }>;
+    }>;
+    activeMembership: {
+      id: number;
+      tenantId: number;
+      status: string;
+      tenant: {
+        id: number;
+        slug: string;
+        name: string;
+        status: string;
+      } | null;
+      roles: Array<{
+        id: number;
+        name: string;
+        scope: string;
+      }>;
+    } | null;
+  };
+};
+
+/**
+ * Asegura que un superadmin tenga membresía activa en el tenant actual
+ * Crea la membresía si no existe o la activa si está inactiva
+ */
+export async function ensureSuperAdminMembership(): Promise<EnsureMembershipResponse> {
+  const response = await apiClient.post<EnsureMembershipResponse>('/auth/ensure-membership');
+  return response.data;
+}
+

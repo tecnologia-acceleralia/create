@@ -67,8 +67,10 @@ function EventDetailAdminPage() {
   const { t } = useTranslation();
   const tenantPath = useTenantPath();
   const { user, activeMembership, isSuperAdmin, loading: authLoading } = useAuth();
+  const { tenantSlug } = useTenant();
 
   // Verificar autorización: solo superadmin y admin/organizer pueden acceder
+  // Para superadmin, permitir acceso incluso sin membresía activa (se creará automáticamente)
   const roleScopes = new Set(
     activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []
   );
@@ -76,22 +78,31 @@ function EventDetailAdminPage() {
     roleScopes.has('tenant_admin') || 
     roleScopes.has('organizer');
 
+  // Para superadmin, verificar si tiene membresía activa para el tenant actual
+  // Si no la tiene, el AuthContext la creará automáticamente, pero debemos esperar
+  const superAdminHasMembership = isSuperAdmin 
+    ? (activeMembership?.tenant?.slug === tenantSlug && activeMembership?.status === 'active')
+    : true;
+
   // Esperar a que termine la carga de autenticación
-  if (authLoading) {
+  // También esperar si es superadmin y aún no tiene membresía (se está creando)
+  if (authLoading || (isSuperAdmin && !superAdminHasMembership && user)) {
     return <Spinner fullHeight />;
   }
 
   // Si el usuario está autenticado pero no está autorizado, redirigir a la vista de participante
-  if (user && !isAuthorized) {
+  // PERO: si es superadmin, permitir acceso incluso sin membresía activa
+  if (user && !isAuthorized && !isSuperAdmin) {
     return <Navigate to={tenantPath(`dashboard/events/${eventId}/home`)} replace />;
   }
 
   // Ejecutar todos los hooks antes de cualquier return condicional
   // Usar raw=true para obtener HTML crudo (necesario para edición)
+  // Para superadmin, permitir la query solo si tiene membresía activa o si es superadmin
   const { data: eventDetail, isLoading } = useQuery({
     queryKey: ['events', numericId, 'raw'],
     queryFn: () => getEventDetail(numericId, true),
-    enabled: Number.isInteger(numericId) && isAuthorized
+    enabled: Number.isInteger(numericId) && (isAuthorized || (isSuperAdmin && superAdminHasMembership))
   });
 
   // Si hay un parámetro phase en la URL, redirigir a la vista de participante

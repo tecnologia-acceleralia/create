@@ -232,6 +232,14 @@ function AppRoutes() {
           )
         },
         {
+          path: 'dashboard/events/:eventId/notifications',
+          element: (
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          )
+        },
+        {
           path: 'dashboard/tracking/deliverables',
           element: (
             <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>

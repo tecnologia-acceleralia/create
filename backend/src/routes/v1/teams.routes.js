@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { body, param } from 'express-validator';
 import { TeamsController } from '../../controllers/teams.controller.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
-import { authorizeRoles } from '../../middleware/authorization.middleware.js';
+import { authorizeRoles, authorizeRolesOrTeamCaptain } from '../../middleware/authorization.middleware.js';
 import { validateRequest } from '../../middleware/validation.middleware.js';
 
 export const teamsRouter = Router();
@@ -22,7 +22,7 @@ teamsRouter.get('/my', TeamsController.myTeams);
 
 teamsRouter.delete(
   '/:teamId/members/:userId',
-  authorizeRoles('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
   [param('teamId').isInt(), param('userId').isInt()],
   validateRequest,
   TeamsController.removeMember
@@ -30,7 +30,7 @@ teamsRouter.delete(
 
 teamsRouter.post(
   '/:teamId/members',
-  authorizeRoles('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
   [param('teamId').isInt(), body('user_id').optional().isInt(), body('user_email').optional().isEmail()],
   validateRequest,
   TeamsController.addMember
@@ -38,7 +38,7 @@ teamsRouter.post(
 
 teamsRouter.patch(
   '/:teamId/captain',
-  authorizeRoles('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
   [param('teamId').isInt(), body('user_id').isInt()],
   validateRequest,
   TeamsController.setCaptain
@@ -46,7 +46,7 @@ teamsRouter.patch(
 
 teamsRouter.patch(
   '/:teamId/status',
-  authorizeRoles('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
   [param('teamId').isInt(), body('status').isIn(['open', 'closed'])],
   validateRequest,
   TeamsController.updateStatus

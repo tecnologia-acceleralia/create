@@ -335,6 +335,7 @@ export type SuperAdminUser = {
   is_super_admin: boolean;
   isSuperAdmin?: boolean;
   profile_image_url: string | null;
+  last_login_at?: string | null;
   created_at?: string;
   createdAt?: string;
   updated_at?: string;
@@ -349,7 +350,8 @@ export type SuperAdminUserFilters = {
   status?: string[];
   tenantId?: number;
   isSuperAdmin?: boolean;
-  sortField?: 'email' | 'first_name' | 'last_name' | 'status' | 'created_at' | 'updated_at';
+  lastLoginFilter?: 'never' | 'last7days' | 'last30days' | 'last90days';
+  sortField?: 'email' | 'first_name' | 'last_name' | 'status' | 'created_at' | 'updated_at' | 'last_login_at';
   sortOrder?: 'asc' | 'desc';
 };
 
@@ -377,7 +379,8 @@ function normalizeUserFilters(filters?: SuperAdminUserFilters) {
     ...filters,
     status: filters.status?.length ? filters.status.join(',') : undefined,
     isSuperAdmin:
-      typeof filters.isSuperAdmin === 'boolean' ? String(filters.isSuperAdmin) : undefined
+      typeof filters.isSuperAdmin === 'boolean' ? String(filters.isSuperAdmin) : undefined,
+    lastLoginFilter: filters.lastLoginFilter
   };
 }
 

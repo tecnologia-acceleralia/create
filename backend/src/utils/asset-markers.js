@@ -24,13 +24,76 @@ function escapeRegex(str) {
 }
 
 /**
- * Reemplaza los marcadores de assets en HTML por links HTML.
+ * Obtiene una propiedad de un asset de manera segura (funciona con modelos Sequelize y objetos planos)
+ */
+function getAssetProperty(asset, property) {
+  if (!asset) return null;
+  // Si es un modelo Sequelize, usar get(), sino acceso directo
+  if (typeof asset.get === 'function') {
+    return asset.get(property);
+  }
+  return asset[property];
+}
+
+/**
+ * Determina si un asset es una imagen basándose en su mime_type o extensión del archivo.
+ */
+function isImageAsset(asset) {
+  if (!asset) {
+    logger.warn('isImageAsset recibió asset null/undefined');
+    return false;
+  }
+  
+  // Obtener propiedades de manera segura
+  const mimeType = getAssetProperty(asset, 'mime_type');
+  const originalFilename = getAssetProperty(asset, 'original_filename');
+  const url = getAssetProperty(asset, 'url');
+  const name = getAssetProperty(asset, 'name');
+  
+  // Log para depuración
+  const debugInfo = {
+    name,
+    mime_type: mimeType,
+    original_filename: originalFilename,
+    url,
+    mime_type_type: typeof mimeType,
+    mime_type_value: mimeType
+  };
+  
+  // Verificar por mime_type primero
+  if (mimeType) {
+    const mimeTypeLower = String(mimeType).toLowerCase().trim();
+    // Verificar si comienza con 'image/' (cubre image/jpeg, image/png, image/jpg, etc.)
+    if (mimeTypeLower.startsWith('image/')) {
+      logger.debug('Asset detectado como imagen por mime_type', { ...debugInfo, detected: true, method: 'mime_type', mimeTypeLower });
+      return true;
+    }
+  }
+  
+  // Fallback: verificar por extensión del archivo si el mime_type no está disponible o no es válido
+  const fileName = (originalFilename || url || '').toLowerCase();
+  if (fileName) {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+    const isImage = imageExtensions.some(ext => fileName.endsWith(ext));
+    if (isImage) {
+      logger.debug('Asset detectado como imagen por extensión', { ...debugInfo, detected: true, method: 'file_extension', fileName });
+      return true;
+    }
+  }
+  
+  logger.debug('Asset NO detectado como imagen', { ...debugInfo, detected: false });
+  return false;
+}
+
+/**
+ * Reemplaza los marcadores de assets en HTML por links HTML o imágenes.
  * Los marcadores tienen el formato: {{asset:nombre-del-recurso}}
+ * Si el asset es una imagen, se renderiza como <img>, si no, como <a>.
  *
  * @param {string} html - Contenido HTML que puede contener marcadores
  * @param {number} eventId - ID del evento
  * @param {number} tenantId - ID del tenant
- * @returns {Promise<string>} HTML con los marcadores reemplazados por links HTML
+ * @returns {Promise<string>} HTML con los marcadores reemplazados por links HTML o imágenes
  */
 export async function resolveAssetMarkers(html, eventId, tenantId) {
   if (!html || typeof html !== 'string') {
@@ -49,13 +112,27 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
   // Obtener todos los assets únicos mencionados en los marcadores
   const assetNames = [...new Set(matches.map(match => match[1]))];
 
-  // Buscar todos los assets de una vez
+  // Buscar todos los assets de una vez (asegurarse de cargar todos los atributos)
   const assets = await EventAsset.findAll({
     where: {
       tenant_id: tenantId,
       event_id: eventId,
       name: assetNames
-    }
+    },
+    attributes: ['id', 'name', 'original_filename', 'url', 'mime_type', 'file_size', 'description', 's3_key']
+  });
+  
+  // Log para depuración
+  logger.debug('Assets encontrados para marcadores', {
+    eventId,
+    tenantId,
+    assetNames,
+    assetsFound: assets.map(a => ({
+      name: a.name,
+      mime_type: a.mime_type,
+      original_filename: a.original_filename,
+      url: a.url
+    }))
   });
 
   // Crear mapas de búsqueda por name (exacto y case-insensitive)
@@ -90,18 +167,53 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
     }
     
     if (asset) {
-      // Usar el texto del link existente si está disponible, sino usar descripción/archivo del asset
-      const finalLinkText = linkText.trim() || asset.description || asset.original_filename || asset.name;
-      const escapedText = escapeHtml(finalLinkText);
-      const escapedUrl = escapeHtml(asset.url);
+      const assetUrl = getAssetProperty(asset, 'url');
+      const escapedUrl = escapeHtml(assetUrl);
       
-      // Crear nuevo link HTML reemplazando todo el <a> completo
-      const newLinkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+      // Log detallado antes de verificar si es imagen
+      logger.debug('Procesando asset en <a> tag', {
+        assetName,
+        mime_type: getAssetProperty(asset, 'mime_type'),
+        original_filename: getAssetProperty(asset, 'original_filename'),
+        url: assetUrl
+      });
       
-      // Escapar el link completo para regex
-      const escapedLinkMatch = escapeRegex(fullLinkMatch);
-      const linkRegex = new RegExp(escapedLinkMatch, 'g');
-      resolvedHtml = resolvedHtml.replace(linkRegex, newLinkHtml);
+      // Si es una imagen, crear un elemento <img> en lugar de un link
+      if (isImageAsset(asset)) {
+        const altText = linkText.trim() || getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
+        const escapedAlt = escapeHtml(altText);
+        const imgHtml = `<img src="${escapedUrl}" alt="${escapedAlt}" class="max-w-full h-auto" />`;
+        
+        // Escapar el link completo para regex y reemplazarlo por la imagen
+        const escapedLinkMatch = escapeRegex(fullLinkMatch);
+        const linkRegex = new RegExp(escapedLinkMatch, 'g');
+        resolvedHtml = resolvedHtml.replace(linkRegex, imgHtml);
+        
+        logger.info('✅ Marcador de imagen reemplazado en <a> tag', {
+          assetName,
+          mime_type: getAssetProperty(asset, 'mime_type'),
+          eventId,
+          tenantId
+        });
+      } else {
+        // Si no es una imagen, crear nuevo link HTML reemplazando todo el <a> completo
+        const finalLinkText = linkText.trim() || getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
+        const escapedText = escapeHtml(finalLinkText);
+        
+        const newLinkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+        
+        // Escapar el link completo para regex
+        const escapedLinkMatch = escapeRegex(fullLinkMatch);
+        const linkRegex = new RegExp(escapedLinkMatch, 'g');
+        resolvedHtml = resolvedHtml.replace(linkRegex, newLinkHtml);
+        
+        logger.debug('Marcador reemplazado como link (no es imagen)', {
+          assetName,
+          mime_type: getAssetProperty(asset, 'mime_type'),
+          eventId,
+          tenantId
+        });
+      }
       
       // Marcar este marcador como procesado
       processedInLinks.add(`{{asset:${assetName}}}`);
@@ -141,18 +253,52 @@ export async function resolveAssetMarkers(html, eventId, tenantId) {
     }
 
     if (asset) {
-      // Usar descripción si existe, sino usar el nombre original del archivo o el nombre del asset
-      const linkText = asset.description || asset.original_filename || asset.name;
-      const escapedText = escapeHtml(linkText);
-      const escapedUrl = escapeHtml(asset.url);
+      const assetUrl = getAssetProperty(asset, 'url');
+      const escapedUrl = escapeHtml(assetUrl);
       
-      // Crear link HTML que se abre en nueva pestaña
-      const linkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+      // Log detallado antes de verificar si es imagen
+      logger.debug('Procesando asset suelto', {
+        assetName,
+        mime_type: getAssetProperty(asset, 'mime_type'),
+        original_filename: getAssetProperty(asset, 'original_filename'),
+        url: assetUrl
+      });
       
-      // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
-      const escapedMatch = escapeRegex(fullMatch);
-      const globalRegex = new RegExp(escapedMatch, 'g');
-      resolvedHtml = resolvedHtml.replace(globalRegex, linkHtml);
+      // Si es una imagen, crear un elemento <img>
+      if (isImageAsset(asset)) {
+        const altText = getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
+        const escapedAlt = escapeHtml(altText);
+        const imgHtml = `<img src="${escapedUrl}" alt="${escapedAlt}" class="max-w-full h-auto" />`;
+        
+        // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
+        const escapedMatch = escapeRegex(fullMatch);
+        const globalRegex = new RegExp(escapedMatch, 'g');
+        resolvedHtml = resolvedHtml.replace(globalRegex, imgHtml);
+        
+        logger.info('✅ Marcador de imagen reemplazado', {
+          assetName,
+          mime_type: getAssetProperty(asset, 'mime_type'),
+          eventId,
+          tenantId
+        });
+      } else {
+        // Si no es una imagen, crear link HTML que se abre en nueva pestaña
+        const linkText = getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
+        const escapedText = escapeHtml(linkText);
+        const linkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
+        
+        // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
+        const escapedMatch = escapeRegex(fullMatch);
+        const globalRegex = new RegExp(escapedMatch, 'g');
+        resolvedHtml = resolvedHtml.replace(globalRegex, linkHtml);
+        
+        logger.debug('Marcador reemplazado como link (no es imagen)', {
+          assetName,
+          mime_type: getAssetProperty(asset, 'mime_type'),
+          eventId,
+          tenantId
+        });
+      }
     } else {
       logger.warn('Marcador de asset no encontrado', {
         assetName,

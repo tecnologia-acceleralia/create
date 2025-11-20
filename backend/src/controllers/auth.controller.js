@@ -712,5 +712,112 @@ export class AuthController {
       });
     }
   }
+
+  /**
+   * Endpoint para que superadmin obtenga o cree automáticamente una membresía para un tenant
+   * Esto permite que superadmins accedan a cualquier tenant sin necesidad de tener membresía previa
+   */
+  static async ensureSuperAdminMembership(req, res) {
+    try {
+      const tenant = req.tenant;
+      const user = req.user;
+
+      if (!tenant) {
+        return res
+          .status(400)
+          .json({ success: false, message: AUTH_MESSAGES.TENANT_NOT_RESOLVED });
+      }
+
+      if (!user || !Boolean(user.is_super_admin)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Solo superadmins pueden usar este endpoint'
+        });
+      }
+
+      const { UserTenant, Role, Tenant } = getModels();
+
+      // Buscar o crear membresía para este tenant
+      let [membership] = await UserTenant.findOrCreate({
+        where: {
+          user_id: user.id,
+          tenant_id: tenant.id
+        },
+        defaults: {
+          status: 'active'
+        },
+        skipTenant: true
+      });
+
+      // Si la membresía existía pero estaba inactiva, activarla
+      if (membership.status !== 'active') {
+        membership.status = 'active';
+        await membership.save({ skipTenant: true });
+      }
+
+      // Cargar la membresía con relaciones
+      membership = await UserTenant.findOne({
+        where: { id: membership.id },
+        include: [
+          {
+            model: Tenant,
+            as: 'tenant',
+            attributes: ['id', 'slug', 'name', 'status']
+          },
+          {
+            model: Role,
+            as: 'assignedRoles',
+            attributes: ['id', 'name', 'scope'],
+            through: { attributes: [] }
+          }
+        ],
+        skipTenant: true
+      });
+
+      // Obtener todas las membresías del usuario
+      const allMemberships = await UserTenant.findAll({
+        where: { user_id: user.id },
+        include: [
+          {
+            model: Tenant,
+            as: 'tenant',
+            attributes: ['id', 'slug', 'name', 'status']
+          },
+          {
+            model: Role,
+            as: 'assignedRoles',
+            attributes: ['id', 'name', 'scope'],
+            through: { attributes: [] }
+          }
+        ],
+        skipTenant: true
+      });
+
+      // Generar nuevos tokens con la membresía activa
+      const tokens = AuthService.generateTokens({
+        user,
+        tenant,
+        membership
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          tokens,
+          user: user.toSafeJSON(),
+          tenant: tenant.toJSON(),
+          isSuperAdmin: true,
+          memberships: allMemberships.map(serializeMembership),
+          activeMembership: serializeMembership(membership)
+        }
+      });
+    } catch (error) {
+      logger.error('Error asegurando membresía de superadmin', { error: error.message, stack: error.stack });
+      return res.status(500).json({
+        success: false,
+        message: 'Error al asegurar membresía'
+      });
+    }
+  }
 }
 

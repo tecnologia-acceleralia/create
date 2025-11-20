@@ -40,7 +40,7 @@ function ProfilePage() {
       first_name: user?.first_name ?? '',
       last_name: user?.last_name ?? '',
       email: user?.email ?? '',
-      language: (user as any)?.language ?? 'es'
+      language: user?.language ?? 'es'
     }
   });
 
@@ -50,7 +50,7 @@ function ProfilePage() {
         first_name: user.first_name ?? '',
         last_name: user.last_name ?? '',
         email: user.email ?? '',
-        language: (user as any)?.language ?? 'es'
+        language: user?.language ?? 'es'
       });
       setProfileImageBase64(null);
       setProfileImageError(null);
@@ -97,7 +97,7 @@ function ProfilePage() {
         first_name: user.first_name ?? '',
         last_name: user.last_name ?? '',
         email: user.email ?? '',
-        language: (user as any)?.language ?? 'es'
+        language: user?.language ?? 'es'
       });
       setProfileImageBase64(null);
       setProfileImageError(null);
@@ -167,6 +167,14 @@ function ProfilePage() {
           activeMembership,
           isSuperAdmin
         });
+      }
+
+      // Actualizar idioma de i18n si cambió
+      if (updatedUser.language && ['es', 'en', 'ca'].includes(updatedUser.language)) {
+        const i18n = (await import('@/i18n/config')).default;
+        if (i18n.language !== updatedUser.language) {
+          await i18n.changeLanguage(updatedUser.language);
+        }
       }
 
       toast.success(t('profile.updateSuccess'));

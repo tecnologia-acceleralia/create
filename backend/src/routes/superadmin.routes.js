@@ -9,7 +9,7 @@ import { AuthController } from '../controllers/auth.controller.js';
 export const superAdminRouter = Router();
 
 const TENANT_SORT_FIELDS = ['name', 'slug', 'plan', 'plan_type', 'status', 'created_at', 'updated_at'];
-const USER_SORT_FIELDS = ['email', 'first_name', 'last_name', 'status', 'created_at', 'updated_at'];
+const USER_SORT_FIELDS = ['email', 'first_name', 'last_name', 'status', 'created_at', 'updated_at', 'last_login_at'];
 
 function validateJsonable(value) {
   if (value === undefined || value === null || value === '') {
@@ -145,6 +145,7 @@ superAdminRouter.get(
     query('status').optional().isString(),
     query('isSuperAdmin').optional().isIn(['true', 'false']),
     query('search').optional().isString(),
+    query('lastLoginFilter').optional().isIn(['never', 'last7days', 'last30days', 'last90days']),
     query('sortField').optional().isIn(USER_SORT_FIELDS),
     query('sortOrder').optional().isIn(['asc', 'desc'])
   ],
