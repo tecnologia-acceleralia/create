@@ -174,6 +174,39 @@ if ! docker-compose --profile prod down; then
     exit 1
 fi
 
+# Eliminar volúmenes de node_modules para forzar reinstalación de dependencias
+log "🗑️  Eliminando volúmenes de node_modules para forzar reinstalación de dependencias..."
+
+# Eliminar volumen del backend
+log "🗑️  Eliminando volumen backend_node_modules..."
+BACKEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)backend_node_modules$" | head -n 1)
+if [ -n "$BACKEND_VOLUME_NAME" ]; then
+    if docker volume rm "$BACKEND_VOLUME_NAME" 2>/dev/null; then
+        success "Volumen $BACKEND_VOLUME_NAME eliminado"
+    else
+        warning "No se pudo eliminar el volumen $BACKEND_VOLUME_NAME (puede estar en uso, se intentará forzar)"
+        # Intentar forzar eliminación si está en uso
+        docker volume rm "$BACKEND_VOLUME_NAME" --force 2>/dev/null || true
+    fi
+else
+    log "Volumen backend_node_modules no existe, continuando..."
+fi
+
+# Eliminar volumen del frontend
+log "🗑️  Eliminando volumen frontend_node_modules..."
+FRONTEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)frontend_node_modules$" | head -n 1)
+if [ -n "$FRONTEND_VOLUME_NAME" ]; then
+    if docker volume rm "$FRONTEND_VOLUME_NAME" 2>/dev/null; then
+        success "Volumen $FRONTEND_VOLUME_NAME eliminado"
+    else
+        warning "No se pudo eliminar el volumen $FRONTEND_VOLUME_NAME (puede estar en uso, se intentará forzar)"
+        # Intentar forzar eliminación si está en uso
+        docker volume rm "$FRONTEND_VOLUME_NAME" --force 2>/dev/null || true
+    fi
+else
+    log "Volumen frontend_node_modules no existe, continuando..."
+fi
+
 # 4.1. Resetear base de datos si se solicitó (después de parar contenedores)
 if [ "$RESET_DB" = true ]; then
     request_data_loss_confirmation "Se reseteará la base de datos (todos los datos se perderán permanentemente)"
@@ -261,6 +294,120 @@ fi
 # Esperar a que los servicios estén listos
 log "⏳ Esperando a que los servicios estén listos..."
 sleep 10
+
+# Verificar e instalar dependencias en el backend si el volumen está vacío
+log "📦 Verificando instalación de dependencias en el backend..."
+# Verificar estado del contenedor
+CONTAINER_STATUS=$(docker-compose --profile prod ps backend --format "{{.Status}}" 2>/dev/null || echo "")
+if echo "$CONTAINER_STATUS" | grep -q "Exited\|Restarting"; then
+    warning "El contenedor backend no está corriendo correctamente. Verificando logs..."
+    docker-compose --profile prod logs backend --tail=20
+    log "Intentando instalar dependencias y reiniciar el contenedor..."
+    # Intentar instalar dependencias usando docker run temporal
+    VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)backend_node_modules$" | head -n 1)
+    if [ -n "$VOLUME_NAME" ]; then
+        log "Instalando dependencias en el volumen $VOLUME_NAME usando contenedor temporal..."
+        if docker run --rm -v "$VOLUME_NAME:/app/node_modules" -v "$(pwd)/backend/package.json:/app/package.json:ro" -v "$(pwd)/backend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" -w /app node:22-alpine sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" 2>&1; then
+            success "Dependencias instaladas en el volumen"
+            log "Reiniciando contenedor backend..."
+            docker-compose --profile prod restart backend
+            sleep 5
+        else
+            error "Error al instalar dependencias en el volumen"
+            exit 1
+        fi
+    fi
+fi
+
+# Esperar a que el contenedor esté completamente iniciado
+for i in {1..10}; do
+    if docker-compose --profile prod exec -T backend sh -c "test -d /app" 2>/dev/null; then
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        error "Timeout esperando que el contenedor backend esté listo"
+        log "🔍 Verificando logs del backend..."
+        docker-compose --profile prod logs backend --tail=20
+        exit 1
+    fi
+    sleep 2
+done
+
+# Verificar si las dependencias están instaladas en el backend
+if docker-compose --profile prod exec -T backend sh -c "test -d node_modules/sanitize-html" 2>/dev/null; then
+    success "Dependencias del backend verificadas correctamente"
+else
+    warning "Dependencias del backend no encontradas en el volumen, instalando..."
+    # Instalar dependencias en el volumen
+    if docker-compose --profile prod exec -T backend pnpm install --frozen-lockfile; then
+        success "Dependencias del backend instaladas correctamente en el volumen"
+        log "Reiniciando contenedor backend para aplicar cambios..."
+        docker-compose --profile prod restart backend
+        sleep 5
+    else
+        error "Error al instalar dependencias del backend"
+        log "🔍 Verificando logs del backend..."
+        docker-compose --profile prod logs backend --tail=20
+        exit 1
+    fi
+fi
+
+# Verificar e instalar dependencias en el frontend si el volumen está vacío
+log "📦 Verificando instalación de dependencias en el frontend..."
+# Verificar estado del contenedor
+FRONTEND_CONTAINER_STATUS=$(docker-compose --profile prod ps frontend-prod --format "{{.Status}}" 2>/dev/null || echo "")
+if echo "$FRONTEND_CONTAINER_STATUS" | grep -q "Exited\|Restarting"; then
+    warning "El contenedor frontend-prod no está corriendo correctamente. Verificando logs..."
+    docker-compose --profile prod logs frontend-prod --tail=20
+    log "Intentando instalar dependencias y reiniciar el contenedor..."
+    # Intentar instalar dependencias usando docker run temporal
+    FRONTEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)frontend_node_modules$" | head -n 1)
+    if [ -n "$FRONTEND_VOLUME_NAME" ]; then
+        log "Instalando dependencias en el volumen $FRONTEND_VOLUME_NAME usando contenedor temporal..."
+        if docker run --rm -v "$FRONTEND_VOLUME_NAME:/app/node_modules" -v "$(pwd)/frontend/package.json:/app/package.json:ro" -v "$(pwd)/frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" -w /app node:22-alpine sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" 2>&1; then
+            success "Dependencias del frontend instaladas en el volumen"
+            log "Reiniciando contenedor frontend-prod..."
+            docker-compose --profile prod restart frontend-prod
+            sleep 5
+        else
+            error "Error al instalar dependencias del frontend en el volumen"
+            exit 1
+        fi
+    fi
+fi
+
+# Esperar a que el contenedor del frontend esté completamente iniciado
+for i in {1..10}; do
+    if docker-compose --profile prod exec -T frontend-prod sh -c "test -d /app" 2>/dev/null; then
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        error "Timeout esperando que el contenedor frontend-prod esté listo"
+        log "🔍 Verificando logs del frontend-prod..."
+        docker-compose --profile prod logs frontend-prod --tail=20
+        exit 1
+    fi
+    sleep 2
+done
+
+# Verificar si las dependencias están instaladas en el frontend
+if docker-compose --profile prod exec -T frontend-prod sh -c "test -d node_modules/react" 2>/dev/null; then
+    success "Dependencias del frontend verificadas correctamente"
+else
+    warning "Dependencias del frontend no encontradas en el volumen, instalando..."
+    # Instalar dependencias en el volumen
+    if docker-compose --profile prod exec -T frontend-prod pnpm install --frozen-lockfile; then
+        success "Dependencias del frontend instaladas correctamente en el volumen"
+        log "Reiniciando contenedor frontend-prod para aplicar cambios..."
+        docker-compose --profile prod restart frontend-prod
+        sleep 5
+    else
+        error "Error al instalar dependencias del frontend"
+        log "🔍 Verificando logs del frontend-prod..."
+        docker-compose --profile prod logs frontend-prod --tail=20
+        exit 1
+    fi
+fi
 
 # Verificar health checks
 log "🏥 Verificando health checks..."
