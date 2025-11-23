@@ -284,6 +284,84 @@ if ! docker-compose --profile prod build --no-cache frontend-prod backend; then
     exit 1
 fi
 
+# Pre-instalar dependencias en los volúmenes antes de levantar los servicios
+log "📦 Pre-instalando dependencias en los volúmenes antes de levantar servicios..."
+
+# Levantar solo database primero para que Docker Compose cree la red y podamos detectar el nombre del proyecto
+log "🚀 Levantando database para detectar nombres de volúmenes..."
+if ! docker-compose --profile prod up -d database >/dev/null 2>&1; then
+    warning "No se pudo levantar database, continuando con detección manual de volúmenes..."
+fi
+
+# Esperar un momento para que Docker Compose cree los recursos
+sleep 2
+
+# Detectar nombres de volúmenes que Docker Compose creará o ya creó
+# Docker Compose usa el formato: {project_name}_{volume_name}
+# El nombre del proyecto suele ser el nombre del directorio en minúsculas
+PROJECT_NAME=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME="create"
+fi
+
+# Detectar volumen del backend (puede que ya exista o lo crearemos)
+BACKEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)backend_node_modules$" | head -n 1)
+if [ -z "$BACKEND_VOLUME_NAME" ]; then
+    # Crear con el nombre que Docker Compose usará
+    BACKEND_VOLUME_NAME="${PROJECT_NAME}_backend_node_modules"
+    if ! docker volume create "$BACKEND_VOLUME_NAME" >/dev/null 2>&1; then
+        # Si falla, puede que Docker Compose ya lo haya creado con otro nombre
+        BACKEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "backend_node_modules" | head -n 1)
+        if [ -z "$BACKEND_VOLUME_NAME" ]; then
+            error "No se pudo crear ni detectar el volumen del backend"
+            exit 1
+        fi
+    else
+        log "Volumen $BACKEND_VOLUME_NAME creado"
+    fi
+fi
+
+# Pre-instalar dependencias del backend
+log "📦 Pre-instalando dependencias del backend en volumen $BACKEND_VOLUME_NAME..."
+if docker run --rm \
+    -v "$BACKEND_VOLUME_NAME:/app/node_modules" \
+    -v "$(pwd)/backend/package.json:/app/package.json:ro" \
+    -v "$(pwd)/backend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" \
+    -w /app \
+    node:22-alpine \
+    sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" >/dev/null 2>&1; then
+    success "Dependencias del backend pre-instaladas en el volumen"
+else
+    warning "No se pudieron pre-instalar dependencias del backend (se intentará al iniciar el contenedor)"
+fi
+
+# Detectar o crear volumen del frontend
+FRONTEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)frontend_node_modules$" | head -n 1)
+if [ -z "$FRONTEND_VOLUME_NAME" ]; then
+    # Intentar crear con el nombre más probable
+    FRONTEND_VOLUME_NAME="${PROJECT_NAME}_frontend_node_modules"
+    if ! docker volume create "$FRONTEND_VOLUME_NAME" >/dev/null 2>&1; then
+        # Si falla, intentar con otro nombre
+        FRONTEND_VOLUME_NAME="frontend_node_modules"
+        docker volume create "$FRONTEND_VOLUME_NAME" >/dev/null 2>&1 || true
+    fi
+    log "Volumen $FRONTEND_VOLUME_NAME creado"
+fi
+
+# Pre-instalar dependencias del frontend
+log "📦 Pre-instalando dependencias del frontend en volumen $FRONTEND_VOLUME_NAME..."
+if docker run --rm \
+    -v "$FRONTEND_VOLUME_NAME:/app/node_modules" \
+    -v "$(pwd)/frontend/package.json:/app/package.json:ro" \
+    -v "$(pwd)/frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" \
+    -w /app \
+    node:22-alpine \
+    sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" >/dev/null 2>&1; then
+    success "Dependencias del frontend pre-instaladas en el volumen"
+else
+    warning "No se pudieron pre-instalar dependencias del frontend (se intentará al iniciar el contenedor)"
+fi
+
 # Levantar servicios
 log "🚀 Levantando servicios..."
 if ! docker-compose --profile prod up -d; then
@@ -409,36 +487,93 @@ else
     fi
 fi
 
-# Verificar health checks
-log "🏥 Verificando health checks..."
-for i in {1..30}; do
-    if docker-compose --profile prod ps | grep -q "healthy"; then
-        success "Servicios saludables"
+# Verificar health checks de Docker
+log "🏥 Verificando health checks de Docker..."
+HEALTH_CHECK_TIMEOUT=120  # 2 minutos máximo para health checks
+HEALTH_CHECK_START=$(date +%s)
+
+# Verificar que database esté healthy
+log "⏳ Esperando a que database esté healthy..."
+DATABASE_HEALTHY=false
+for i in {1..60}; do
+    DB_STATUS=$(docker-compose --profile prod ps database --format "{{.Status}}" 2>/dev/null || echo "")
+    if echo "$DB_STATUS" | grep -q "healthy"; then
+        success "Database está healthy"
+        DATABASE_HEALTHY=true
         break
     fi
-    if [ $i -eq 30 ]; then
-        error "Timeout esperando health checks"
+    if [ $i -eq 60 ]; then
+        error "Timeout esperando que database esté healthy"
+        log "Estado actual: $DB_STATUS"
+        docker-compose --profile prod logs database --tail=20
         exit 1
     fi
     sleep 2
 done
+
+# Verificar que backend esté healthy
+log "⏳ Esperando a que backend esté healthy..."
+BACKEND_HEALTHY=false
+for i in {1..60}; do
+    BACKEND_STATUS=$(docker-compose --profile prod ps backend --format "{{.Status}}" 2>/dev/null || echo "")
+    if echo "$BACKEND_STATUS" | grep -q "healthy"; then
+        success "Backend está healthy"
+        BACKEND_HEALTHY=true
+        break
+    fi
+    # Si el backend no tiene health check definido o está starting, continuar esperando
+    if echo "$BACKEND_STATUS" | grep -q "Up"; then
+        # Si está Up pero no healthy, puede estar en start_period, continuar esperando
+        log "Backend está Up pero aún no healthy (intento $i/60)..."
+    fi
+    if [ $i -eq 60 ]; then
+        warning "Backend no está healthy después de 60 intentos, pero continuando..."
+        log "Estado actual: $BACKEND_STATUS"
+        docker-compose --profile prod logs backend --tail=20
+        # No salimos con error porque puede que el health check no esté configurado correctamente
+        BACKEND_HEALTHY=false
+        break
+    fi
+    sleep 2
+done
+
+# Verificar que frontend-prod esté healthy
+log "⏳ Esperando a que frontend-prod esté healthy..."
+FRONTEND_HEALTHY=false
+for i in {1..60}; do
+    FRONTEND_STATUS=$(docker-compose --profile prod ps frontend-prod --format "{{.Status}}" 2>/dev/null || echo "")
+    if echo "$FRONTEND_STATUS" | grep -q "healthy"; then
+        success "Frontend-prod está healthy"
+        FRONTEND_HEALTHY=true
+        break
+    fi
+    # Si el frontend no tiene health check definido o está starting, continuar esperando
+    if echo "$FRONTEND_STATUS" | grep -q "Up"; then
+        # Si está Up pero no healthy, puede estar en start_period, continuar esperando
+        log "Frontend-prod está Up pero aún no healthy (intento $i/60)..."
+    fi
+    if [ $i -eq 60 ]; then
+        warning "Frontend-prod no está healthy después de 60 intentos, pero continuando..."
+        log "Estado actual: $FRONTEND_STATUS"
+        docker-compose --profile prod logs frontend-prod --tail=20
+        # No salimos con error porque puede que el health check no esté configurado correctamente
+        FRONTEND_HEALTHY=false
+        break
+    fi
+    sleep 2
+done
+
+if [ "$DATABASE_HEALTHY" = true ] && [ "$BACKEND_HEALTHY" = true ] && [ "$FRONTEND_HEALTHY" = true ]; then
+    success "Todos los servicios están healthy"
+elif [ "$DATABASE_HEALTHY" = true ]; then
+    warning "Algunos servicios no están healthy, pero continuando con verificaciones adicionales..."
+else
+    error "Database no está healthy. Abortando."
+    exit 1
+fi
 
 # 5. Ejecutar migraciones faltantes
 log "🗄️  Verificando migraciones de base de datos..."
-
-# Esperar a que MySQL esté completamente listo
-log "⏳ Esperando a que MySQL esté listo..."
-for i in {1..30}; do
-    if docker-compose --profile prod exec -T database mysqladmin ping -h localhost --silent > /dev/null 2>&1; then
-        success "MySQL está listo"
-        break
-    fi
-    if [ $i -eq 30 ]; then
-        error "Timeout esperando MySQL"
-        exit 1
-    fi
-    sleep 2
-done
 
 # Verificar estado de migraciones antes de ejecutar
 log "📊 Verificando estado de migraciones..."
@@ -566,54 +701,70 @@ else
     # No salimos con error porque los seeders pueden fallar si ya están aplicados
 fi
 
-# 7. Verificar que todo funciona
-log "🔍 Verificando que la aplicación funciona..."
+# 7. Verificar que los servicios responden correctamente (verificación adicional con curl)
+log "🔍 Verificando que los servicios responden correctamente..."
 
-# Esperar un poco más para que los servicios estén completamente listos
+# Esperar un poco más para que los servicios estén completamente listos después de los health checks
 log "⏳ Esperando a que los servicios estén completamente listos..."
-sleep 5
+sleep 3
 
-# Verificar backend con reintentos
-log "🔍 Verificando backend..."
+# Verificar backend con curl (endpoint /health)
+log "🔍 Verificando backend (http://localhost:5100/health)..."
 BACKEND_OK=false
-for i in {1..10}; do
-    if curl -f --connect-timeout 10 --max-time 30 http://localhost:5100/health > /dev/null 2>&1; then
-        success "Backend funcionando correctamente"
+for i in {1..15}; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:5100/health 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "204" ]; then
+        success "Backend respondiendo correctamente (HTTP $HTTP_CODE)"
         BACKEND_OK=true
         break
     else
-        log "Intento $i/10: Backend aún no responde, esperando..."
-        sleep 3
+        if [ "$HTTP_CODE" != "000" ]; then
+            log "Intento $i/15: Backend responde con HTTP $HTTP_CODE, esperando 200/204..."
+        else
+            log "Intento $i/15: Backend aún no responde, esperando..."
+        fi
+        sleep 2
     fi
 done
 
 if [ "$BACKEND_OK" = false ]; then
-    error "Backend no responde después de 10 intentos"
+    error "Backend no responde correctamente después de 15 intentos"
     log "🔍 Verificando logs del backend..."
-    docker-compose --profile prod logs backend --tail=20
-    log "🔍 Verificando estado de contenedores..."
-    docker-compose --profile prod ps
+    docker-compose --profile prod logs backend --tail=30
+    log "🔍 Verificando estado del contenedor backend..."
+    docker-compose --profile prod ps backend
+    log "🔍 Intentando curl manualmente..."
+    curl -v http://localhost:5100/health || true
     exit 1
 fi
 
-# Verificar frontend con reintentos
-log "🔍 Verificando frontend..."
+# Verificar frontend con curl (endpoint raíz)
+log "🔍 Verificando frontend (http://localhost:3100)..."
 FRONTEND_OK=false
-for i in {1..5}; do
-    if curl -f --connect-timeout 10 --max-time 30 http://localhost:3100 > /dev/null 2>&1; then
-        success "Frontend funcionando correctamente"
+for i in {1..15}; do
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 http://localhost:3100 2>/dev/null || echo "000")
+    if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "304" ]; then
+        success "Frontend respondiendo correctamente (HTTP $HTTP_CODE)"
         FRONTEND_OK=true
         break
     else
-        log "Intento $i/5: Frontend aún no responde, esperando..."
+        if [ "$HTTP_CODE" != "000" ]; then
+            log "Intento $i/15: Frontend responde con HTTP $HTTP_CODE, esperando 200/304..."
+        else
+            log "Intento $i/15: Frontend aún no responde, esperando..."
+        fi
         sleep 2
     fi
 done
 
 if [ "$FRONTEND_OK" = false ]; then
-    error "Frontend no responde después de 5 intentos"
+    error "Frontend no responde correctamente después de 15 intentos"
     log "🔍 Verificando logs del frontend..."
-    docker-compose --profile prod logs frontend-prod --tail=20
+    docker-compose --profile prod logs frontend-prod --tail=30
+    log "🔍 Verificando estado del contenedor frontend-prod..."
+    docker-compose --profile prod ps frontend-prod
+    log "🔍 Intentando curl manualmente..."
+    curl -v http://localhost:3100 || true
     exit 1
 fi
 
