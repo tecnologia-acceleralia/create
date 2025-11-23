@@ -12,14 +12,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getEventDeliverablesTracking, type EventDeliverablesTracking } from '@/services/events';
 import { getEventDetail } from '@/services/events';
 
 export default function EventDeliverablesTrackingPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tenantPath = useTenantPath();
   const { eventId } = useParams<{ eventId: string }>();
-  const numericEventId = eventId ? Number(eventId) : NaN;
+  // Limpiar eventId: tomar solo la parte antes de ":" o "."
+  const cleanedEventId = eventId ? String(eventId).trim().split(':')[0].split('.')[0] : null;
+  const numericEventId = cleanedEventId ? Number.parseInt(cleanedEventId, 10) : NaN;
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
   const { data: eventDetail } = useQuery({
     queryKey: ['events', numericEventId],
@@ -96,10 +101,10 @@ export default function EventDeliverablesTrackingPage() {
 
   if (!Number.isFinite(numericEventId)) {
     return (
-      <DashboardLayout title={t('events.deliverablesTracking.title')} subtitle="">
+      <DashboardLayout title={safeTranslate(t, 'events.deliverablesTracking.title')} subtitle="">
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {t('events.deliverablesTracking.error')}
+            {safeTranslate(t, 'events.deliverablesTracking.error')}
           </CardContent>
         </Card>
       </DashboardLayout>
@@ -112,34 +117,39 @@ export default function EventDeliverablesTrackingPage() {
 
   if (isError || !trackingData) {
     return (
-      <DashboardLayout title={t('events.deliverablesTracking.title')} subtitle="">
+      <DashboardLayout title={safeTranslate(t, 'events.deliverablesTracking.title')} subtitle="">
         <Card>
           <CardContent className="py-10 text-center text-sm text-destructive">
-            {t('events.deliverablesTracking.error')}
+            {safeTranslate(t, 'events.deliverablesTracking.error')}
           </CardContent>
         </Card>
       </DashboardLayout>
     );
   }
 
-  const eventName = eventDetail?.name ?? '';
+  const eventName = useMemo(() => {
+    if (!eventDetail?.name) {
+      return '';
+    }
+    return getMultilingualText(eventDetail.name, currentLang);
+  }, [eventDetail?.name, currentLang]);
   const phases = trackingData.phases.sort((a, b) => a.orderIndex - b.orderIndex);
 
   return (
     <DashboardLayout
-      title={t('events.deliverablesTracking.title')}
+      title={safeTranslate(t, 'events.deliverablesTracking.title')}
       subtitle={eventName}
       actions={
         <Button variant="outline" asChild>
           <Link to={tenantPath(`dashboard/events/${eventId}`)}>
-            {t('events.tracking.backToEvent', { defaultValue: 'Volver al evento' })}
+            {safeTranslate(t, 'events.tracking.backToEvent', { defaultValue: 'Volver al evento' })}
           </Link>
         </Button>
       }
     >
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
-          <CardTitle>{t('events.deliverablesTracking.subtitle')}</CardTitle>
+          <CardTitle>{safeTranslate(t, 'events.deliverablesTracking.subtitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {isReviewer && pendingEvaluationsCount > 0 && (
@@ -148,12 +158,12 @@ export default function EventDeliverablesTrackingPage() {
               <span>
                 {(() => {
                   const pluralText = pendingEvaluationsCount === 1
-                    ? t('evaluations.pendingEvaluationsAlertSingular')
-                    : t('evaluations.pendingEvaluationsAlertPlural');
+                    ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertSingular')
+                    : safeTranslate(t, 'evaluations.pendingEvaluationsAlertPlural');
                   const verbText = pendingEvaluationsCount === 1
-                    ? t('evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
-                    : t('evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
-                  let message = t('evaluations.pendingEvaluationsAlert', {
+                    ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
+                    : safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
+                  let message = safeTranslate(t, 'evaluations.pendingEvaluationsAlert', {
                     count: pendingEvaluationsCount,
                     plural: pluralText,
                     verb: verbText
@@ -170,18 +180,18 @@ export default function EventDeliverablesTrackingPage() {
           <div className="overflow-x-auto">
           {trackingData.teams.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              {t('events.deliverablesTracking.noTeams')}
+              {safeTranslate(t, 'events.deliverablesTracking.noTeams')}
             </div>
           ) : trackingData.columns.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
-              {t('events.deliverablesTracking.noTasks')}
+              {safeTranslate(t, 'events.deliverablesTracking.noTasks')}
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="sticky left-0 z-10 bg-background min-w-[200px]">
-                    {t('events.deliverablesTracking.team')}
+                    {safeTranslate(t, 'events.deliverablesTracking.team')}
                   </TableHead>
                   {phases.map(phase => {
                     const phaseColumns = columnsByPhase.get(phase.id) || [];
@@ -193,9 +203,9 @@ export default function EventDeliverablesTrackingPage() {
                         colSpan={phaseColumns.length}
                         className="text-center bg-muted/50"
                       >
-                        <div className="font-semibold">{phase.name}</div>
+                        <div className="font-semibold">{getMultilingualText(phase.name, currentLang)}</div>
                         <div className="text-xs text-muted-foreground font-normal mt-1">
-                          {t('events.deliverablesTracking.phase')}
+                          {safeTranslate(t, 'events.deliverablesTracking.phase')}
                         </div>
                       </TableHead>
                     );
@@ -207,7 +217,7 @@ export default function EventDeliverablesTrackingPage() {
                     <TableHead key={`${column.phaseId}-${column.taskId}`} className="text-center min-w-[120px]">
                       <div className="text-xs font-medium">{column.taskTitle}</div>
                       <div className="text-xs text-muted-foreground font-normal mt-1">
-                        {t('events.deliverablesTracking.task')}
+                        {safeTranslate(t, 'events.deliverablesTracking.task')}
                       </div>
                     </TableHead>
                   ))}
@@ -235,7 +245,7 @@ export default function EventDeliverablesTrackingPage() {
                               <div className="flex items-center gap-2">
                                 <Check className="h-5 w-5 text-green-600" aria-hidden />
                                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                                  {t('events.deliverablesTracking.submitted')}
+                                  {safeTranslate(t, 'events.deliverablesTracking.submitted')}
                                 </Badge>
                               </div>
                               {isReviewer && (
@@ -250,7 +260,7 @@ export default function EventDeliverablesTrackingPage() {
                                       <Link
                                         to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
                                       >
-                                        {t('evaluations.evaluateButton', { defaultValue: 'Evaluar' })}
+                                        {safeTranslate(t, 'evaluations.evaluateButton', { defaultValue: 'Evaluar' })}
                                       </Link>
                                     </Button>
                                   ) : (
@@ -263,7 +273,7 @@ export default function EventDeliverablesTrackingPage() {
                                       <Link
                                         to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
                                       >
-                                        {t('evaluations.viewEvaluationButton', { defaultValue: 'Ver evaluación' })}
+                                        {safeTranslate(t, 'evaluations.viewEvaluationButton', { defaultValue: 'Ver evaluación' })}
                                       </Link>
                                     </Button>
                                   )}
@@ -282,7 +292,7 @@ export default function EventDeliverablesTrackingPage() {
                                     className="flex items-center gap-1"
                                   >
                                     <ExternalLink className="h-3 w-3" />
-                                    {t('events.deliverablesTracking.viewSubmission')}
+                                    {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
                                   </Link>
                                 </Button>
                               )}
@@ -291,7 +301,7 @@ export default function EventDeliverablesTrackingPage() {
                             <div className="flex flex-col items-center gap-2">
                               <X className="h-5 w-5 text-red-600" aria-hidden />
                               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-                                {t('events.deliverablesTracking.notSubmitted')}
+                                {safeTranslate(t, 'events.deliverablesTracking.notSubmitted')}
                               </Badge>
                             </div>
                           )}

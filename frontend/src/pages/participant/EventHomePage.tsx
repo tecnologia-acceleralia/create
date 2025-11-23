@@ -7,6 +7,8 @@ import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getEventDetail } from '@/services/events';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { useTenant } from '@/context/TenantContext';
@@ -16,7 +18,8 @@ import { EventTimelineTab } from '@/components/events/EventTimelineTab';
 function EventHomePage() {
   const { eventId } = useParams();
   const numericId = Number(eventId);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const tenantPath = useTenantPath();
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') || 'description';
@@ -33,11 +36,11 @@ function EventHomePage() {
 
   if (!eventDetail) {
     return (
-      <DashboardLayout title={t('events.title')} subtitle={t('common.error')}>
+      <DashboardLayout title={safeTranslate(t, 'events.title')} subtitle={safeTranslate(t, 'common.error')}>
         <div className="rounded-2xl border border-border/70 bg-card/80 p-6 text-sm">
-          <p className="text-destructive">{t('common.error')}</p>
+          <p className="text-destructive">{safeTranslate(t, 'common.error')}</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link to={tenantPath('dashboard')}>{t('navigation.dashboard')}</Link>
+            <Link to={tenantPath('dashboard')}>{safeTranslate(t, 'navigation.dashboard')}</Link>
           </Button>
         </div>
       </DashboardLayout>
@@ -50,8 +53,11 @@ function EventHomePage() {
     setSearchParams(newParams, { replace: true });
   };
 
+  const eventName = getMultilingualText(eventDetail.name, currentLang);
+  const eventDescription = eventDetail.description ? getMultilingualText(eventDetail.description, currentLang) : '';
+
   return (
-    <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
+    <DashboardLayout title={eventName} subtitle={eventDescription}>
       <div className="space-y-6">
         {/* Tabs Navigation */}
         <div className="flex gap-2 border-b border-border/70">
@@ -68,7 +74,7 @@ function EventHomePage() {
             `}
           >
             <FileText className="h-4 w-4" />
-            {t('events.description')}
+            {safeTranslate(t, 'events.description')}
           </button>
           <button
             type="button"
@@ -83,7 +89,7 @@ function EventHomePage() {
             `}
           >
             <Calendar className="h-4 w-4" />
-            {t('events.timeline')}
+            {safeTranslate(t, 'events.timeline')}
           </button>
         </div>
 

@@ -46,9 +46,16 @@ export async function up(queryInterface) {
     throw new Error('No se encontró el tenant UIC. Ejecuta primero el seeder 0002-uic-tenant.js');
   }
 
-  const [[event]] = await queryInterface.sequelize.query(
-    `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`
-  );
+  // Verificar si la columna name es JSON (multiidioma) o STRING
+  const eventsTableDesc = await queryInterface.describeTable('events').catch(() => ({}));
+  const isNameJSON = eventsTableDesc.name && (eventsTableDesc.name.type === 'json' || eventsTableDesc.name.type?.includes('json') || eventsTableDesc.name.type === 'JSON');
+
+  // Buscar el evento según el tipo de columna
+  const eventQuery = isNameJSON
+    ? `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'SPP 2026' LIMIT 1`
+    : `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`;
+  
+  const [[event]] = await queryInterface.sequelize.query(eventQuery);
 
   if (!event) {
     throw new Error('No se encontró el evento SPP 2026. Ejecuta primero el seeder 0002-uic-tenant.js');
@@ -91,31 +98,33 @@ export async function up(queryInterface) {
       `SELECT id FROM users WHERE email = '${userData.email}' LIMIT 1`
     );
 
-    let userId;
-    if (existingUser) {
-      userId = existingUser.id;
-      // Actualizar contraseña y grado si existe
-      await queryInterface.bulkUpdate(
-        'users',
-        { password: passwordHash, grade: userData.grade || null, updated_at: now },
-        { id: userId }
-      );
-    } else {
-      await queryInterface.bulkInsert('users', [
-        {
-          email: userData.email,
-          password: passwordHash,
-          first_name: userData.firstName,
-          last_name: userData.lastName,
-          grade: userData.grade || null,
-          language: 'ca',
-          status: 'active',
-          profile_image_url: null,
-          is_super_admin: false,
-          created_at: now,
-          updated_at: now
-        }
-      ]);
+      let userId;
+      const registrationAnswers = userData.grade ? JSON.stringify({ grade: userData.grade }) : null;
+      
+      if (existingUser) {
+        userId = existingUser.id;
+        // Actualizar contraseña y registration_answers si existe
+        await queryInterface.bulkUpdate(
+          'users',
+          { password: passwordHash, registration_answers: registrationAnswers, updated_at: now },
+          { id: userId }
+        );
+      } else {
+        await queryInterface.bulkInsert('users', [
+          {
+            email: userData.email,
+            password: passwordHash,
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+            registration_answers: registrationAnswers,
+            language: 'ca',
+            status: 'active',
+            profile_image_url: null,
+            is_super_admin: false,
+            created_at: now,
+            updated_at: now
+          }
+        ]);
 
       const [[newUser]] = await queryInterface.sequelize.query(
         `SELECT id FROM users WHERE email = '${userData.email}' LIMIT 1`
@@ -301,6 +310,54 @@ export async function up(queryInterface) {
 
     createdTeams.push({ teamId, projectData, captainData, memberData });
   }
+
+  // Asegurar que todos los usuarios tengan registration_answers inicializado
+  // (Consolidado de 0014-populate-user-registration-answers.js)
+  const tableDescription = await queryInterface.describeTable('users').catch(() => null);
+  
+  if (tableDescription && tableDescription.registration_answers) {
+    const users = await queryInterface.sequelize.query(
+      `SELECT u.id, u.email, u.registration_answers
+       FROM users u
+       INNER JOIN user_tenants ut ON u.id = ut.user_id
+       WHERE ut.tenant_id = :tenantId
+         AND u.email IN (${testUsersData.map(u => `'${u.email}'`).join(', ')})
+         AND (
+           u.registration_answers IS NULL 
+           OR u.registration_answers = 'null' 
+           OR u.registration_answers = '{}'
+         )
+       ORDER BY u.id`,
+      {
+        replacements: { tenantId: tenant.id },
+        type: queryInterface.sequelize.QueryTypes.SELECT
+      }
+    );
+
+    for (const user of users) {
+      // Si el usuario tiene grade en testUsersData, usar ese valor
+      const userData = testUsersData.find(u => u.email === user.email);
+      const registrationAnswers = userData?.grade 
+        ? JSON.stringify({ grade: userData.grade })
+        : '{}';
+
+      await queryInterface.sequelize.query(
+        `UPDATE users 
+         SET registration_answers = :answers, updated_at = NOW() 
+         WHERE id = :userId
+           AND (
+             registration_answers IS NULL 
+             OR registration_answers = 'null'
+           )`,
+        {
+          replacements: { 
+            userId: user.id,
+            answers: registrationAnswers
+          }
+        }
+      );
+    }
+  }
 }
 
 export async function down(queryInterface) {
@@ -314,10 +371,17 @@ export async function down(queryInterface) {
 
   const testUserEmails = testUsersData.map(u => u.email);
 
+  // Verificar si la columna name es JSON (multiidioma) o STRING
+  const eventsTableDesc = await queryInterface.describeTable('events').catch(() => ({}));
+  const isNameJSON = eventsTableDesc.name && (eventsTableDesc.name.type === 'json' || eventsTableDesc.name.type?.includes('json') || eventsTableDesc.name.type === 'JSON');
+
+  // Buscar el evento según el tipo de columna
+  const eventQuery = isNameJSON
+    ? `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'SPP 2026' LIMIT 1`
+    : `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`;
+  
   // Eliminar proyectos, equipos y miembros
-  const [[event]] = await queryInterface.sequelize.query(
-    `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`
-  );
+  const [[event]] = await queryInterface.sequelize.query(eventQuery);
 
   if (event) {
     // Obtener equipos creados por estos usuarios

@@ -21,6 +21,8 @@ import { getPublicBranding } from '@/services/public';
 import { eventSchema, type EventFormValues } from '@/components/events/forms';
 import { EventCreateModal } from '@/components/events/modals';
 import { formatDate } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 
 type StatsCardProps = {
   readonly label: string;
@@ -115,13 +117,13 @@ function AdminDashboardPage() {
   const createMutation = useMutation({
     mutationFn: createEvent,
     onSuccess: () => {
-      toast.success(t('events.created'));
+      toast.success(safeTranslate(t, 'events.created'));
       void queryClient.invalidateQueries({ queryKey: ['events'] });
       void queryClient.invalidateQueries({ queryKey: ['tenant', 'overview'] });
       eventForm.reset();
       setIsCreateModalOpen(false);
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const onSubmit = (values: EventFormValues) => {
@@ -200,7 +202,7 @@ function AdminDashboardPage() {
 
   if (overviewQuery.isLoading) {
     return (
-      <DashboardLayout title={t('dashboard.tenantAdmin')} subtitle={tenantName}>
+      <DashboardLayout title={safeTranslate(t, 'dashboard.tenantAdmin')} subtitle={tenantName}>
         <Spinner fullHeight />
       </DashboardLayout>
     );
@@ -208,8 +210,8 @@ function AdminDashboardPage() {
 
   if (overviewQuery.isError || !overviewQuery.data) {
     return (
-      <DashboardLayout title={t('dashboard.tenantAdmin')} subtitle={tenantName}>
-        <ErrorDisplay error={t('dashboard.overview.error')} />
+      <DashboardLayout title={safeTranslate(t, 'dashboard.tenantAdmin')} subtitle={tenantName}>
+        <ErrorDisplay error={safeTranslate(t, 'dashboard.overview.error')} />
       </DashboardLayout>
     );
   }
@@ -231,62 +233,69 @@ function AdminDashboardPage() {
 
   const renderEventList = (events: Event[]) => {
     if (events.length === 0) {
-      return <p className="text-sm text-muted-foreground">{t('dashboard.noEvents')}</p>;
+      return <p className="text-sm text-muted-foreground">{safeTranslate(t, 'dashboard.noEvents')}</p>;
     }
+
+    const currentLang = (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
     return (
       <div className="space-y-3">
-        {events.map(event => (
-          <button
-            key={event.id}
-            type="button"
-            className="w-full text-left flex flex-col rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            onClick={() => navigate(tenantPath(`dashboard/events/${event.id}`))}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-medium">{event.name}</span>
-              <Badge variant={getStatusBadgeVariant(event.status)}>
-                {t(`events.status.${event.status}`)}
-              </Badge>
-            </div>
-            {event.description && (
-              <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                {event.description}
-              </p>
-            )}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>
-                <span className="font-medium">{t('events.start')}:</span>{' '}
-                {formatDate(locale, event.start_date) ?? '—'}
-              </span>
-              <span>
-                <span className="font-medium">{t('events.end')}:</span>{' '}
-                {formatDate(locale, event.end_date) ?? '—'}
-              </span>
-            </div>
-          </button>
-        ))}
+        {events.map(event => {
+          const eventName = getMultilingualText(event.name, currentLang);
+          const eventDescription = getMultilingualText(event.description, currentLang);
+          
+          return (
+            <button
+              key={event.id}
+              type="button"
+              className="w-full text-left flex flex-col rounded-lg border p-3 hover:bg-accent/50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={() => navigate(tenantPath(`dashboard/events/${event.id}`))}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-medium">{eventName}</span>
+                <Badge variant={getStatusBadgeVariant(event.status)}>
+                  {safeTranslate(t, `events.status.${event.status}`, { defaultValue: event.status })}
+                </Badge>
+              </div>
+              {eventDescription && (
+                <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                  {eventDescription}
+                </p>
+              )}
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>
+                  <span className="font-medium">{safeTranslate(t, 'events.start')}:</span>{' '}
+                  {formatDate(locale, event.start_date) ?? '—'}
+                </span>
+                <span>
+                  <span className="font-medium">{safeTranslate(t, 'events.end')}:</span>{' '}
+                  {formatDate(locale, event.end_date) ?? '—'}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
     );
   };
 
   return (
     <TooltipProvider>
-      <DashboardLayout title={t('dashboard.tenantAdmin')} subtitle={tenantName}>
+      <DashboardLayout title={safeTranslate(t, 'dashboard.tenantAdmin')} subtitle={tenantName}>
         <div className="space-y-6">
           {/* Acciones rápidas */}
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
-              <CardTitle>{t('dashboard.quickActions')}</CardTitle>
-              <CardDescription>{t('dashboard.quickActionsDescription')}</CardDescription>
+              <CardTitle>{safeTranslate(t, 'dashboard.quickActions')}</CardTitle>
+              <CardDescription>{safeTranslate(t, 'dashboard.quickActionsDescription')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 <Button asChild>
-                  <Link to={tenantPath('dashboard/events')}>{t('events.title')}</Link>
+                  <Link to={tenantPath('dashboard/events')}>{safeTranslate(t, 'events.title')}</Link>
                 </Button>
                 <Button variant="outline" onClick={() => setIsCreateModalOpen(true)}>
-                  {t('events.create')}
+                  {safeTranslate(t, 'events.create')}
                 </Button>
               </div>
             </CardContent>
@@ -295,52 +304,52 @@ function AdminDashboardPage() {
           {/* Tarjetas de estadísticas */}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <StatsCard
-            label={t('dashboard.stats.teams')}
+            label={safeTranslate(t, 'dashboard.stats.teams')}
             value={statistics.teams}
             icon={<Users className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.teamsTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.teamsTooltip')}
           />
           <StatsCard
-            label={t('dashboard.stats.projects')}
+            label={safeTranslate(t, 'dashboard.stats.projects')}
             value={statistics.projects}
             icon={<FolderKanban className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.projectsTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.projectsTooltip')}
           />
           <StatsCard
-            label={t('dashboard.stats.users')}
+            label={safeTranslate(t, 'dashboard.stats.users')}
             value={statistics.users}
             icon={<UserPlus className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.usersTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.usersTooltip')}
           />
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <StatsCard
-            label={t('dashboard.stats.submissions')}
+            label={safeTranslate(t, 'dashboard.stats.submissions')}
             value={statistics.submissions}
             icon={<FileText className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.submissionsTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.submissionsTooltip')}
           />
           <StatsCard
-            label={t('dashboard.stats.evaluations')}
+            label={safeTranslate(t, 'dashboard.stats.evaluations')}
             value={statistics.evaluations}
             icon={<ClipboardCheck className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.evaluationsTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.evaluationsTooltip')}
           />
           <StatsCard
-            label={t('dashboard.stats.registrations')}
+            label={safeTranslate(t, 'dashboard.stats.registrations')}
             value={statistics.registrations}
             icon={<Archive className="h-5 w-5" aria-hidden />}
-            tooltip={t('dashboard.stats.registrationsTooltip')}
+            tooltip={safeTranslate(t, 'dashboard.stats.registrationsTooltip')}
           />
         </div>
 
         {/* Eventos unificados con tabs */}
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-            <CardTitle className="text-lg">{t('dashboard.events')}</CardTitle>
+            <CardTitle className="text-lg">{safeTranslate(t, 'dashboard.events')}</CardTitle>
             <Button variant="outline" size="sm" asChild>
-              <Link to={tenantPath('dashboard/events')}>{t('common.viewAll')}</Link>
+              <Link to={tenantPath('dashboard/events')}>{safeTranslate(t, 'common.viewAll')}</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -351,52 +360,52 @@ function AdminDashboardPage() {
                     <TooltipTrigger asChild>
                       <span className="inline-flex w-full">
                         <TabsTrigger value="all" className="flex items-center gap-2 w-full">
-                          {t('dashboard.eventsTabs.all')}
+                          {safeTranslate(t, 'dashboard.eventsTabs.all')}
                           <Info className="h-3 w-3" />
                         </TabsTrigger>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{t('dashboard.eventsTabs.allTooltip')}</p>
+                      <p>{safeTranslate(t, 'dashboard.eventsTabs.allTooltip')}</p>
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex w-full">
                         <TabsTrigger value="past" className="flex items-center gap-2 w-full">
-                          {t('dashboard.eventsTabs.past')}
+                          {safeTranslate(t, 'dashboard.eventsTabs.past')}
                           <Info className="h-3 w-3" />
                         </TabsTrigger>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{t('dashboard.eventsTabs.pastTooltip')}</p>
+                      <p>{safeTranslate(t, 'dashboard.eventsTabs.pastTooltip')}</p>
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex w-full">
                         <TabsTrigger value="current" className="flex items-center gap-2 w-full">
-                          {t('dashboard.eventsTabs.current')}
+                          {safeTranslate(t, 'dashboard.eventsTabs.current')}
                           <Info className="h-3 w-3" />
                         </TabsTrigger>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{t('dashboard.eventsTabs.currentTooltip')}</p>
+                      <p>{safeTranslate(t, 'dashboard.eventsTabs.currentTooltip')}</p>
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex w-full">
                         <TabsTrigger value="future" className="flex items-center gap-2 w-full">
-                          {t('dashboard.eventsTabs.future')}
+                          {safeTranslate(t, 'dashboard.eventsTabs.future')}
                           <Info className="h-3 w-3" />
                         </TabsTrigger>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>{t('dashboard.eventsTabs.futureTooltip')}</p>
+                      <p>{safeTranslate(t, 'dashboard.eventsTabs.futureTooltip')}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TabsList>

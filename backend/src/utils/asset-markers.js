@@ -1,10 +1,9 @@
-import { getModels } from '../models/index.js';
 import { logger } from './logger.js';
 
 /**
  * Escapa caracteres especiales HTML para prevenir XSS.
  */
-function escapeHtml(text) {
+export function escapeHtml(text) {
   if (!text || typeof text !== 'string') {
     return '';
   }
@@ -19,14 +18,14 @@ function escapeHtml(text) {
 /**
  * Escapa caracteres especiales para usar en regex de reemplazo.
  */
-function escapeRegex(str) {
+export function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
  * Obtiene una propiedad de un asset de manera segura (funciona con modelos Sequelize y objetos planos)
  */
-function getAssetProperty(asset, property) {
+export function getAssetProperty(asset, property) {
   if (!asset) return null;
   // Si es un modelo Sequelize, usar get(), sino acceso directo
   if (typeof asset.get === 'function') {
@@ -36,9 +35,21 @@ function getAssetProperty(asset, property) {
 }
 
 /**
+ * Genera el HTML de una imagen con las clases CSS apropiadas.
+ * La imagen ocupa el 75% del ancho y está centrada.
+ *
+ * @param {string} escapedUrl - URL del asset ya escapada para HTML
+ * @param {string} escapedAlt - Texto alternativo ya escapado para HTML
+ * @returns {string} HTML del elemento img con contenedor
+ */
+export function createImageHtml(escapedUrl, escapedAlt) {
+  return `<div class="flex justify-center my-4"><img src="${escapedUrl}" alt="${escapedAlt}" style="width: 75%; max-width: 75%; height: auto;" class="block mx-auto" /></div>`;
+}
+
+/**
  * Determina si un asset es una imagen basándose en su mime_type o extensión del archivo.
  */
-function isImageAsset(asset) {
+export function isImageAsset(asset) {
   if (!asset) {
     logger.warn('isImageAsset recibió asset null/undefined');
     return false;
@@ -85,235 +96,6 @@ function isImageAsset(asset) {
   return false;
 }
 
-/**
- * Reemplaza los marcadores de assets en HTML por links HTML o imágenes.
- * Los marcadores tienen el formato: {{asset:nombre-del-recurso}}
- * Si el asset es una imagen, se renderiza como <img>, si no, como <a>.
- *
- * @param {string} html - Contenido HTML que puede contener marcadores
- * @param {number} eventId - ID del evento
- * @param {number} tenantId - ID del tenant
- * @returns {Promise<string>} HTML con los marcadores reemplazados por links HTML o imágenes
- */
-export async function resolveAssetMarkers(html, eventId, tenantId) {
-  if (!html || typeof html !== 'string') {
-    return html || '';
-  }
-
-  const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
-  const matches = [...html.matchAll(markerRegex)];
-
-  if (matches.length === 0) {
-    return html;
-  }
-
-  const { EventAsset } = getModels();
-
-  // Obtener todos los assets únicos mencionados en los marcadores
-  const assetNames = [...new Set(matches.map(match => match[1]))];
-
-  // Buscar todos los assets de una vez (asegurarse de cargar todos los atributos)
-  const assets = await EventAsset.findAll({
-    where: {
-      tenant_id: tenantId,
-      event_id: eventId,
-      name: assetNames
-    },
-    attributes: ['id', 'name', 'original_filename', 'url', 'mime_type', 'file_size', 'description', 's3_key']
-  });
-  
-  // Log para depuración
-  logger.debug('Assets encontrados para marcadores', {
-    eventId,
-    tenantId,
-    assetNames,
-    assetsFound: assets.map(a => ({
-      name: a.name,
-      mime_type: a.mime_type,
-      original_filename: a.original_filename,
-      url: a.url
-    }))
-  });
-
-  // Crear mapas de búsqueda por name (exacto y case-insensitive)
-  const assetMapByName = new Map();
-  const assetMapByNameLower = new Map();
-  assets.forEach(asset => {
-    assetMapByName.set(asset.name, asset);
-    assetMapByNameLower.set(asset.name.toLowerCase(), asset);
-  });
-
-  // Reemplazar cada marcador por un link HTML
-  let resolvedHtml = html;
-  
-  // Primero procesar marcadores que están dentro de elementos <a> para evitar links anidados
-  // Regex para encontrar <a> tags completos que contienen marcadores en el href
-  // Maneja atributos en cualquier orden, espacios, y contenido del link (incluyendo múltiples líneas)
-  // El patrón busca: <a ... href="..." o href='...' ...> contenido </a>
-  const linkWithMarkerRegex = /<a\s+[^>]*href\s*=\s*["']\{\{asset:([a-zA-Z0-9_.-]+)\}\}["'][^>]*>([\s\S]*?)<\/a>/gi;
-  const linkMatches = [...html.matchAll(linkWithMarkerRegex)];
-  
-  // Crear un Set de marcadores que ya fueron procesados como parte de <a> tags
-  const processedInLinks = new Set();
-  
-  // Procesar cada <a> que contiene un marcador
-  linkMatches.forEach(linkMatch => {
-    const [fullLinkMatch, assetName, linkText] = linkMatch;
-    
-    // Buscar el asset
-    let asset = assetMapByName.get(assetName);
-    if (!asset) {
-      asset = assetMapByNameLower.get(assetName.toLowerCase());
-    }
-    
-    if (asset) {
-      const assetUrl = getAssetProperty(asset, 'url');
-      const escapedUrl = escapeHtml(assetUrl);
-      
-      // Log detallado antes de verificar si es imagen
-      logger.debug('Procesando asset en <a> tag', {
-        assetName,
-        mime_type: getAssetProperty(asset, 'mime_type'),
-        original_filename: getAssetProperty(asset, 'original_filename'),
-        url: assetUrl
-      });
-      
-      // Si es una imagen, crear un elemento <img> en lugar de un link
-      if (isImageAsset(asset)) {
-        const altText = linkText.trim() || getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
-        const escapedAlt = escapeHtml(altText);
-        const imgHtml = `<img src="${escapedUrl}" alt="${escapedAlt}" class="max-w-full h-auto" />`;
-        
-        // Escapar el link completo para regex y reemplazarlo por la imagen
-        const escapedLinkMatch = escapeRegex(fullLinkMatch);
-        const linkRegex = new RegExp(escapedLinkMatch, 'g');
-        resolvedHtml = resolvedHtml.replace(linkRegex, imgHtml);
-        
-        logger.info('✅ Marcador de imagen reemplazado en <a> tag', {
-          assetName,
-          mime_type: getAssetProperty(asset, 'mime_type'),
-          eventId,
-          tenantId
-        });
-      } else {
-        // Si no es una imagen, crear nuevo link HTML reemplazando todo el <a> completo
-        const finalLinkText = linkText.trim() || getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
-        const escapedText = escapeHtml(finalLinkText);
-        
-        const newLinkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
-        
-        // Escapar el link completo para regex
-        const escapedLinkMatch = escapeRegex(fullLinkMatch);
-        const linkRegex = new RegExp(escapedLinkMatch, 'g');
-        resolvedHtml = resolvedHtml.replace(linkRegex, newLinkHtml);
-        
-        logger.debug('Marcador reemplazado como link (no es imagen)', {
-          assetName,
-          mime_type: getAssetProperty(asset, 'mime_type'),
-          eventId,
-          tenantId
-        });
-      }
-      
-      // Marcar este marcador como procesado
-      processedInLinks.add(`{{asset:${assetName}}}`);
-    } else {
-      logger.warn('Marcador de asset no encontrado en <a> tag', {
-        assetName,
-        eventId,
-        tenantId
-      });
-      // Eliminar el <a> completo si el asset no existe
-      const escapedLinkMatch = escapeRegex(fullLinkMatch);
-      const linkRegex = new RegExp(escapedLinkMatch, 'g');
-      resolvedHtml = resolvedHtml.replace(linkRegex, '');
-      
-      // Marcar como procesado para no intentar reemplazarlo de nuevo
-      processedInLinks.add(`{{asset:${assetName}}}`);
-    }
-  });
-  
-  // Ahora procesar marcadores que NO están dentro de <a> tags (marcadores sueltos)
-  const uniqueMarkers = new Map();
-  matches.forEach(match => {
-    const [fullMatch, assetName] = match;
-    // Solo procesar si no fue procesado como parte de un <a>
-    if (!processedInLinks.has(fullMatch)) {
-      if (!uniqueMarkers.has(fullMatch)) {
-        uniqueMarkers.set(fullMatch, assetName);
-      }
-    }
-  });
-
-  uniqueMarkers.forEach((assetName, fullMatch) => {
-    // Buscar por name (exacto, luego case-insensitive)
-    let asset = assetMapByName.get(assetName);
-    if (!asset) {
-      asset = assetMapByNameLower.get(assetName.toLowerCase());
-    }
-
-    if (asset) {
-      const assetUrl = getAssetProperty(asset, 'url');
-      const escapedUrl = escapeHtml(assetUrl);
-      
-      // Log detallado antes de verificar si es imagen
-      logger.debug('Procesando asset suelto', {
-        assetName,
-        mime_type: getAssetProperty(asset, 'mime_type'),
-        original_filename: getAssetProperty(asset, 'original_filename'),
-        url: assetUrl
-      });
-      
-      // Si es una imagen, crear un elemento <img>
-      if (isImageAsset(asset)) {
-        const altText = getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
-        const escapedAlt = escapeHtml(altText);
-        const imgHtml = `<img src="${escapedUrl}" alt="${escapedAlt}" class="max-w-full h-auto" />`;
-        
-        // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
-        const escapedMatch = escapeRegex(fullMatch);
-        const globalRegex = new RegExp(escapedMatch, 'g');
-        resolvedHtml = resolvedHtml.replace(globalRegex, imgHtml);
-        
-        logger.info('✅ Marcador de imagen reemplazado', {
-          assetName,
-          mime_type: getAssetProperty(asset, 'mime_type'),
-          eventId,
-          tenantId
-        });
-      } else {
-        // Si no es una imagen, crear link HTML que se abre en nueva pestaña
-        const linkText = getAssetProperty(asset, 'description') || getAssetProperty(asset, 'original_filename') || getAssetProperty(asset, 'name');
-        const escapedText = escapeHtml(linkText);
-        const linkHtml = `<a href="${escapedUrl}" target="_blank" rel="noopener noreferrer" class="text-primary underline hover:text-primary/80">${escapedText}</a>`;
-        
-        // Escapar caracteres especiales del regex y reemplazar todas las ocurrencias
-        const escapedMatch = escapeRegex(fullMatch);
-        const globalRegex = new RegExp(escapedMatch, 'g');
-        resolvedHtml = resolvedHtml.replace(globalRegex, linkHtml);
-        
-        logger.debug('Marcador reemplazado como link (no es imagen)', {
-          assetName,
-          mime_type: getAssetProperty(asset, 'mime_type'),
-          eventId,
-          tenantId
-        });
-      }
-    } else {
-      logger.warn('Marcador de asset no encontrado', {
-        assetName,
-        eventId,
-        tenantId
-      });
-      // Dejar el marcador sin reemplazar (eliminar el marcador)
-      const escapedMatch = escapeRegex(fullMatch);
-      const globalRegex = new RegExp(escapedMatch, 'g');
-      resolvedHtml = resolvedHtml.replace(globalRegex, '');
-    }
-  });
-
-  return resolvedHtml;
-}
 
 /**
  * Extrae todos los nombres de assets mencionados en un HTML.
@@ -330,5 +112,135 @@ export function extractAssetNames(html) {
   const markerRegex = /\{\{asset:([a-zA-Z0-9_.-]+)\}\}/g;
   const matches = [...html.matchAll(markerRegex)];
   return [...new Set(matches.map(match => match[1]))];
+}
+
+/**
+ * Determina el tipo de icono y color según el tipo de archivo (mime type o extensión).
+ * 
+ * IMPORTANTE: Esta función debe usar la MISMA lógica que getFileIcon en frontend/src/utils/files.ts
+ * La lógica está duplicada aquí porque frontend y backend tienen diferentes sistemas de módulos.
+ * Si cambias la lógica aquí, DEBES actualizar también frontend/src/utils/files.ts para mantener consistencia.
+ * 
+ * Mapeo de iconos Lucide a strings:
+ * - FileIcon -> 'file'
+ * - FileText -> 'fileText'
+ * - FileImage -> 'fileImage'
+ * - FileVideo -> 'fileVideo'
+ * - FileAudio -> 'fileAudio'
+ * - FileSpreadsheet -> 'fileSpreadsheet'
+ * - FileCode -> 'fileCode'
+ * - FileArchive -> 'fileArchive'
+ *
+ * @param {string} mimeType - Tipo MIME del archivo
+ * @param {string} fileName - Nombre del archivo (para extraer extensión)
+ * @returns {{iconType: string, color: string}} Objeto con el tipo de icono y el color hexadecimal
+ */
+export function getFileIconType(mimeType, fileName) {
+  // NOTA: Esta función debe replicar EXACTAMENTE la lógica de getFileIcon en frontend/src/utils/files.ts
+  // Ver esa función como fuente de verdad para cambios futuros
+  
+  const extension = (fileName || '').split('.').pop()?.toLowerCase() || '';
+  const mime = (mimeType || '').toLowerCase();
+
+  // PDF - debe ir primero porque algunos PDFs pueden tener mime types genéricos
+  if (extension === 'pdf' || mime === 'application/pdf') {
+    return { iconType: 'fileText', color: '#dc2626' }; // red-600
+  }
+
+  // PowerPoint - verificar extensión primero
+  if (extension === 'ppt' || extension === 'pptx' || 
+      mime.includes('presentation') || mime.includes('powerpoint')) {
+    return { iconType: 'fileText', color: '#ea580c' }; // orange-600
+  }
+
+  // Word - verificar extensión primero
+  if (extension === 'doc' || extension === 'docx' || 
+      mime.includes('word') || mime === 'application/msword') {
+    return { iconType: 'fileText', color: '#2563eb' }; // blue-600
+  }
+
+  // Excel - verificar extensión primero
+  if (extension === 'xls' || extension === 'xlsx' || 
+      mime.includes('spreadsheet') || mime.includes('excel')) {
+    return { iconType: 'fileSpreadsheet', color: '#16a34a' }; // green-600
+  }
+
+  // Imágenes
+  if (mime.startsWith('image/')) {
+    return { iconType: 'fileImage', color: '#9333ea' }; // purple-600
+  }
+
+  // Videos
+  if (mime.startsWith('video/')) {
+    return { iconType: 'fileVideo', color: '#db2777' }; // pink-600
+  }
+
+  // Audio
+  if (mime.startsWith('audio/')) {
+    return { iconType: 'fileAudio', color: '#4f46e5' }; // indigo-600
+  }
+
+  // Archivos comprimidos
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension) ||
+      mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
+    return { iconType: 'fileArchive', color: '#ca8a04' }; // yellow-600
+  }
+
+  // Código
+  if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension) ||
+      (mime.includes('text/') && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension))) {
+    return { iconType: 'fileCode', color: '#0891b2' }; // cyan-600
+  }
+
+  // Texto plano
+  if (extension === 'txt' || mime.startsWith('text/')) {
+    return { iconType: 'fileText', color: '#4b5563' }; // gray-600
+  }
+
+  // Por defecto
+  return { iconType: 'file', color: '#6b7280' }; // gray-500
+}
+
+/**
+ * Genera el HTML de un icono SVG según el tipo de archivo (mime type o extensión).
+ * Usa la misma lógica que getFileIcon del frontend para mantener consistencia.
+ *
+ * @param {string} mimeType - Tipo MIME del archivo
+ * @param {string} fileName - Nombre del archivo (para extraer extensión)
+ * @returns {string} HTML del icono SVG inline con color
+ */
+export function getFileIconHtml(mimeType, fileName) {
+  const { iconType, color } = getFileIconType(mimeType, fileName);
+
+  // Definir iconos SVG (simplificados basados en Lucide icons)
+  // Cada icono es un SVG de 16x16 píxeles - deben coincidir con los iconos usados en el frontend
+  const icons = {
+    file: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>',
+    fileText: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>',
+    fileImage: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m10 12 2 2 4-4"/><circle cx="16" cy="10" r="1.5"/></svg>',
+    fileVideo: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m10 14 6-4-6-4v8Z"/></svg>',
+    fileAudio: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 10v4"/><path d="M14 8v8"/></svg>',
+    fileSpreadsheet: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9h6"/><path d="M10 13h6"/><path d="M10 17h4"/></svg>',
+    fileCode: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="m10 12-2 2 2 2"/><path d="m14 12 2 2-2 2"/></svg>',
+    fileArchive: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9h4"/><path d="M10 13h4"/></svg>'
+  };
+
+  const iconSvg = icons[iconType] || icons.file;
+
+  // Reemplazar el color del stroke en el SVG
+  const escapedColor = escapeHtml(color);
+  let coloredSvg = iconSvg.replace('stroke="currentColor"', `stroke="${escapedColor}"`);
+  
+  // Añadir clases de Tailwind h-4 w-4 al SVG para que coincida con el frontend
+  // El SVG ya tiene width="16" height="16" en el código, pero añadimos clases Tailwind
+  // para asegurar consistencia y que Tailwind pueda aplicar sus estilos
+  coloredSvg = coloredSvg.replace(
+    /<svg\s+([^>]*?)>/,
+    `<svg $1 class="h-4 w-4" style="flex-shrink: 0; display: inline-block; vertical-align: text-bottom;">`
+  );
+
+  // Contenedor siguiendo el patrón del frontend
+  // El frontend usa: <span className="flex-shrink-0"> para contener el icono
+  return `<span class="inline-flex items-center shrink-0 mr-1.5" aria-hidden="true">${coloredSvg}</span>`;
 }
 

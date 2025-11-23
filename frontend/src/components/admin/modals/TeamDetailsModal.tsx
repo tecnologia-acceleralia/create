@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +26,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>{t('teams.teamDetails')}</DialogTitle>
+          <DialogTitle>{safeTranslate(t, 'teams.teamDetails')}</DialogTitle>
           <DialogDescription>
             {team?.name}
           </DialogDescription>
@@ -36,8 +37,8 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
               <div className="flex-1 overflow-y-auto flex flex-col">
                 <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pb-4 pt-4">
                   <TabsList data-team-details-tabs className="grid w-full grid-cols-2">
-                    <TabsTrigger value="team">{t('teams.team')}</TabsTrigger>
-                    <TabsTrigger value="project">{t('teams.project')}</TabsTrigger>
+                    <TabsTrigger value="team">{safeTranslate(t, 'teams.team')}</TabsTrigger>
+                    <TabsTrigger value="project">{safeTranslate(t, 'teams.project')}</TabsTrigger>
                   </TabsList>
                 </div>
                 <div className="px-6">
@@ -46,21 +47,21 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
             <TabsContent value="team" className="space-y-6 mt-4">
               {/* Información del Equipo */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">{t('teams.teamInfo')}</h3>
+                <h3 className="text-lg font-semibold">{safeTranslate(t, 'teams.teamInfo')}</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">{t('teams.name')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.name')}</p>
                     <p className="text-base font-semibold">{team.name}</p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">{t('teams.status')}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.status')}</p>
                     <Badge variant={team.status === 'open' ? 'default' : 'secondary'}>
-                      {team.status === 'open' ? t('teams.statusOpen') : t('teams.statusClosed')}
+                      {team.status === 'open' ? safeTranslate(t, 'teams.statusOpen') : safeTranslate(t, 'teams.statusClosed')}
                     </Badge>
                   </div>
                   {team.description && (
                     <div className="md:col-span-2">
-                      <p className="text-sm font-medium text-muted-foreground">{t('teams.description')}</p>
+                      <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.description')}</p>
                       <p className="text-base">{team.description}</p>
                     </div>
                   )}
@@ -69,7 +70,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
 
               {/* Miembros del Equipo */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">{t('teams.members')}</h3>
+                <h3 className="text-lg font-semibold">{safeTranslate(t, 'teams.members')}</h3>
                 <div className="space-y-2">
                   {team.members && team.members.length > 0 ? (
                     team.members.map(member => (
@@ -81,12 +82,12 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
                           <p className="text-xs text-muted-foreground">{member.user?.email}</p>
                         </div>
                         <Badge variant={member.role === 'captain' ? 'default' : 'outline'}>
-                          {member.role === 'captain' ? t('teams.captain') : t('teams.member')}
+                          {member.role === 'captain' ? safeTranslate(t, 'teams.captain') : safeTranslate(t, 'teams.member')}
                         </Badge>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-muted-foreground">{t('teams.noMembers')}</p>
+                    <p className="text-sm text-muted-foreground">{safeTranslate(t, 'teams.noMembers')}</p>
                   )}
                 </div>
               </div>
@@ -98,36 +99,36 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
                 <div className="space-y-4 rounded-lg border border-border/70 p-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">{t('teams.projectName')}</p>
+                      <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectName')}</p>
                       <p className="text-base font-semibold">{team.project.name}</p>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">{t('teams.projectStatus')}</p>
+                      <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectStatus')}</p>
                       <Badge variant="outline" className="capitalize">
                         {team.project.status}
                       </Badge>
                     </div>
                     {team.project.summary && (
                       <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectSummary')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectSummary')}</p>
                         <p className="text-base">{team.project.summary}</p>
                       </div>
                     )}
                     {team.project.problem && (
                       <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectProblem')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectProblem')}</p>
                         <p className="text-base">{team.project.problem}</p>
                       </div>
                     )}
                     {team.project.solution && (
                       <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectSolution')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectSolution')}</p>
                         <p className="text-base">{team.project.solution}</p>
                       </div>
                     )}
                     {team.project.repository_url && (
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectRepo')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectRepo')}</p>
                         <a
                           href={team.project.repository_url}
                           target="_blank"
@@ -140,7 +141,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
                     )}
                     {team.project.pitch_url && (
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectPitch')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectPitch')}</p>
                         <a
                           href={team.project.pitch_url}
                           target="_blank"
@@ -153,7 +154,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
                     )}
                     {team.project.logo_url && (
                       <div className="md:col-span-2">
-                        <p className="text-sm font-medium text-muted-foreground">{t('teams.projectImage')}</p>
+                        <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'teams.projectImage')}</p>
                         <img
                           src={team.project.logo_url}
                           alt={team.project.name}
@@ -165,7 +166,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">{t('teams.noProject')}</p>
+                    <p className="text-sm text-muted-foreground">{safeTranslate(t, 'teams.noProject')}</p>
                 </div>
               )}
             </TabsContent>
@@ -176,7 +177,7 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
         )}
         <DialogFooter className="px-6 pb-6 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.close')}
+            {safeTranslate(t, 'common.close')}
           </Button>
         </DialogFooter>
       </DialogContent>

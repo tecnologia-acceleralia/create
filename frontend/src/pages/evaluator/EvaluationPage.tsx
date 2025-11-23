@@ -6,15 +6,16 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Copy, FileIcon, FileText, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive, ClipboardList, Sparkles } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Copy, ClipboardList, Sparkles } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
+import { getFileIcon } from '@/utils/files';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getSubmissions, getSubmission, getFinalEvaluation, getEvaluations, createEvaluation, updateEvaluation, createAiEvaluation, type Evaluation } from '@/services/submissions';
 import { getEventDetail, getRubrics, type PhaseRubric } from '@/services/events';
 import { cn } from '@/utils/cn';
@@ -48,6 +51,7 @@ function EvaluationPage() {
   const tenantPath = useTenantPath();
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const queryClient = useQueryClient();
   const { isSuperAdmin, activeMembership, user } = useAuth();
   const roleScopes = useMemo(
@@ -58,11 +62,20 @@ function EvaluationPage() {
 
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
   const [aiEvaluationText, setAiEvaluationText] = useState<string>('');
+  const [evaluationLocale, setEvaluationLocale] = useState<string>(() => {
+    // Mapear idiomas de i18n a formatos esperados por el backend
+    const langMap: Record<string, string> = {
+      'es': 'es-ES',
+      'ca': 'ca-ES',
+      'en': 'en-US'
+    };
+    return langMap[i18n.language] || 'es-ES';
+  });
 
   // Verificar permisos
   useEffect(() => {
     if (!isReviewer) {
-      toast.error(t('common.unauthorized', { defaultValue: 'No tienes permisos para acceder a esta página' }));
+      toast.error(safeTranslate(t, 'common.unauthorized', { defaultValue: 'No tienes permisos para acceder a esta página' }));
       navigate(tenantPath('dashboard'));
     }
   }, [isReviewer, navigate, tenantPath, t]);
@@ -173,10 +186,7 @@ function EvaluationPage() {
       // Si es evaluación con IA, mostrar el texto en el cuadro de IA
       if (existingEvaluation.source === 'ai_assisted' && existingEvaluation.comment) {
         setAiEvaluationText(existingEvaluation.comment);
-        // Si es borrador, también copiar al campo final
-        if (existingEvaluation.status === 'draft') {
-          form.setValue('comment', existingEvaluation.comment);
-        }
+        // No copiar automáticamente al campo final, el usuario lo hará con el botón de copiar
       }
     } else {
       // Resetear si no hay evaluación
@@ -186,11 +196,16 @@ function EvaluationPage() {
   }, [existingEvaluation, form]);
 
   const aiEvaluationMutation = useMutation({
-    mutationFn: () => createAiEvaluation(numericSubmissionId, { locale: i18n.language, status: 'draft' }),
+    mutationFn: () => {
+      toast.info(safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando evaluación con IA...' }), {
+        duration: 3000
+      });
+      return createAiEvaluation(numericSubmissionId, { locale: evaluationLocale, status: 'draft' });
+    },
     onSuccess: (data) => {
-      toast.success(t('evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
+      toast.success(safeTranslate(t, 'evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
       setAiEvaluationText(data.comment || '');
-      form.setValue('comment', data.comment || '');
+      // No copiar automáticamente el comentario al campo final, el usuario lo hará con el botón de copiar
       if (data.score) {
         form.setValue('score', Number(data.score));
       }
@@ -204,15 +219,15 @@ function EvaluationPage() {
       ) {
         const response = (error as { response: { status?: number } }).response;
         if (response.status === 409) {
-          toast.error(t('evaluations.missingRubric', { defaultValue: 'No hay una rúbrica configurada para esta tarea' }));
+          toast.error(safeTranslate(t, 'evaluations.missingRubric', { defaultValue: 'No hay una rúbrica configurada para esta tarea' }));
           return;
         }
         if (response.status === 500) {
-          toast.error(t('evaluations.aiServiceUnavailable', { defaultValue: 'Servicio de IA no disponible' }));
+          toast.error(safeTranslate(t, 'evaluations.aiServiceUnavailable', { defaultValue: 'Servicio de IA no disponible' }));
           return;
         }
       }
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   });
 
@@ -236,7 +251,7 @@ function EvaluationPage() {
       }
     },
     onSuccess: () => {
-      toast.success(t('evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
+      toast.success(safeTranslate(t, 'evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
       void queryClient.invalidateQueries({ queryKey: ['evaluation', numericSubmissionId] });
       void queryClient.invalidateQueries({ queryKey: ['submissions', numericTaskId] });
     },
@@ -248,10 +263,10 @@ function EvaluationPage() {
         typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
       ) {
         const response = (error as { response: { data?: { message?: string } } }).response;
-        const message = response.data?.message || t('common.error');
+        const message = response.data?.message || safeTranslate(t, 'common.error');
         toast.error(message);
       } else {
-        toast.error(t('common.error'));
+        toast.error(safeTranslate(t, 'common.error'));
       }
     }
   });
@@ -276,7 +291,7 @@ function EvaluationPage() {
       }
     },
     onSuccess: () => {
-      toast.success(t('evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
+      toast.success(safeTranslate(t, 'evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
       void queryClient.invalidateQueries({ queryKey: ['evaluation', numericSubmissionId] });
       void queryClient.invalidateQueries({ queryKey: ['submissions', numericTaskId] });
       void queryClient.invalidateQueries({ queryKey: ['events', numericEventId, 'deliverables-tracking'] });
@@ -290,54 +305,18 @@ function EvaluationPage() {
         typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
       ) {
         const response = (error as { response: { data?: { message?: string } } }).response;
-        const message = response.data?.message || t('common.error');
+        const message = response.data?.message || safeTranslate(t, 'common.error');
         toast.error(message);
       } else {
-        toast.error(t('common.error'));
+        toast.error(safeTranslate(t, 'common.error'));
       }
     }
   });
 
-  const getFileIcon = (mimeType: string, fileName: string): { icon: LucideIcon; color: string } => {
-    const extension = fileName.split('.').pop()?.toLowerCase() || '';
-    const mime = mimeType.toLowerCase();
-
-    if (extension === 'pdf' || mime === 'application/pdf') {
-      return { icon: FileText, color: '#dc2626' };
-    }
-    if (extension === 'ppt' || extension === 'pptx' || mime.includes('presentation') || mime.includes('powerpoint')) {
-      return { icon: FileText, color: '#ea580c' };
-    }
-    if (extension === 'doc' || extension === 'docx' || mime.includes('word') || mime === 'application/msword') {
-      return { icon: FileText, color: '#2563eb' };
-    }
-    if (extension === 'xls' || extension === 'xlsx' || mime.includes('spreadsheet') || mime.includes('excel')) {
-      return { icon: FileSpreadsheet, color: '#16a34a' };
-    }
-    if (mime.startsWith('image/')) {
-      return { icon: FileImage, color: '#9333ea' };
-    }
-    if (mime.startsWith('video/')) {
-      return { icon: FileVideo, color: '#db2777' };
-    }
-    if (mime.startsWith('audio/')) {
-      return { icon: FileAudio, color: '#4f46e5' };
-    }
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension) || mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
-      return { icon: FileArchive, color: '#ca8a04' };
-    }
-    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension) || (mime.includes('text/') && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension))) {
-      return { icon: FileCode, color: '#0891b2' };
-    }
-    if (extension === 'txt' || mime.startsWith('text/')) {
-      return { icon: FileText, color: '#4b5563' };
-    }
-    return { icon: FileIcon, color: '#6b7280' };
-  };
 
   const copyAiToFinal = () => {
     form.setValue('comment', aiEvaluationText);
-    toast.success(t('evaluations.copied', { defaultValue: 'Texto copiado al campo de evaluación final' }));
+    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto copiado al campo de evaluación final' }));
   };
 
   if (eventLoading || submissionLoading || submissionsLoading || evaluationLoading || rubricsLoading) {
@@ -346,10 +325,10 @@ function EvaluationPage() {
 
   if (!currentSubmission || !task) {
     return (
-      <DashboardLayout title={t('evaluations.pageTitle', { defaultValue: 'Evaluación' })}>
+      <DashboardLayout title={safeTranslate(t, 'evaluations.pageTitle', { defaultValue: 'Evaluación' })}>
         <Card>
           <CardContent className="py-10 text-center text-sm text-destructive">
-            {t('evaluations.notFound', { defaultValue: 'Entrega no encontrada' })}
+            {safeTranslate(t, 'evaluations.notFound', { defaultValue: 'Entrega no encontrada' })}
           </CardContent>
         </Card>
       </DashboardLayout>
@@ -361,14 +340,15 @@ function EvaluationPage() {
   // Construir el subtítulo del hero
   // Si hay fase: mostrar "Fase X - Nombre de fase" y debajo el nombre de la tarea
   // Si no hay fase: mostrar solo el nombre de la tarea
+  const phaseName = phase ? getMultilingualText(phase.name, currentLang) : null;
   const heroSubtitle = phase 
-    ? `${t('phases.phase', { defaultValue: 'Fase' })} ${phase.id} - ${phase.name}`
+    ? `${safeTranslate(t, 'phases.phase', { defaultValue: 'Fase' })} ${phase.id} - ${phaseName}`
     : null;
-  const heroTaskTitle = task.title;
+  const heroTaskTitle = getMultilingualText(task.title, currentLang);
 
   return (
     <DashboardLayout
-      title={t('evaluations.pageTitle', { defaultValue: 'Evaluación de Entrega' })}
+      title={safeTranslate(t, 'evaluations.pageTitle', { defaultValue: 'Evaluación de Entrega' })}
       subtitle={
         heroSubtitle ? (
           <div className="flex flex-col gap-1">
@@ -386,29 +366,29 @@ function EvaluationPage() {
           {/* Card de Equipo y Proyecto */}
           <Card>
             <CardHeader>
-              <CardTitle>{t('evaluations.teamAndProject', { defaultValue: 'Equipo y Proyecto' })}</CardTitle>
+              <CardTitle>{safeTranslate(t, 'evaluations.teamAndProject', { defaultValue: 'Equipo y Proyecto' })}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <h3 className="font-semibold text-sm mb-2">{t('teams.title', { defaultValue: 'Equipo' })}</h3>
+                <h3 className="font-semibold text-sm mb-2">{safeTranslate(t, 'teams.title', { defaultValue: 'Equipo' })}</h3>
                 <p className="text-sm">{team.name}</p>
               </div>
               {team.project && (
                 <div>
-                  <h3 className="font-semibold text-sm mb-2">{t('teams.project', { defaultValue: 'Proyecto' })}</h3>
+                  <h3 className="font-semibold text-sm mb-2">{safeTranslate(t, 'teams.project', { defaultValue: 'Proyecto' })}</h3>
                   <p className="text-sm font-medium">{team.project.name}</p>
                   {team.project.summary && (
                     <p className="text-sm text-muted-foreground mt-1">{team.project.summary}</p>
                   )}
                   {team.project.problem && (
                     <div className="mt-2">
-                      <p className="text-xs font-semibold text-muted-foreground">{t('teams.projectProblem', { defaultValue: 'Problema' })}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">{safeTranslate(t, 'teams.projectProblem', { defaultValue: 'Problema' })}</p>
                       <p className="text-sm">{team.project.problem}</p>
                     </div>
                   )}
                   {team.project.solution && (
                     <div className="mt-2">
-                      <p className="text-xs font-semibold text-muted-foreground">{t('teams.projectSolution', { defaultValue: 'Solución' })}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">{safeTranslate(t, 'teams.projectSolution', { defaultValue: 'Solución' })}</p>
                       <p className="text-sm">{team.project.solution}</p>
                     </div>
                   )}
@@ -420,11 +400,11 @@ function EvaluationPage() {
           {/* Entregas de la actividad */}
           <Card>
           <CardHeader>
-            <CardTitle>{t('evaluations.submissions', { defaultValue: 'Entregas de esta actividad' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'evaluations.submissions', { defaultValue: 'Entregas de esta actividad' })}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {teamSubmissions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('evaluations.noSubmissions', { defaultValue: 'No hay entregas' })}</p>
+              <p className="text-sm text-muted-foreground">{safeTranslate(t, 'evaluations.noSubmissions', { defaultValue: 'No hay entregas' })}</p>
             ) : (
               teamSubmissions.map(submission => (
                 <div key={submission.id} className={cn('rounded-md border p-4', submission.id === numericSubmissionId && 'border-primary bg-primary/5')}>
@@ -434,7 +414,7 @@ function EvaluationPage() {
                         {new Date(submission.submitted_at).toLocaleString(locale)}
                       </span>
                       <Badge variant={submission.status === 'final' ? 'default' : 'secondary'}>
-                        {submission.status === 'final' ? t('submissions.final', { defaultValue: 'Final' }) : t('submissions.draft', { defaultValue: 'Borrador' })}
+                        {submission.status === 'final' ? safeTranslate(t, 'submissions.final', { defaultValue: 'Final' }) : safeTranslate(t, 'submissions.draft', { defaultValue: 'Borrador' })}
                       </Badge>
                     </div>
                   </div>
@@ -471,66 +451,91 @@ function EvaluationPage() {
         {/* Rúbrica y Evaluación con IA */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('evaluations.evaluationTools', { defaultValue: 'Herramientas de Evaluación' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'evaluations.evaluationTools', { defaultValue: 'Herramientas de Evaluación' })}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {rubric ? (
-              <div className="flex flex-wrap gap-3">
-                <Dialog open={rubricDialogOpen} onOpenChange={setRubricDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline">
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      {t('evaluations.viewRubric', { defaultValue: 'Consultar rúbrica' })}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>{rubric.name}</DialogTitle>
-                      {rubric.description && (
-                        <DialogDescription>{rubric.description}</DialogDescription>
-                      )}
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div className="text-sm">
-                        <span className="font-semibold">{t('evaluations.scale', { defaultValue: 'Escala' })}: </span>
-                        {rubric.scale_min} - {rubric.scale_max}
-                      </div>
-                      {rubric.criteria && rubric.criteria.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm">{t('evaluations.criteria', { defaultValue: 'Criterios' })}</h4>
-                          {rubric.criteria.map((criterion, index) => (
-                            <div key={criterion.id || index} className="border rounded-md p-3">
-                              <div className="font-medium text-sm">{criterion.title}</div>
-                              {criterion.description && (
-                                <p className="text-sm text-muted-foreground mt-1">{criterion.description}</p>
-                              )}
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {t('evaluations.weight', { defaultValue: 'Peso' })}: {criterion.weight || 1}
-                                {criterion.max_score !== null && criterion.max_score !== undefined && (
-                                  <> · {t('evaluations.maxScore', { defaultValue: 'Puntuación máxima' })}: {criterion.max_score}</>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-3">
+                  <Dialog open={rubricDialogOpen} onOpenChange={setRubricDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <ClipboardList className="h-4 w-4 mr-2" />
+                        {safeTranslate(t, 'evaluations.viewRubric', { defaultValue: 'Consultar rúbrica' })}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>{getMultilingualText(rubric.name, currentLang)}</DialogTitle>
+                        {rubric.description && (
+                          <DialogDescription>{getMultilingualText(rubric.description, currentLang)}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div className="text-sm">
+                          <span className="font-semibold">{safeTranslate(t, 'evaluations.scale', { defaultValue: 'Escala' })}: </span>
+                          {rubric.scale_min} - {rubric.scale_max}
                         </div>
-                      )}
-                    </div>
-                  </DialogContent>
-                </Dialog>
-                <Button
-                  variant="outline"
-                  onClick={() => aiEvaluationMutation.mutate()}
-                  disabled={aiEvaluationMutation.isPending}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {aiEvaluationMutation.isPending
-                    ? t('evaluations.generatingAi', { defaultValue: 'Generando...' })
-                    : t('evaluations.generateAiEvaluation', { defaultValue: 'Evaluación con IA' })}
-                </Button>
+                        {rubric.criteria && rubric.criteria.length > 0 && (
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm">{safeTranslate(t, 'evaluations.criteria', { defaultValue: 'Criterios' })}</h4>
+                            {rubric.criteria.map((criterion, index) => (
+                              <div key={criterion.id || index} className="border rounded-md p-3">
+                                <div className="font-medium text-sm">{getMultilingualText(criterion.title, currentLang)}</div>
+                                {criterion.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">{getMultilingualText(criterion.description, currentLang)}</p>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {safeTranslate(t, 'evaluations.weight', { defaultValue: 'Peso' })}: {criterion.weight || 1}
+                                  {criterion.max_score !== null && criterion.max_score !== undefined && (
+                                    <> · {safeTranslate(t, 'evaluations.maxScore', { defaultValue: 'Puntuación máxima' })}: {criterion.max_score}</>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium whitespace-nowrap">
+                      {safeTranslate(t, 'evaluations.evaluationLanguage', { defaultValue: 'Idioma de evaluación' })}:
+                    </label>
+                    <Select
+                      value={evaluationLocale}
+                      onValueChange={setEvaluationLocale}
+                      className="w-[180px]"
+                    >
+                      <option value="es-ES">{safeTranslate(t, 'common.languages.es', { defaultValue: 'Español' })}</option>
+                      <option value="ca-ES">{safeTranslate(t, 'common.languages.ca', { defaultValue: 'Catalán' })}</option>
+                      <option value="en-US">{safeTranslate(t, 'common.languages.en', { defaultValue: 'Inglés' })}</option>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => aiEvaluationMutation.mutate()}
+                    disabled={aiEvaluationMutation.isPending}
+                  >
+                    {aiEvaluationMutation.isPending ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        {safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando...' })}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {safeTranslate(t, 'evaluations.generateAiEvaluation', { defaultValue: 'Evaluación con IA' })}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {t('evaluations.noRubric', { defaultValue: 'No hay rúbrica configurada para esta tarea' })}
+                {safeTranslate(t, 'evaluations.noRubric', { defaultValue: 'No hay rúbrica configurada para esta tarea' })}
               </p>
             )}
           </CardContent>
@@ -540,7 +545,7 @@ function EvaluationPage() {
         {aiEvaluationText && (
           <Card>
             <CardHeader>
-              <CardTitle>{t('evaluations.aiEvaluation', { defaultValue: 'Evaluación generada con IA' })}</CardTitle>
+              <CardTitle>{safeTranslate(t, 'evaluations.aiEvaluation', { defaultValue: 'Evaluación generada con IA' })}</CardTitle>
             </CardHeader>
             <CardContent>
               <Textarea
@@ -556,7 +561,7 @@ function EvaluationPage() {
                 onClick={copyAiToFinal}
               >
                 <Copy className="h-4 w-4 mr-2" />
-                {t('evaluations.copyFromAi', { defaultValue: 'Copiar a evaluación final' })}
+                {safeTranslate(t, 'evaluations.copyFromAi', { defaultValue: 'Copiar a evaluación final' })}
               </Button>
             </CardContent>
           </Card>
@@ -565,21 +570,21 @@ function EvaluationPage() {
         {/* Evaluación Final */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}</CardTitle>
             <CardDescription>
-              {t('evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })}
+              {safeTranslate(t, 'evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={form.handleSubmit(() => {})} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  {t('evaluations.comment', { defaultValue: 'Comentario' })} *
+                  {safeTranslate(t, 'evaluations.comment', { defaultValue: 'Comentario' })} *
                 </label>
                 <Textarea
                   {...form.register('comment')}
                   rows={10}
-                  placeholder={t('evaluations.commentPlaceholder', { defaultValue: 'Escribe tu evaluación aquí...' })}
+                  placeholder={safeTranslate(t, 'evaluations.commentPlaceholder', { defaultValue: 'Escribe tu evaluación aquí...' })}
                 />
                 {form.formState.errors.comment && (
                   <p className="text-xs text-destructive">{form.formState.errors.comment.message}</p>
@@ -587,7 +592,7 @@ function EvaluationPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  {t('evaluations.score', { defaultValue: 'Puntuación' })}
+                  {safeTranslate(t, 'evaluations.score', { defaultValue: 'Puntuación' })}
                 </label>
                 <input
                   type="number"
@@ -596,8 +601,8 @@ function EvaluationPage() {
                   max="10"
                   {...form.register('score', { 
                     valueAsNumber: true,
-                    min: { value: 0, message: t('evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
-                    max: { value: 10, message: t('evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 10' }) }
+                    min: { value: 0, message: safeTranslate(t, 'evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
+                    max: { value: 10, message: safeTranslate(t, 'evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 10' }) }
                   })}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
@@ -612,14 +617,14 @@ function EvaluationPage() {
                   onClick={form.handleSubmit((values) => saveDraftMutation.mutate(values))}
                   disabled={saveDraftMutation.isPending || saveFinalMutation.isPending}
                 >
-                  {saveDraftMutation.isPending ? t('common.loading') : t('evaluations.saveDraft', { defaultValue: 'Guardar borrador' })}
+                  {saveDraftMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'evaluations.saveDraft', { defaultValue: 'Guardar borrador' })}
                 </Button>
                 <Button
                   type="button"
                   onClick={form.handleSubmit((values) => saveFinalMutation.mutate(values))}
                   disabled={saveDraftMutation.isPending || saveFinalMutation.isPending}
                 >
-                  {saveFinalMutation.isPending ? t('common.loading') : t('evaluations.saveAndSendFinal', { defaultValue: 'Guardar y enviar evaluación final' })}
+                  {saveFinalMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'evaluations.saveAndSendFinal', { defaultValue: 'Guardar y enviar evaluación final' })}
                 </Button>
               </div>
             </form>

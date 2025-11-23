@@ -1,10 +1,49 @@
 import { z } from 'zod';
 
+// Schema para campos multiidioma: acepta string (compatibilidad) u objeto { es, ca?, en? }
+const multilingualStringSchema = z.union([
+  z.string().min(1),
+  z.object({
+    es: z.string().min(1),
+    ca: z.string().optional(),
+    en: z.string().optional()
+  })
+]).refine(
+  (val) => {
+    if (typeof val === 'string') return val.length >= 1;
+    if (typeof val === 'object' && val !== null) {
+      return typeof val.es === 'string' && val.es.length >= 1;
+    }
+    return false;
+  },
+  { message: 'El campo debe tener al menos texto en español' }
+);
+
+const multilingualTextSchema = z.union([
+  z.string(),
+  z.object({
+    es: z.string(),
+    ca: z.string().optional(),
+    en: z.string().optional()
+  }),
+  z.null()
+]).optional().nullable();
+
+const multilingualHtmlSchema = z.union([
+  z.string(),
+  z.object({
+    es: z.string(),
+    ca: z.string().optional(),
+    en: z.string().optional()
+  }),
+  z.null()
+]).optional().nullable();
+
 export const phaseSchema = z
   .object({
-    name: z.string().min(3),
-    description: z.string().optional(),
-    intro_html: z.string().optional(),
+    name: multilingualStringSchema,
+    description: multilingualTextSchema,
+    intro_html: multilingualHtmlSchema,
     start_date: z.string().optional(),
     end_date: z.string().optional(),
     view_start_date: z.string().optional(),
@@ -39,9 +78,9 @@ export const phaseSchema = z
   });
 
 export const taskSchema = z.object({
-  title: z.string().min(3),
-  description: z.string().optional(),
-  intro_html: z.string().optional(),
+  title: multilingualStringSchema,
+  description: multilingualTextSchema,
+  intro_html: multilingualHtmlSchema,
   phase_id: z.number().int(),
   delivery_type: z.enum(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']).default('file'),
   due_date: z.string().optional(),
@@ -91,9 +130,9 @@ export const rubricSchema = z
 
 export const eventSchema = z
   .object({
-    name: z.string().min(3),
-    description: z.string().optional(),
-    description_html: z.string().optional(),
+    name: multilingualStringSchema,
+    description: multilingualTextSchema,
+    description_html: multilingualHtmlSchema,
     start_date: z.string(),
     end_date: z.string(),
     min_team_size: z.number().min(1),
@@ -108,7 +147,14 @@ export const eventSchema = z
     allow_open_registration: z.boolean().optional(),
     publish_start_at: z.string().optional(),
     publish_end_at: z.string().optional(),
-    registration_schema: z.any().optional()
+    registration_schema: z.any().optional(),
+    ai_evaluation_prompt: z.string().optional(),
+    ai_evaluation_model: z.string().optional(),
+    ai_evaluation_temperature: z.union([z.number().min(0).max(2), z.nan()]).optional(),
+    ai_evaluation_max_tokens: z.union([z.number().int().min(1), z.nan()]).optional(),
+    ai_evaluation_top_p: z.union([z.number().min(0).max(1), z.nan()]).optional(),
+    ai_evaluation_frequency_penalty: z.union([z.number().min(-2).max(2), z.nan()]).optional(),
+    ai_evaluation_presence_penalty: z.union([z.number().min(-2).max(2), z.nan()]).optional()
   })
   .superRefine((values, ctx) => {
     if (values.publish_start_at && values.publish_end_at) {

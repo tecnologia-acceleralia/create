@@ -89,3 +89,11 @@ teamsRouter.get(
   TeamsController.detail
 );
 
+teamsRouter.get(
+  '/:teamId/submissions-evaluations-summary',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
+  [param('teamId').isInt()],
+  validateRequest,
+  TeamsController.getSubmissionsAndEvaluationsSummary
+);
+

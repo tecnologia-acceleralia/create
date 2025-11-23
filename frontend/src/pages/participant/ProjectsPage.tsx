@@ -24,6 +24,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getMyTeams } from '@/services/teams';
 import {
   getProjectsByEvent,
@@ -89,13 +90,13 @@ function ProjectsPage() {
         requirements: values.requirements || undefined
       }),
     onSuccess: () => {
-      toast.success(t('projects.createSuccess'));
+      toast.success(safeTranslate(t, 'projects.createSuccess'));
       createProjectForm.reset();
       setIsCreateProjectDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const joinProjectMutation = useMutation({
@@ -105,11 +106,11 @@ function ProjectsPage() {
     },
     onSuccess: (data) => {
       if (data.previousTeam) {
-        toast.success(t('projects.joinSuccessWithPreviousTeam', { teamName: data.previousTeam.name }), {
+        toast.success(safeTranslate(t, 'projects.joinSuccessWithPreviousTeam', { teamName: data.previousTeam.name }), {
           duration: 5000
         });
       } else {
-        toast.success(t('projects.joinSuccess'));
+        toast.success(safeTranslate(t, 'projects.joinSuccess'));
       }
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
@@ -117,8 +118,8 @@ function ProjectsPage() {
     onError: (error: any) => {
       const backendMessage = error?.response?.data?.message;
       const message = backendMessage 
-        ? t(backendMessage, { defaultValue: backendMessage })
-        : t('common.error');
+        ? safeTranslate(t, backendMessage, { defaultValue: backendMessage })
+        : safeTranslate(t, 'common.error');
       toast.error(message);
     },
     onSettled: () => {
@@ -132,7 +133,7 @@ function ProjectsPage() {
 
   const handleCreateProject = (values: CreateProjectValues) => {
     if (Number.isNaN(numericEventId)) {
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
       return;
     }
     createProjectMutation.mutate(values);
@@ -143,7 +144,7 @@ function ProjectsPage() {
   };
 
   const translateError = (message?: string) =>
-    message ? t(message, { defaultValue: message }) : undefined;
+    message ? safeTranslate(t, message, { defaultValue: message }) : undefined;
 
   const renderProjectAction = (project: ProjectCardModel) => {
     const isMutatingJoin = joinProjectMutation.isPending;
@@ -156,20 +157,20 @@ function ProjectsPage() {
       (isMutatingJoin && joiningProjectId !== project.id) ||
       isJoiningThisProject;
 
-    let label = t('projects.join');
+    let label = safeTranslate(t, 'projects.join');
     let variant: 'default' | 'outline' | 'ghost' = 'default';
 
     if (project.is_captain) {
-      label = t('projects.captainBadge');
+      label = safeTranslate(t, 'projects.captainBadge');
       variant = 'outline';
     } else if (project.is_member) {
-      label = t('projects.joined');
+      label = safeTranslate(t, 'projects.joined');
       variant = 'outline';
     } else if (project.is_pending_member) {
-      label = t('projects.pendingBadge');
+      label = safeTranslate(t, 'projects.pendingBadge');
       variant = 'outline';
     } else if (isJoiningThisProject) {
-      label = t('projects.joining');
+      label = safeTranslate(t, 'projects.joining');
     }
     // Cuando !project.can_join, el botón mantiene el texto "Unirse" pero se desactiva
     // El badge muestra el estado real del equipo (team_status)
@@ -211,24 +212,24 @@ function ProjectsPage() {
       );
     }
 
-    return <p className="text-sm text-muted-foreground">{t('projects.empty')}</p>;
+    return <p className="text-sm text-muted-foreground">{safeTranslate(t, 'projects.empty')}</p>;
   };
 
   return (
     <DashboardLayout
-      title={t('projects.title')}
-      subtitle={t('projects.availableSubtitle')}
+      title={safeTranslate(t, 'projects.title')}
+      subtitle={safeTranslate(t, 'projects.availableSubtitle')}
     >
       <div className="space-y-6">
         <Card id="projects-list">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">{t('projects.availableSubtitle')}</p>
+                <p className="text-sm text-muted-foreground">{safeTranslate(t, 'projects.availableSubtitle')}</p>
               </div>
               {!myMembership && (
                 <Button onClick={() => setIsCreateProjectDialogOpen(true)}>
-                  {t('projects.create')}
+                  {safeTranslate(t, 'projects.create')}
                 </Button>
               )}
             </div>
@@ -241,32 +242,32 @@ function ProjectsPage() {
         <Dialog open={isCreateProjectDialogOpen} onOpenChange={setIsCreateProjectDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t('projects.formSection')}</DialogTitle>
-              <DialogDescription>{t('projects.createSubtitle')}</DialogDescription>
+              <DialogTitle>{safeTranslate(t, 'projects.formSection')}</DialogTitle>
+              <DialogDescription>{safeTranslate(t, 'projects.createSubtitle')}</DialogDescription>
             </DialogHeader>
             <form
               onSubmit={createProjectForm.handleSubmit(handleCreateProject)}
               className="space-y-4"
             >
               <FormField
-                label={t('projects.projectTitle')}
+                label={safeTranslate(t, 'projects.projectTitle')}
                 htmlFor="project-title"
                 error={translateError(createProjectForm.formState.errors.title?.message)}
                 required
               >
                 <Input id="project-title" {...createProjectForm.register('title')} />
               </FormField>
-              <FormField label={t('projects.description')} htmlFor="project-description">
+              <FormField label={safeTranslate(t, 'projects.description')} htmlFor="project-description">
                 <Textarea
                   id="project-description"
                   rows={3}
                   {...createProjectForm.register('description')}
                 />
               </FormField>
-              <FormField label={t('projects.image')} htmlFor="project-image">
+              <FormField label={safeTranslate(t, 'projects.image')} htmlFor="project-image">
                 <Input id="project-image" {...createProjectForm.register('image_url')} />
               </FormField>
-              <FormField label={t('projects.requirements')} htmlFor="project-requirements">
+              <FormField label={safeTranslate(t, 'projects.requirements')} htmlFor="project-requirements">
                 <Textarea
                   id="project-requirements"
                   rows={3}
@@ -279,10 +280,10 @@ function ProjectsPage() {
                   variant="outline"
                   onClick={() => setIsCreateProjectDialogOpen(false)}
                 >
-                  {t('common.cancel')}
+                  {safeTranslate(t, 'common.cancel')}
                 </Button>
                 <Button type="submit" disabled={createProjectMutation.isPending}>
-                  {createProjectMutation.isPending ? t('projects.creating') : t('projects.create')}
+                  {createProjectMutation.isPending ? safeTranslate(t, 'projects.creating') : safeTranslate(t, 'projects.create')}
                 </Button>
               </DialogFooter>
             </form>

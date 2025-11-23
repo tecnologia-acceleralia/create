@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import type { InputHTMLAttributes } from 'react';
 
 type PasswordInputProps = InputHTMLAttributes<HTMLInputElement> & {
@@ -29,7 +30,7 @@ export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
           size="icon"
           className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
           onClick={() => setShowPassword(!showPassword)}
-          aria-label={showPassword ? t('common.hidePassword', { defaultValue: 'Ocultar contraseña' }) : t('common.showPassword', { defaultValue: 'Mostrar contraseña' })}
+          aria-label={showPassword ? safeTranslate(t, 'common.hidePassword', { defaultValue: 'Ocultar contraseña' }) : safeTranslate(t, 'common.showPassword', { defaultValue: 'Mostrar contraseña' })}
           tabIndex={-1}
         >
           {showPassword ? (

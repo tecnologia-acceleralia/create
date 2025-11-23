@@ -192,7 +192,7 @@ export class EventTrackingController {
         const user = registration.user;
         const membership = rolesByUserId.get(registration.user_id) ?? [];
         const teamInfo = teamByUserId.get(registration.user_id) ?? null;
-        const grade = registration.grade ?? user?.grade ?? null;
+        const grade = registration.grade ?? (user?.registration_answers?.grade || null);
 
         return {
           id: registration.user_id,
@@ -220,7 +220,7 @@ export class EventTrackingController {
 
       const gradeSummaryMap = new Map();
       users.forEach(user => {
-      const key = user.grade ?? '__NO_GRADE__';
+      const key = user.registration_answers?.grade ?? '__NO_GRADE__';
         if (!gradeSummaryMap.has(key)) {
           gradeSummaryMap.set(key, { grade: key, withTeam: 0, withoutTeam: 0 });
         }

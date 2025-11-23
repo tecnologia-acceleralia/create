@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -248,16 +249,16 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{t('events.registrationSchemaHint')}</p>
+        <p className="text-sm text-muted-foreground">{safeTranslate(t, 'events.registrationSchemaHint')}</p>
         <Button type="button" variant="outline" size="sm" onClick={addField}>
           <Plus className="h-4 w-4 mr-2" />
-          {t('events.registrationSchemaAddField')}
+          {safeTranslate(t, 'events.registrationSchemaAddField')}
         </Button>
       </div>
 
       {fields.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground border border-dashed rounded-lg">
-          {t('events.registrationSchemaEmpty')}
+          {safeTranslate(t, 'events.registrationSchemaEmpty')}
         </div>
       ) : (
         <div className="space-y-4">
@@ -265,7 +266,7 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
             <Card key={field.key}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{t('events.registrationSchemaField')} {fieldIndex + 1}</CardTitle>
+                  <CardTitle className="text-lg">{safeTranslate(t, 'events.registrationSchemaField')} {fieldIndex + 1}</CardTitle>
                   <Button
                     type="button"
                     variant="ghost"
@@ -278,7 +279,7 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <FormField label={t('events.registrationSchemaFieldKey')} required>
+                <FormField label={safeTranslate(t, 'events.registrationSchemaFieldKey')} required>
                   <Input
                     value={field.key}
                     onChange={e => updateField(fieldIndex, { key: e.target.value })}
@@ -287,7 +288,7 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
                 </FormField>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">{t('events.registrationSchemaFieldLabel')}</label>
+                  <label className="text-sm font-medium">{safeTranslate(t, 'events.registrationSchemaFieldLabel')}</label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                     {SUPPORTED_LANGUAGES.map(lang => (
                       <Input
@@ -302,14 +303,14 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">{t('events.registrationSchemaFieldOptions')}</label>
+                    <label className="text-sm font-medium">{safeTranslate(t, 'events.registrationSchemaFieldOptions')}</label>
                     <Button type="button" variant="outline" size="sm" onClick={() => addOption(fieldIndex)}>
                       <Plus className="h-4 w-4 mr-1" />
-                      {t('common.add')}
+                      {safeTranslate(t, 'common.add')}
                     </Button>
                   </div>
                   {field.options.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">{t('events.registrationSchemaNoOptions')}</p>
+                    <p className="text-xs text-muted-foreground">{safeTranslate(t, 'events.registrationSchemaNoOptions')}</p>
                   ) : (
                     <div className="space-y-4">
                       {field.options.map((option, optionIndex) => (
@@ -317,7 +318,7 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
                           <CardContent className="pt-4 space-y-3">
                             <div className="flex items-center justify-between">
                               <label className="text-xs font-medium text-muted-foreground">
-                                {t('events.registrationSchemaOption')} {optionIndex + 1}
+                                {safeTranslate(t, 'events.registrationSchemaOption')} {optionIndex + 1}
                               </label>
                               <Button
                                 type="button"
@@ -329,16 +330,16 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
-                            <FormField label={t('events.registrationSchemaOptionValue')} required>
+                            <FormField label={safeTranslate(t, 'events.registrationSchemaOptionValue')} required>
                               <Input
                                 value={option.value}
                                 onChange={e => updateOptionValue(fieldIndex, optionIndex, e.target.value)}
-                                placeholder={t('events.registrationSchemaOptionValuePlaceholder')}
+                                placeholder={safeTranslate(t, 'events.registrationSchemaOptionValuePlaceholder')}
                               />
                             </FormField>
                             <div className="space-y-2">
                               <label className="text-xs font-medium text-muted-foreground">
-                                {t('events.registrationSchemaOptionLabels')}
+                                {safeTranslate(t, 'events.registrationSchemaOptionLabels')}
                               </label>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                 {SUPPORTED_LANGUAGES.map(lang => (
@@ -367,7 +368,7 @@ export function RegistrationSchemaForm({ value, onChange, error, id }: Registrat
                     className="h-4 w-4"
                   />
                   <label htmlFor={`${id}-field-${fieldIndex}-required`} className="text-sm font-medium">
-                    {t('events.registrationSchemaFieldRequired')}
+                    {safeTranslate(t, 'events.registrationSchemaFieldRequired')}
                   </label>
                 </div>
               </CardContent>

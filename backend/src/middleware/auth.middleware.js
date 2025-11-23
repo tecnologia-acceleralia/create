@@ -24,9 +24,31 @@ export async function authenticate(req, res, next) {
 
     const isSuperAdmin = Boolean(user.is_super_admin);
 
+    // Verificar si el usuario tiene membresía activa en el tenant actual
+    // Esto permite que usuarios con múltiples tenants puedan cambiar entre ellos sin re-login
+    let hasActiveMembershipInCurrentTenant = false;
+    if (req.tenant && !isSuperAdmin) {
+      const currentTenantMembership = await UserTenant.findOne({
+        where: {
+          user_id: user.id,
+          tenant_id: req.tenant.id,
+          status: 'active'
+        },
+        skipTenant: true
+      });
+      hasActiveMembershipInCurrentTenant = Boolean(currentTenantMembership);
+    }
+
     // Permitir superadmins incluso si el tenantId del token no coincide con req.tenant
-    // Esto permite que superadmins accedan a cualquier tenant
-    if (req.tenant && payload.tenantId && Number(payload.tenantId) !== Number(req.tenant.id) && !isSuperAdmin) {
+    // También permitir usuarios con membresía activa en el tenant actual (útil para cambiar entre tenants)
+    // Esto permite que superadmins y usuarios con múltiples tenants accedan a cualquier tenant donde tengan membresía
+    if (
+      req.tenant &&
+      payload.tenantId &&
+      Number(payload.tenantId) !== Number(req.tenant.id) &&
+      !isSuperAdmin &&
+      !hasActiveMembershipInCurrentTenant
+    ) {
       return res.status(403).json({ success: false, message: 'Tenant inválido para el token' });
     }
 
@@ -57,12 +79,14 @@ export async function authenticate(req, res, next) {
       }
 
       // Permitir superadmins incluso si la membresía es de otro tenant
-      // Esto permite que superadmins accedan a cualquier tenant
+      // También permitir si el usuario tiene membresía activa en el tenant actual
+      // Esto permite que superadmins y usuarios con múltiples tenants accedan a cualquier tenant donde tengan membresía
       if (
         membership &&
         req.tenant &&
         Number(membership.tenant_id) !== Number(req.tenant.id) &&
-        !Boolean(user.is_super_admin)
+        !Boolean(user.is_super_admin) &&
+        !hasActiveMembershipInCurrentTenant
       ) {
         return res.status(403).json({ success: false, message: 'Tenant inválido para la membresía' });
       }
@@ -70,6 +94,32 @@ export async function authenticate(req, res, next) {
       if (membership && membership.status !== 'active') {
         return res.status(403).json({ success: false, message: 'Membresía inactiva' });
       }
+    }
+
+    // Si el usuario tiene membresía activa en el tenant actual pero el token es de otro tenant,
+    // buscar la membresía del tenant actual para usarla en lugar de la del token
+    if (hasActiveMembershipInCurrentTenant && req.tenant && (!membership || Number(membership.tenant_id) !== Number(req.tenant.id))) {
+      membership = await UserTenant.findOne({
+        where: {
+          user_id: user.id,
+          tenant_id: req.tenant.id,
+          status: 'active'
+        },
+        include: [
+          {
+            model: Tenant,
+            as: 'tenant',
+            attributes: ['id', 'slug', 'name', 'status']
+          },
+          {
+            model: Role,
+            as: 'assignedRoles',
+            attributes: ['id', 'name', 'scope'],
+            through: { attributes: [] }
+          }
+        ],
+        skipTenant: true
+      });
     }
 
     const roleScopes = membership?.assignedRoles?.map(role => role.scope) ?? payload.roleScopes ?? [];

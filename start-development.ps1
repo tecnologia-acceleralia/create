@@ -413,6 +413,37 @@ FLUSH PRIVILEGES;
     }
 }
 
+function Request-DataLossConfirmation {
+    param(
+        [string]$ActionDescription,
+        [string]$ConfirmationText = "ELIMINAR-DATOS"
+    )
+
+    Write-Host ""
+    Write-Host "==================================================" -ForegroundColor Red
+    Write-Host "⚠️  ADVERTENCIA: PeRDIDA DE DATOS" -ForegroundColor Red
+    Write-Host "==================================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "La siguiente accion causara perdida de datos:" -ForegroundColor Yellow
+    Write-Host "  $ActionDescription" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Para confirmar esta accion destructiva, escribe exactamente:" -ForegroundColor Yellow
+    Write-Host "  $ConfirmationText" -ForegroundColor Cyan
+    Write-Host ""
+    $userInput = Read-Host "Confirmacion"
+    
+    if ($userInput -ne $ConfirmationText) {
+        Write-Host ""
+        Write-Host "Operacion cancelada. El texto de confirmacion no coincide." -ForegroundColor Red
+        Write-Host ""
+        exit 1
+    }
+    
+    Write-Host ""
+    Write-Host "Confirmacion recibida. Procediendo con la operacion..." -ForegroundColor Green
+    Write-Host ""
+}
+
 function Reset-Database {
     param([hashtable]$EnvValues)
 
@@ -844,7 +875,6 @@ function Install-Dependencies {
     if ($PreStopProcesses) {
         Write-Info "Deteniendo procesos y contenedores que puedan estar bloqueando archivos antes de instalar..."
         Stop-DockerContainers
-        Stop-PnpmProcesses
         Start-Sleep -Seconds 2
     }
     
@@ -885,96 +915,28 @@ function Install-Dependencies {
                 $output = & $Command @Arguments 2>&1
                 $exitCode = $LASTEXITCODE
                 
-                # Convertir codigo negativo a positivo si es necesario (Windows maneja codigos negativos como numeros grandes sin signo)
-                $unsignedExitCode = $exitCode
-                if ($exitCode -lt 0) {
-                    $unsignedExitCode = [uint32]::MaxValue + $exitCode + 1
-                }
-                
-                # Codigos de error comunes en Windows relacionados con permisos/bloqueos
-                $isPermissionError = $false
-                $errorCodeName = ""
-                
-                if ($LASTEXITCODE -eq 0 -or $unsignedExitCode -eq 0) {
+                if ($LASTEXITCODE -eq 0) {
                     $success = $true
-                } elseif ($LASTEXITCODE -eq -4048 -or $unsignedExitCode -eq 4294967248) {
-                    # EPERM (-4048 decimal = 4294967248 como uint32)
-                    $isPermissionError = $true
-                    $errorCodeName = "EPERM"
-                } elseif ($LASTEXITCODE -eq -4082 -or $unsignedExitCode -eq 4294967214) {
-                    # Error de acceso denegado/bloqueado (-4082 decimal = 4294967214 como uint32)
-                    $isPermissionError = $true
-                    $errorCodeName = "ACCESS_DENIED"
-                } elseif ($output -like "*EPERM*" -or $output -like "*access denied*" -or $output -like "*permission denied*" -or $output -like "*bloqueado*") {
-                    $isPermissionError = $true
-                    $errorCodeName = "PERMISSION_ERROR"
-                }
-                
-                if ($isPermissionError) {
-                    if ($attempt -lt $MaxRetries) {
-                        Write-Info "Error de permisos/bloqueo ($errorCodeName, codigo $LASTEXITCODE) detectado."
-                        
-                        # Para errores de acceso denegado, intentar limpiar procesos y archivos bloqueados
-                        if ($errorCodeName -eq "ACCESS_DENIED" -or $errorCodeName -eq "EPERM") {
-                            Write-Info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
-                            Stop-DockerContainers
-                            Stop-PnpmProcesses
-                            
-                            # Intentar limpiar archivos temporales de pnpm que puedan estar bloqueados
-                            Write-Info "Limpiando cache de pnpm..."
-                            try {
-                                & pnpm store prune 2>&1 | Out-Null
-                            } catch {
-                                Write-Info "No se pudo limpiar el cache de pnpm: $($_.Exception.Message)"
-                            }
-                            
-                            # Esperar mas tiempo para errores de acceso denegado
-                            Write-Info "Esperando 5 segundos para que los archivos se liberen..."
-                            Start-Sleep -Seconds 5
-                        }
-                        
-                        Write-Info "Reintentando..."
-                        continue
-                    } else {
-                        Write-Error "Error de permisos/bloqueo persistente ($errorCodeName, codigo $LASTEXITCODE) despues de $MaxRetries intentos."
-                        Write-Error "Posibles soluciones:"
-                        Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
-                        Write-Error "  2. Ejecuta PowerShell como Administrador"
-                        Write-Error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $WorkingDirectory"
-                        Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
-                        $nodeModulesPath = Join-Path $WorkingDirectory "node_modules"
-                        Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path `"$nodeModulesPath`" -Recurse -Force"
-                        throw "$Command failed with exit code $LASTEXITCODE ($errorCodeName)"
-                    }
-                } elseif ($LASTEXITCODE -ne 0) {
+                } else {
                     throw "$Command failed with exit code $LASTEXITCODE"
                 }
             } catch {
                 $errorMessage = $_.Exception.Message
-                # Tambien verificar el mensaje de error por si contiene errores de permisos
                 $isPermissionErrorInMessage = $errorMessage -like "*EPERM*" -or $errorMessage -like "*operation not permitted*" -or $errorMessage -like "*4048*" -or $errorMessage -like "*4082*" -or $errorMessage -like "*access denied*" -or $errorMessage -like "*permission denied*"
                 
-                if ($isPermissionErrorInMessage) {
-                    if ($attempt -lt $MaxRetries) {
-                        Write-Info "Error de permisos detectado en mensaje: $errorMessage"
-                        Write-Info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
-                        Stop-DockerContainers
-                        Stop-PnpmProcesses
-                        
-                        # Intentar limpiar archivos temporales de pnpm que puedan estar bloqueados
-                        Write-Info "Limpiando cache de pnpm..."
-                        try {
-                            & pnpm store prune 2>&1 | Out-Null
-                        } catch {
-                            Write-Info "No se pudo limpiar el cache de pnpm: $($_.Exception.Message)"
-                        }
-                        
-                        Write-Info "Esperando 5 segundos para que los archivos se liberen..."
-                        Start-Sleep -Seconds 5
-                        Write-Info "Reintentando..."
-                        continue
-                    } else {
-                        Write-Error "Error de permisos persistente despues de $MaxRetries intentos."
+                if ($isPermissionErrorInMessage -and $attempt -lt $MaxRetries) {
+                    Write-Info "Error de permisos detectado en mensaje: $errorMessage"
+                    Write-Info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
+                    Stop-DockerContainers
+                    Stop-PnpmProcesses
+                    
+                    Write-Info "Esperando 5 segundos para que los archivos se liberen..."
+                    Start-Sleep -Seconds 5
+                    Write-Info "Reintentando..."
+                    continue
+                } else {
+                    if ($attempt -ge $MaxRetries) {
+                        Write-Error "Error persistente despues de $MaxRetries intentos."
                         Write-Error "Posibles soluciones:"
                         Write-Error "  1. Cierra editores de texto o IDEs que puedan tener abiertos archivos en $WorkingDirectory"
                         Write-Error "  2. Ejecuta PowerShell como Administrador"
@@ -982,9 +944,7 @@ function Install-Dependencies {
                         Write-Error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
                         $nodeModulesPath = Join-Path $WorkingDirectory "node_modules"
                         Write-Error "  5. Intenta eliminar manualmente: Remove-Item -Path `"$nodeModulesPath`" -Recurse -Force"
-                        throw
                     }
-                } else {
                     throw
                 }
             }
@@ -1096,6 +1056,7 @@ try {
         }
         
         if ($ResetDB) {
+            Request-DataLossConfirmation -ActionDescription "Se eliminara el volumen de la base de datos (todos los datos se perderan permanentemente)"
             Write-Info "ResetDB activado: se eliminara el volumen de la base de datos"
             Invoke-Cli "docker" @("compose", "--profile", "dev", "down", "--volumes", "--remove-orphans")
         } else {
@@ -1201,6 +1162,7 @@ try {
     }
 
     if ($ResetDB) {
+        Request-DataLossConfirmation -ActionDescription "Se reseteara la base de datos (todos los datos se perderan permanentemente)"
         Write-Info "ResetDB activado: reseteando base de datos"
         Reset-Database -EnvValues $envValues
         Invoke-Migrations

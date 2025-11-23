@@ -1,0 +1,49 @@
+{
+  "evaluations": {
+    "submissionNotFound": "Lliurament no trobat",
+    "commentRequired": "El comentari és requerit",
+    "commentCannotBeEmpty": "El comentari no pot estar buit",
+    "scoreRange10": "La puntuació ha d'estar entre 0 i 10",
+    "scoreRange100": "La puntuació ha d'estar entre 0 i 100",
+    "atLeastOneSubmissionRequired": "Has de proporcionar almenys un lliurament per avaluar",
+    "teamNotInSameEvent": "L'equip no pertany al mateix esdeveniment que la fase",
+    "submissionsNotBelongToTeamOrPhase": "Alguns lliuraments no pertanyen a l'equip o a tasques d'aquesta fase",
+    "submissionsNotBelongToTeamOrEvent": "Alguns lliuraments no pertanyen a l'equip o a l'esdeveniment",
+    "phaseNotFound": "Fase no trobada",
+    "teamNotFound": "Equip no trobat",
+    "projectNotFound": "Projecte no trobat",
+    "rubricNotConfigured": "No hi ha una rúbrica configurada per a aquesta fase o tasca",
+    "rubricNotConfiguredForPhase": "No hi ha una rúbrica configurada per a aquesta fase",
+    "evaluationNotFound": "Avaluació no trobada",
+    "noFinalEvaluation": "No hi ha avaluació final per a aquest lliurament",
+    "mustEvaluatePhaseFirst": "Has d'avaluar primer la fase \"{phaseName}\" abans d'avaluar el projecte complet",
+    "tenantCannotBeDetermined": "No s'ha pogut determinar el tenant per a l'avaluació",
+    "aiServiceNotConfigured": "Servei d'IA no configurat",
+    "taskNotAvailable": "La tasca associada al lliurament no està disponible"
+  },
+  "teams": {
+    "userNotFoundByEmail": "No s'ha trobat cap usuari amb el correu electrònic {email}. L'usuari ha d'estar registrat prèviament a la plataforma.",
+    "userIdOrEmailRequired": "Has d'indicar user_id o user_email",
+    "memberNotFound": "Membre no trobat",
+    "cannotRemoveCaptainIfOnlyMember": "No pots eliminar el capità si és l'únic membre de l'equip",
+    "mustAssignCaptainBeforeLeave": "Has d'assignar un altre capità abans d'abandonar l'equip",
+    "userNotMemberOfTeam": "L'usuari no és membre de l'equip",
+    "onlyActiveMembersCanBeCaptain": "Només els membres actius poden ser assignats com a capità",
+    "unauthorizedToChangeStatus": "No autoritzat per canviar l'estat de l'equip",
+    "invalidStatus": "Estat invàlid. Ha de ser \"open\" o \"closed\"",
+    "cannotOpenTeamWithInactiveProject": "No es pot obrir un equip el projecte del qual està inactiu",
+    "teamNotOpenForMembers": "L'equip no està obert per a nous membres",
+    "alreadyMemberOfTeam": "Ja ets membre d'aquest equip",
+    "mustAssignCaptainBeforeJoinOtherTeam": "Has d'assignar un altre capità al teu equip actual abans d'unir-te a un altre equip",
+    "notMemberOfTeam": "No ets membre d'aquest equip",
+    "cannotLeaveIfOnlyMember": "No pots abandonar l'equip si ets l'únic membre",
+    "notification": {
+      "memberRemovedTitle": "Has estat eliminat de l'equip",
+      "memberRemovedMessage": "El capità de l'equip \"{teamName}\" t'ha eliminat de l'equip."
+    }
+  },
+  "common": {
+    "unauthorized": "Accés no autoritzat"
+  }
+}
+

@@ -1,0 +1,49 @@
+{
+  "evaluations": {
+    "submissionNotFound": "Entrega no encontrada",
+    "commentRequired": "El comentario es requerido",
+    "commentCannotBeEmpty": "El comentario no puede estar vacío",
+    "scoreRange10": "La puntuación debe estar entre 0 y 10",
+    "scoreRange100": "La puntuación debe estar entre 0 y 100",
+    "atLeastOneSubmissionRequired": "Debe proporcionar al menos una entrega para evaluar",
+    "teamNotInSameEvent": "El equipo no pertenece al mismo evento que la fase",
+    "submissionsNotBelongToTeamOrPhase": "Algunas entregas no pertenecen al equipo o a tareas de esta fase",
+    "submissionsNotBelongToTeamOrEvent": "Algunas entregas no pertenecen al equipo o al evento",
+    "phaseNotFound": "Fase no encontrada",
+    "teamNotFound": "Equipo no encontrado",
+    "projectNotFound": "Proyecto no encontrado",
+    "rubricNotConfigured": "No hay una rúbrica configurada para esta fase o tarea",
+    "rubricNotConfiguredForPhase": "No hay una rúbrica configurada para esta fase",
+    "evaluationNotFound": "Evaluación no encontrada",
+    "noFinalEvaluation": "No hay evaluación final para esta entrega",
+    "mustEvaluatePhaseFirst": "Debe evaluar primero la fase \"{phaseName}\" antes de evaluar el proyecto completo",
+    "tenantCannotBeDetermined": "No se pudo determinar el tenant para la evaluación",
+    "aiServiceNotConfigured": "Servicio de IA no configurado",
+    "taskNotAvailable": "La tarea asociada a la entrega no está disponible"
+  },
+  "teams": {
+    "userNotFoundByEmail": "No se encontró ningún usuario con el correo electrónico {email}. El usuario debe estar registrado previamente en la plataforma.",
+    "userIdOrEmailRequired": "Debes indicar user_id o user_email",
+    "memberNotFound": "Miembro no encontrado",
+    "cannotRemoveCaptainIfOnlyMember": "No puedes eliminar al capitán si es el único miembro del equipo",
+    "mustAssignCaptainBeforeLeave": "Debes asignar otro capitán antes de abandonar el equipo",
+    "userNotMemberOfTeam": "El usuario no es miembro del equipo",
+    "onlyActiveMembersCanBeCaptain": "Solo los miembros activos pueden ser asignados como capitán",
+    "unauthorizedToChangeStatus": "No autorizado para cambiar el estado del equipo",
+    "invalidStatus": "Estado inválido. Debe ser \"open\" o \"closed\"",
+    "cannotOpenTeamWithInactiveProject": "No se puede abrir un equipo cuyo proyecto está inactivo",
+    "teamNotOpenForMembers": "El equipo no está abierto para nuevos miembros",
+    "alreadyMemberOfTeam": "Ya eres miembro de este equipo",
+    "mustAssignCaptainBeforeJoinOtherTeam": "Debes asignar otro capitán a tu equipo actual antes de unirte a otro equipo",
+    "notMemberOfTeam": "No eres miembro de este equipo",
+    "cannotLeaveIfOnlyMember": "No puedes abandonar el equipo si eres el único miembro",
+    "notification": {
+      "memberRemovedTitle": "Has sido eliminado del equipo",
+      "memberRemovedMessage": "El capitán del equipo \"{teamName}\" te ha eliminado del equipo."
+    }
+  },
+  "common": {
+    "unauthorized": "Acceso no autorizado"
+  }
+}
+

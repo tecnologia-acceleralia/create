@@ -27,7 +27,8 @@ authRouter.post(
   '/login',
   [
     body('email').isEmail().normalizeEmail(),
-    body('password').isString().isLength({ min: 6 })
+    body('password').isString().isLength({ min: 6 }),
+    body('event_id').optional().isInt({ min: 1 })
   ],
   validateRequest,
   (req, res, next) => AuthController.login(req, res, next)
@@ -68,10 +69,30 @@ authRouter.post(
   (req, res, next) => PasswordResetController.confirmReset(req, res, next)
 );
 
+// Endpoint para refrescar la sesión del usuario (actualizar membresías y roles)
+authRouter.get(
+  '/refresh-session',
+  authenticate,
+  (req, res, next) => AuthController.refreshSession(req, res, next)
+);
+
 // Endpoint para que superadmin asegure membresía en un tenant
 authRouter.post(
   '/ensure-membership',
   authenticate,
   (req, res, next) => AuthController.ensureSuperAdminMembership(req, res, next)
+);
+
+// Endpoint para completar campos faltantes del schema de registro
+authRouter.post(
+  '/complete-registration',
+  authenticate,
+  [
+    body('grade').optional().isString().trim().isLength({ min: 1, max: 255 }),
+    body('registration_answers').optional().isObject(),
+    body('event_id').optional().isInt({ min: 1 })
+  ],
+  validateRequest,
+  (req, res, next) => AuthController.completeRegistration(req, res, next)
 );
 

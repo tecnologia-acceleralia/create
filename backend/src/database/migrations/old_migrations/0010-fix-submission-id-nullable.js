@@ -1,4 +1,12 @@
 export async function up(queryInterface, Sequelize) {
+  // Verificar si la columna ya es nullable
+  const tableDescription = await queryInterface.describeTable('evaluations');
+  
+  // Si ya es nullable, no hacer nada
+  if (tableDescription.submission_id && tableDescription.submission_id.allowNull === true) {
+    return;
+  }
+  
   // La migración 0009 intentó hacer submission_id nullable pero falló por la foreign key
   // Necesitamos eliminar la FK, cambiar la columna, y recrear la FK
   
@@ -44,6 +52,14 @@ export async function up(queryInterface, Sequelize) {
 }
 
 export async function down(queryInterface, Sequelize) {
+  // Verificar si la columna ya es NOT NULL
+  const tableDescription = await queryInterface.describeTable('evaluations');
+  
+  // Si ya es NOT NULL, no hacer nada
+  if (tableDescription.submission_id && tableDescription.submission_id.allowNull === false) {
+    return;
+  }
+  
   // Buscar el nombre de la foreign key constraint
   const [results] = await queryInterface.sequelize.query(
     `SELECT CONSTRAINT_NAME 

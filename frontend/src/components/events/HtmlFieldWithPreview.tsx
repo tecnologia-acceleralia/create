@@ -1,39 +1,42 @@
-import { Textarea } from '@/components/ui/textarea';
-import { AssetMarkerSelector } from './AssetMarkerSelector';
-import type { UseFormRegisterReturn } from 'react-hook-form';
+import { Controller, type Control, type FieldPath, type FieldValues } from 'react-hook-form';
+import { RichTextEditor } from './RichTextEditor';
 
-type HtmlFieldWithPreviewProps = {
+type HtmlFieldWithPreviewProps<T extends FieldValues> = {
   id: string;
-  register: UseFormRegisterReturn;
-  fieldName: string;
+  control: Control<T>;
+  fieldName: FieldPath<T>;
   rows?: number;
   placeholder?: string;
   eventId?: number;
 };
 
-export function HtmlFieldWithPreview({
+export function HtmlFieldWithPreview<T extends FieldValues>({
   id,
-  register,
+  control,
   fieldName,
   rows = 10,
   placeholder,
   eventId
-}: HtmlFieldWithPreviewProps) {
+}: HtmlFieldWithPreviewProps<T>) {
   const isFullSize = rows >= 20;
+  const minHeight = isFullSize ? 'calc(90vh - 200px)' : `${rows * 24}px`;
 
   return (
-    <div className={`space-y-2 ${isFullSize ? 'h-full flex flex-col' : ''}`}>
-      <Textarea
-        id={id}
-        rows={rows}
-        placeholder={placeholder}
-        className={`${isFullSize ? 'flex-1 min-h-[calc(90vh-200px)] resize-none' : ''}`}
-        {...register}
-      />
-      {eventId && (
-        <AssetMarkerSelector eventId={eventId} />
+    <Controller
+      name={fieldName}
+      control={control}
+      render={({ field }) => (
+        <RichTextEditor
+          id={id}
+          value={field.value || ''}
+          onChange={field.onChange}
+          placeholder={placeholder}
+          minHeight={minHeight}
+          className={isFullSize ? 'h-full flex-1' : ''}
+          eventId={eventId}
+        />
       )}
-    </div>
+    />
   );
 }
 

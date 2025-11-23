@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -204,6 +205,20 @@ export function decodeBase64File(base64) {
 }
 
 /**
+ * Crea un comando PutObjectCommand con configuración estándar para archivos públicos.
+ * IMPORTANTE: Todos los archivos subidos a S3 deben ser públicos para poder acceder a ellos.
+ * @param {{ Bucket: string; Key: string; Body: Buffer; ContentType: string; CacheControl?: string }} params
+ * @returns {PutObjectCommand}
+ */
+function createPublicPutObjectCommand(params) {
+  return new PutObjectCommand({
+    ...params,
+    ACL: 'public-read', // Siempre público para permitir acceso directo
+    CacheControl: params.CacheControl || 'public, max-age=31536000, immutable'
+  });
+}
+
+/**
  * Sube un logo de tenant a DigitalOcean Spaces.
  * @param {{ tenantId: number; buffer: Buffer; contentType: string; extension?: string }} options
  * @returns {Promise<{ url: string; key: string }>}
@@ -213,12 +228,11 @@ export async function uploadTenantLogo({ tenantId, buffer, contentType, extensio
   const objectKey = buildLogoKey(tenantId, extension);
 
   await client.send(
-    new PutObjectCommand({
+    createPublicPutObjectCommand({
       Bucket: settings.bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
       CacheControl: 'public, max-age=604800, immutable'
     })
   );
@@ -244,12 +258,11 @@ export async function uploadProjectLogo({ tenantId, projectId, buffer, contentTy
   const objectKey = buildProjectLogoKey(tenantId, projectId, extension);
 
   await client.send(
-    new PutObjectCommand({
+    createPublicPutObjectCommand({
       Bucket: settings.bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
       CacheControl: 'public, max-age=604800, immutable'
     })
   );
@@ -269,13 +282,12 @@ export async function uploadSubmissionFile({ tenantId, submissionId, fileName, b
   const { client, settings } = ensureClient();
   const objectKey = buildSubmissionFileKey(tenantId, submissionId, fileName);
   await client.send(
-    new PutObjectCommand({
+    createPublicPutObjectCommand({
       Bucket: settings.bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
-      CacheControl: 'private, max-age=31536000, immutable'
+      CacheControl: 'public, max-age=31536000, immutable'
     })
   );
 
@@ -446,12 +458,11 @@ export async function uploadEventAsset({ tenantId, eventId, fileName, buffer, co
   const objectKey = buildEventAssetKey(tenantId, eventId, fileName);
 
   await client.send(
-    new PutObjectCommand({
+    createPublicPutObjectCommand({
       Bucket: settings.bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
       CacheControl: 'public, max-age=31536000, immutable'
     })
   );
@@ -478,12 +489,11 @@ export async function uploadUserProfileImage({ userId, buffer, contentType, exte
   const objectKey = buildUserProfileImageKey(userId, extension);
 
   await client.send(
-    new PutObjectCommand({
+    createPublicPutObjectCommand({
       Bucket: settings.bucket,
       Key: objectKey,
       Body: buffer,
       ContentType: contentType,
-      ACL: 'public-read',
       CacheControl: 'public, max-age=604800, immutable'
     })
   );
@@ -496,6 +506,54 @@ export async function uploadUserProfileImage({ userId, buffer, contentType, exte
   return {
     key: objectKey,
     url: `${baseUrl}/${objectKey}`
+  };
+}
+
+/**
+ * Copia un asset de evento desde S3 a un nuevo evento (clonado).
+ * Descarga el archivo original y lo sube con un nuevo key para el evento clonado.
+ * @param {{ tenantId: number; originalEventId: number; clonedEventId: number; originalS3Key: string; fileName: string; contentType: string }} options
+ * @returns {Promise<{ url: string; key: string }>}
+ */
+export async function copyEventAsset({ tenantId, originalEventId, clonedEventId, originalS3Key, fileName, contentType }) {
+  const { client, settings } = ensureClient();
+
+  // Descargar el archivo original desde S3
+  const getObjectResponse = await client.send(
+    new GetObjectCommand({
+      Bucket: settings.bucket,
+      Key: originalS3Key
+    })
+  );
+
+  // Convertir el stream a buffer
+  const chunks = [];
+  for await (const chunk of getObjectResponse.Body) {
+    chunks.push(chunk);
+  }
+  const buffer = Buffer.concat(chunks);
+
+  // Subir el archivo con un nuevo key para el evento clonado
+  const newObjectKey = buildEventAssetKey(tenantId, clonedEventId, fileName);
+
+  await client.send(
+    createPublicPutObjectCommand({
+      Bucket: settings.bucket,
+      Key: newObjectKey,
+      Body: buffer,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000, immutable'
+    })
+  );
+
+  const baseUrl = settings.publicBaseUrl;
+  if (!baseUrl) {
+    throw new Error('No se pudo determinar la URL pública para el archivo copiado');
+  }
+
+  return {
+    key: newObjectKey,
+    url: `${baseUrl}/${newObjectKey}`
   };
 }
 

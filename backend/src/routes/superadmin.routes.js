@@ -164,6 +164,8 @@ superAdminRouter.post(
     body('is_super_admin').optional().isBoolean().toBoolean(),
     body('password').optional({ nullable: true }).isLength({ min: 6 }),
     body('profile_image_url').optional({ nullable: true }).isURL(),
+    body('grade').optional({ nullable: true }).isString().trim().isLength({ min: 1, max: 255 }),
+    body('registration_answers').optional({ nullable: true }).isObject(),
     body('tenantIds').optional({ nullable: true }).isArray(),
     body('tenantIds.*').optional({ nullable: true }).isInt({ gt: 0 })
   ],
@@ -183,6 +185,8 @@ superAdminRouter.patch(
     body('is_super_admin').optional().isBoolean().toBoolean(),
     body('password').optional({ nullable: true }).isLength({ min: 6 }),
     body('profile_image_url').optional({ nullable: true }).isURL(),
+    body('grade').optional({ nullable: true }).isString().trim().isLength({ min: 1, max: 255 }),
+    body('registration_answers').optional({ nullable: true }).isObject(),
     body('tenantIds').optional({ nullable: true }).isArray(),
     body('tenantIds.*').optional({ nullable: true }).isInt({ gt: 0 })
   ],

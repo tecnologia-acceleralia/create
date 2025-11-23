@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import type { SuperAdminTenant } from '@/services/superadmin';
 
 type TrackingEventOption = {
@@ -77,25 +78,25 @@ export function TenantTrackingModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('superadmin.tenants.trackingDialogTitle')}</DialogTitle>
-          <DialogDescription>{t('superadmin.tenants.trackingDialogDescription')}</DialogDescription>
+          <DialogTitle>{safeTranslate(t, 'superadmin.tenants.trackingDialogTitle')}</DialogTitle>
+          <DialogDescription>{safeTranslate(t, 'superadmin.tenants.trackingDialogDescription')}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="tracking-tenant-name">
-              {t('superadmin.tenants.trackingDialogTenantName')}
+              {safeTranslate(t, 'superadmin.tenants.trackingDialogTenantName')}
             </label>
             <Input id="tracking-tenant-name" value={tenant?.name ?? ''} disabled />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground" htmlFor="tracking-tenant-slug">
-              {t('superadmin.tenants.trackingDialogTenantSlug')}
+              {safeTranslate(t, 'superadmin.tenants.trackingDialogTenantSlug')}
             </label>
             <Input id="tracking-tenant-slug" value={tenant?.slug ?? ''} disabled />
           </div>
           <div className="space-y-1" ref={eventSelectContainerRef}>
             <label className="text-xs font-medium text-muted-foreground" htmlFor="tracking-event">
-              {t('superadmin.tenants.trackingDialogEvent')}
+              {safeTranslate(t, 'superadmin.tenants.trackingDialogEvent')}
             </label>
             <Select
               ref={eventSelectRef}
@@ -106,8 +107,8 @@ export function TenantTrackingModal({
             >
               <option value="">
                 {isLoadingEvents
-                  ? t('common.loading')
-                  : t('superadmin.tenants.trackingDialogEventPlaceholder')}
+                  ? safeTranslate(t, 'common.loading')
+                  : safeTranslate(t, 'superadmin.tenants.trackingDialogEventPlaceholder')}
               </option>
               {trackingEvents.map(eventOption => (
                 <option key={eventOption.id} value={String(eventOption.id)}>
@@ -116,10 +117,10 @@ export function TenantTrackingModal({
               ))}
             </Select>
             {isLoadingEvents ? (
-              <p className="text-xs text-muted-foreground">{t('superadmin.tenants.trackingDialogLoading')}</p>
+              <p className="text-xs text-muted-foreground">{safeTranslate(t, 'superadmin.tenants.trackingDialogLoading')}</p>
             ) : null}
             {!isLoadingEvents && trackingEvents.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{t('superadmin.tenants.trackingDialogEmpty')}</p>
+              <p className="text-xs text-muted-foreground">{safeTranslate(t, 'superadmin.tenants.trackingDialogEmpty')}</p>
             ) : null}
           </div>
           <DialogFooter className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-between">
@@ -132,16 +133,16 @@ export function TenantTrackingModal({
                   disabled={isCleaningEvent || isLoadingEvents}
                   className="w-full sm:w-auto"
                 >
-                  {t('superadmin.tenants.cleanEvent')}
+                  {safeTranslate(t, 'superadmin.tenants.cleanEvent')}
                 </Button>
               )}
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
-                {t('common.cancel')}
+                {safeTranslate(t, 'common.cancel')}
               </Button>
               <Button type="submit" className="w-full sm:w-auto">
-                {t('superadmin.tenants.trackingDialogSubmit')}
+                {safeTranslate(t, 'superadmin.tenants.trackingDialogSubmit')}
               </Button>
             </div>
           </DialogFooter>
@@ -151,24 +152,24 @@ export function TenantTrackingModal({
       <AlertDialog open={showCleanConfirm} onOpenChange={setShowCleanConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('superadmin.tenants.cleanEventConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogTitle>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmTitle')}</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>{t('superadmin.tenants.cleanEventConfirmWarning')}</p>
-              <p className="font-medium">{t('superadmin.tenants.cleanEventConfirmDescription')}</p>
+              <p>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmWarning')}</p>
+              <p className="font-medium">{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmDescription')}</p>
               <ul className="list-inside list-disc space-y-1 text-sm">
-                <li>{t('superadmin.tenants.cleanEventConfirmTeams')}</li>
-                <li>{t('superadmin.tenants.cleanEventConfirmMembers')}</li>
-                <li>{t('superadmin.tenants.cleanEventConfirmSubmissions')}</li>
-                <li>{t('superadmin.tenants.cleanEventConfirmEvaluations')}</li>
-                <li>{t('superadmin.tenants.cleanEventConfirmNotifications')}</li>
+                <li>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmTeams')}</li>
+                <li>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmMembers')}</li>
+                <li>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmSubmissions')}</li>
+                <li>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmEvaluations')}</li>
+                <li>{safeTranslate(t, 'superadmin.tenants.cleanEventConfirmNotifications')}</li>
               </ul>
               <p className="pt-2 font-semibold text-destructive">
-                {t('superadmin.tenants.cleanEventConfirmIrreversible')}
+                {safeTranslate(t, 'superadmin.tenants.cleanEventConfirmIrreversible')}
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isCleaningEvent}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogCancel disabled={isCleaningEvent}>{safeTranslate(t, 'common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
                 if (onCleanEvent && trackingEventId) {
@@ -183,7 +184,7 @@ export function TenantTrackingModal({
               disabled={isCleaningEvent}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isCleaningEvent ? t('common.processing') : t('superadmin.tenants.cleanEventConfirm')}
+              {isCleaningEvent ? safeTranslate(t, 'common.processing') : safeTranslate(t, 'superadmin.tenants.cleanEventConfirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Spinner } from '@/components/common';
 import { useTenant } from '@/context/TenantContext';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getEventStatistics, getEventDetail, type EventStatistics } from '@/services/events';
 import { formatDateTime } from '@/utils/date';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
@@ -179,13 +180,13 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     
     const headers = [
       '#',
-      t('events.statisticsSection.teams.team'),
-      t('events.statisticsSection.teams.project'),
+      safeTranslate(t, 'events.statisticsSection.teams.team'),
+      safeTranslate(t, 'events.statisticsSection.teams.project'),
       'Estado Proyecto',
-      t('events.statisticsSection.teams.captain'),
+      safeTranslate(t, 'events.statisticsSection.teams.captain'),
       'Email Capitán',
       'Total Miembros',
-      t('events.statisticsSection.teams.members')
+      safeTranslate(t, 'events.statisticsSection.teams.members')
     ];
 
     const csvData = sortedTeams
@@ -215,10 +216,10 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     
     const headers = [
       '#',
-      t('events.statisticsSection.usersWithoutTeam.name'),
-      t('events.statisticsSection.usersWithoutTeam.email'),
-      t('events.statisticsSection.usersWithoutTeam.grade'),
-      t('events.statisticsSection.usersWithoutTeam.lastLogin')
+      safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.name'),
+      safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.email'),
+      safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.grade'),
+      safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.lastLogin')
     ];
 
     const csvData = sortedUsersWithoutTeam
@@ -243,12 +244,12 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     
     const headers = [
       '#',
-      t('events.statisticsSection.users.name'),
-      t('events.statisticsSection.users.email'),
-      t('events.statisticsSection.users.team'),
-      t('events.statisticsSection.users.role'),
-      t('events.statisticsSection.users.grade'),
-      t('events.statisticsSection.users.lastLogin')
+      safeTranslate(t, 'events.statisticsSection.users.name'),
+      safeTranslate(t, 'events.statisticsSection.users.email'),
+      safeTranslate(t, 'events.statisticsSection.users.team'),
+      safeTranslate(t, 'events.statisticsSection.users.role'),
+      safeTranslate(t, 'events.statisticsSection.users.grade'),
+      safeTranslate(t, 'events.statisticsSection.users.lastLogin')
     ];
 
     const csvData = sortedUsers
@@ -274,15 +275,15 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     if (!statistics?.gradeSummary?.length) return;
     
     const headers = [
-      t('events.statisticsSection.grades.grade'),
-      t('events.statisticsSection.grades.withTeam'),
-      t('events.statisticsSection.grades.withoutTeam'),
-      t('events.statisticsSection.grades.total')
+      safeTranslate(t, 'events.statisticsSection.grades.grade'),
+      safeTranslate(t, 'events.statisticsSection.grades.withTeam'),
+      safeTranslate(t, 'events.statisticsSection.grades.withoutTeam'),
+      safeTranslate(t, 'events.statisticsSection.grades.total')
     ];
 
     const csvData = sortedGradeSummary.map(entry => {
       const gradeLabel = entry.grade === '__NO_GRADE__'
-        ? t('events.statisticsSection.grades.noGrade')
+        ? safeTranslate(t, 'events.statisticsSection.grades.noGrade')
         : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
       return {
         [headers[0]]: gradeLabel,
@@ -304,13 +305,13 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     
     const headers = [
       selectedCustomFieldAggregate.field.label || selectedCustomFieldAggregate.field.name,
-      t('events.statisticsSection.customFields.withTeam'),
-      t('events.statisticsSection.customFields.withoutTeam'),
-      t('events.statisticsSection.customFields.total')
+      safeTranslate(t, 'events.statisticsSection.customFields.withTeam'),
+      safeTranslate(t, 'events.statisticsSection.customFields.withoutTeam'),
+      safeTranslate(t, 'events.statisticsSection.customFields.total')
     ];
 
     const csvData = selectedCustomFieldAggregate.summary.map(entry => ({
-      [headers[0]]: entry.value === '__NO_VALUE__' ? t('events.statisticsSection.customFields.noValue') : String(entry.value || ''),
+      [headers[0]]: entry.value === '__NO_VALUE__' ? safeTranslate(t, 'events.statisticsSection.customFields.noValue') : String(entry.value || ''),
       [headers[1]]: String(entry.withTeam || 0),
       [headers[2]]: String(entry.withoutTeam || 0),
       [headers[3]]: String(entry.total || 0)
@@ -330,7 +331,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-destructive">
-          {t('events.statisticsError', { defaultValue: 'Error al cargar las estadísticas' })}
+          {safeTranslate(t, 'events.statisticsError', { defaultValue: 'Error al cargar las estadísticas' })}
         </CardContent>
       </Card>
     );
@@ -339,12 +340,12 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
   return (
     <Tabs defaultValue="teams" className="space-y-6">
       <TabsList data-statistics-tabs className="grid w-full grid-cols-5">
-        <TabsTrigger value="teams">{t('events.statisticsSection.teams.title', { defaultValue: 'Equipos' })}</TabsTrigger>
-        <TabsTrigger value="users-without-team">{t('events.statisticsSection.usersWithoutTeam.title', { defaultValue: 'Sin Equipos' })}</TabsTrigger>
-        <TabsTrigger value="users">{t('events.statisticsSection.users.title', { defaultValue: 'Usuarios' })}</TabsTrigger>
-        <TabsTrigger value="grades">{t('events.statisticsSection.grades.title', { defaultValue: 'Grados' })}</TabsTrigger>
+        <TabsTrigger value="teams">{safeTranslate(t, 'events.statisticsSection.teams.title', { defaultValue: 'Equipos' })}</TabsTrigger>
+        <TabsTrigger value="users-without-team">{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.title', { defaultValue: 'Sin Equipos' })}</TabsTrigger>
+        <TabsTrigger value="users">{safeTranslate(t, 'events.statisticsSection.users.title', { defaultValue: 'Usuarios' })}</TabsTrigger>
+        <TabsTrigger value="grades">{safeTranslate(t, 'events.statisticsSection.grades.title', { defaultValue: 'Grados' })}</TabsTrigger>
         {customFieldOptions.length > 0 && (
-          <TabsTrigger value="custom">{t('events.statisticsSection.customFields.title', { defaultValue: 'Custom' })}</TabsTrigger>
+          <TabsTrigger value="custom">{safeTranslate(t, 'events.statisticsSection.customFields.title', { defaultValue: 'Custom' })}</TabsTrigger>
         )}
       </TabsList>
 
@@ -352,10 +353,10 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
       <TabsContent value="teams" className="space-y-4">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t('events.statisticsSection.teams.title', { defaultValue: 'Equipos y Proyectos' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'events.statisticsSection.teams.title', { defaultValue: 'Equipos y Proyectos' })}</CardTitle>
             <Button variant="outline" size="sm" onClick={exportTeamsToCSV}>
               <Download className="h-4 w-4 mr-2" />
-              {t('common.export', { defaultValue: 'Exportar CSV' })}
+              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -363,19 +364,19 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
             <TableHeader>
               <TableRow>
                 <TableHead>#</TableHead>
-                <TableHead>{t('events.statisticsSection.teams.team', { defaultValue: 'Equipo' })}</TableHead>
-                <TableHead>{t('events.statisticsSection.teams.project', { defaultValue: 'Proyecto' })}</TableHead>
-                <TableHead>{t('events.statisticsSection.teams.captain', { defaultValue: 'Capitán' })}</TableHead>
-                <TableHead>{t('events.statisticsSection.teams.totalMembers', { defaultValue: 'Total Miembros' })}</TableHead>
-                <TableHead>{t('events.statisticsSection.teams.members', { defaultValue: 'Miembros' })}</TableHead>
-                {onViewTeam && <TableHead>{t('common.actions', { defaultValue: 'Acciones' })}</TableHead>}
+                <TableHead>{safeTranslate(t, 'events.statisticsSection.teams.team', { defaultValue: 'Equipo' })}</TableHead>
+                <TableHead>{safeTranslate(t, 'events.statisticsSection.teams.project', { defaultValue: 'Proyecto' })}</TableHead>
+                <TableHead>{safeTranslate(t, 'events.statisticsSection.teams.captain', { defaultValue: 'Capitán' })}</TableHead>
+                <TableHead>{safeTranslate(t, 'events.statisticsSection.teams.totalMembers', { defaultValue: 'Total Miembros' })}</TableHead>
+                <TableHead>{safeTranslate(t, 'events.statisticsSection.teams.members', { defaultValue: 'Miembros' })}</TableHead>
+                {onViewTeam && <TableHead>{safeTranslate(t, 'common.actions', { defaultValue: 'Acciones' })}</TableHead>}
               </TableRow>
             </TableHeader>
               <TableBody>
                 {sortedTeams.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={onViewTeam ? 7 : 6} className="text-center text-sm text-muted-foreground">
-                      {t('events.statisticsSection.teams.empty', { defaultValue: 'No hay equipos registrados' })}
+                      {safeTranslate(t, 'events.statisticsSection.teams.empty', { defaultValue: 'No hay equipos registrados' })}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -393,7 +394,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">
-                            {t('events.statisticsSection.teams.noProject', { defaultValue: 'Sin proyecto' })}
+                            {safeTranslate(t, 'events.statisticsSection.teams.noProject', { defaultValue: 'Sin proyecto' })}
                           </span>
                         )}
                       </TableCell>
@@ -405,7 +406,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">
-                            {t('events.statisticsSection.teams.noCaptain', { defaultValue: 'Sin capitán' })}
+                            {safeTranslate(t, 'events.statisticsSection.teams.noCaptain', { defaultValue: 'Sin capitán' })}
                           </span>
                         )}
                       </TableCell>
@@ -413,7 +414,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                       <TableCell>
                         {team.members.length === 0 ? (
                           <span className="text-sm text-muted-foreground">
-                            {t('events.statisticsSection.teams.noMembers', { defaultValue: 'Sin miembros' })}
+                            {safeTranslate(t, 'events.statisticsSection.teams.noMembers', { defaultValue: 'Sin miembros' })}
                           </span>
                         ) : (
                           <span className="text-sm">
@@ -428,7 +429,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                             size="sm"
                             onClick={() => onViewTeam(team.id)}
                           >
-                            {t('teams.viewDetails', { defaultValue: 'Ver equipo' })}
+                            {safeTranslate(t, 'teams.viewDetails', { defaultValue: 'Ver equipo' })}
                           </Button>
                         )}
                       </TableCell>
@@ -446,11 +447,11 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>
-              {t('events.statisticsSection.usersWithoutTeam.title', { defaultValue: 'Usuarios sin Equipos' })}
+              {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.title', { defaultValue: 'Usuarios sin Equipos' })}
             </CardTitle>
             <Button variant="outline" size="sm" onClick={exportUsersWithoutTeamToCSV}>
               <Download className="h-4 w-4 mr-2" />
-              {t('common.export', { defaultValue: 'Exportar CSV' })}
+              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -458,11 +459,11 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>{t('events.statisticsSection.usersWithoutTeam.name', { defaultValue: 'Nombre' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.usersWithoutTeam.email', { defaultValue: 'Email' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.usersWithoutTeam.grade', { defaultValue: 'Grado' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.name', { defaultValue: 'Nombre' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.email', { defaultValue: 'Email' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.grade', { defaultValue: 'Grado' })}</TableHead>
                   <TableHead>
-                    {t('events.statisticsSection.usersWithoutTeam.lastLogin', { defaultValue: 'Último login' })}
+                    {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.lastLogin', { defaultValue: 'Último login' })}
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -470,7 +471,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                 {sortedUsersWithoutTeam.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                      {t('events.statisticsSection.usersWithoutTeam.empty', { defaultValue: 'Todos los usuarios tienen equipo' })}
+                      {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.empty', { defaultValue: 'Todos los usuarios tienen equipo' })}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -498,10 +499,10 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
       <TabsContent value="users" className="space-y-4">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t('events.statisticsSection.users.title', { defaultValue: 'Todos los Usuarios' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'events.statisticsSection.users.title', { defaultValue: 'Todos los Usuarios' })}</CardTitle>
             <Button variant="outline" size="sm" onClick={exportUsersToCSV}>
               <Download className="h-4 w-4 mr-2" />
-              {t('common.export', { defaultValue: 'Exportar CSV' })}
+              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -509,19 +510,19 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
               <TableHeader>
                 <TableRow>
                   <TableHead>#</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.name', { defaultValue: 'Nombre' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.email', { defaultValue: 'Email' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.team', { defaultValue: 'Equipo' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.grade', { defaultValue: 'Grado' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.users.lastLogin', { defaultValue: 'Último login' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.name', { defaultValue: 'Nombre' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.email', { defaultValue: 'Email' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.team', { defaultValue: 'Equipo' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.grade', { defaultValue: 'Grado' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.lastLogin', { defaultValue: 'Último login' })}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedUsers.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
-                      {t('events.statisticsSection.users.empty', { defaultValue: 'No hay usuarios registrados' })}
+                      {safeTranslate(t, 'events.statisticsSection.users.empty', { defaultValue: 'No hay usuarios registrados' })}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -537,7 +538,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                           <span className="font-medium">{user.team.name}</span>
                         ) : (
                           <span className="text-sm text-muted-foreground">
-                            {t('events.statisticsSection.users.noTeam', { defaultValue: 'Sin equipo' })}
+                            {safeTranslate(t, 'events.statisticsSection.users.noTeam', { defaultValue: 'Sin equipo' })}
                           </span>
                         )}
                       </TableCell>
@@ -546,7 +547,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                           user.roles.join(', ')
                         ) : (
                           <span className="text-xs text-muted-foreground">
-                            {t('events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
+                            {safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
                           </span>
                         )}
                       </TableCell>
@@ -567,34 +568,34 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
       <TabsContent value="grades" className="space-y-4">
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>{t('events.statisticsSection.grades.title', { defaultValue: 'Resumen por Grados' })}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'events.statisticsSection.grades.title', { defaultValue: 'Resumen por Grados' })}</CardTitle>
             <Button variant="outline" size="sm" onClick={exportGradesToCSV}>
               <Download className="h-4 w-4 mr-2" />
-              {t('common.export', { defaultValue: 'Exportar CSV' })}
+              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('events.statisticsSection.grades.grade', { defaultValue: 'Grado' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.grades.withTeam', { defaultValue: 'Con equipo' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.grades.withoutTeam', { defaultValue: 'Sin equipo' })}</TableHead>
-                  <TableHead>{t('events.statisticsSection.grades.total', { defaultValue: 'Total' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.grades.grade', { defaultValue: 'Grado' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.grades.withTeam', { defaultValue: 'Con equipo' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.grades.withoutTeam', { defaultValue: 'Sin equipo' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.grades.total', { defaultValue: 'Total' })}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedGradeSummary.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                      {t('events.statisticsSection.grades.empty', { defaultValue: 'No hay datos de grados' })}
+                      {safeTranslate(t, 'events.statisticsSection.grades.empty', { defaultValue: 'No hay datos de grados' })}
                     </TableCell>
                   </TableRow>
                 ) : (
                   sortedGradeSummary.map(entry => {
                     const gradeLabel =
                       entry.grade === '__NO_GRADE__'
-                        ? t('events.statisticsSection.grades.noGrade', { defaultValue: 'Sin grado' })
+                        ? safeTranslate(t, 'events.statisticsSection.grades.noGrade', { defaultValue: 'Sin grado' })
                         : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
                     return (
                       <TableRow key={entry.grade}>
@@ -618,19 +619,19 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>
-                {t('events.statisticsSection.customFields.title', { defaultValue: 'Agregados por Variables Custom' })}
+                {safeTranslate(t, 'events.statisticsSection.customFields.title', { defaultValue: 'Agregados por Variables Custom' })}
               </CardTitle>
               {selectedCustomFieldAggregate && (
                 <Button variant="outline" size="sm" onClick={exportCustomFieldsToCSV}>
                   <Download className="h-4 w-4 mr-2" />
-                  {t('common.export', { defaultValue: 'Exportar CSV' })}
+                  {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
                 </Button>
               )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <label className="text-sm font-medium">
-                  {t('events.statisticsSection.customFields.selectField', { defaultValue: 'Seleccionar variable:' })}
+                  {safeTranslate(t, 'events.statisticsSection.customFields.selectField', { defaultValue: 'Seleccionar variable:' })}
                 </label>
                 <Select
                   value={selectedCustomField}
@@ -638,7 +639,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                   className="w-[300px]"
                 >
                   <option value="">
-                    {t('events.statisticsSection.customFields.selectPlaceholder', { defaultValue: 'Selecciona una variable' })}
+                    {safeTranslate(t, 'events.statisticsSection.customFields.selectPlaceholder', { defaultValue: 'Selecciona una variable' })}
                   </option>
                   {customFieldOptions.map(option => (
                     <option key={option.value} value={option.value}>
@@ -656,23 +657,23 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                         <TableHead>
                           {selectedCustomFieldAggregate.field.label || selectedCustomFieldAggregate.field.name}
                         </TableHead>
-                        <TableHead>{t('events.statisticsSection.customFields.withTeam', { defaultValue: 'Con equipo' })}</TableHead>
-                        <TableHead>{t('events.statisticsSection.customFields.withoutTeam', { defaultValue: 'Sin equipo' })}</TableHead>
-                        <TableHead>{t('events.statisticsSection.customFields.total', { defaultValue: 'Total' })}</TableHead>
+                        <TableHead>{safeTranslate(t, 'events.statisticsSection.customFields.withTeam', { defaultValue: 'Con equipo' })}</TableHead>
+                        <TableHead>{safeTranslate(t, 'events.statisticsSection.customFields.withoutTeam', { defaultValue: 'Sin equipo' })}</TableHead>
+                        <TableHead>{safeTranslate(t, 'events.statisticsSection.customFields.total', { defaultValue: 'Total' })}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {selectedCustomFieldAggregate.summary.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
-                            {t('events.statisticsSection.customFields.empty', { defaultValue: 'No hay datos' })}
+                            {safeTranslate(t, 'events.statisticsSection.customFields.empty', { defaultValue: 'No hay datos' })}
                           </TableCell>
                         </TableRow>
                       ) : (
                         selectedCustomFieldAggregate.summary.map((entry) => {
                           const valueLabel =
                             entry.value === '__NO_VALUE__'
-                              ? t('events.statisticsSection.customFields.noValue', { defaultValue: 'Sin valor' })
+                              ? safeTranslate(t, 'events.statisticsSection.customFields.noValue', { defaultValue: 'Sin valor' })
                               : String(entry.value);
                           return (
                             <TableRow key={`${selectedCustomFieldAggregate.field.name}-${entry.value}`}>

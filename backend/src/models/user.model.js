@@ -33,8 +33,8 @@ export function UserModel(sequelize) {
         type: DataTypes.STRING(500),
         allowNull: true
       },
-      grade: {
-        type: DataTypes.STRING(255),
+      registration_answers: {
+        type: DataTypes.JSON,
         allowNull: true
       },
       language: {

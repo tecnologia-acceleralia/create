@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 import { Button } from '@/components/ui/button';
 import { EventCard } from '@/components/events/EventCard';
@@ -39,32 +40,32 @@ export function DashboardEventCard({ event, className }: DashboardEventCardProps
             {hasTeam ? (
               <>
                 <Button asChild>
-                  <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{t('teams.title')}</Link>
+                  <Link to={tenantPath(`dashboard/events/${event.id}/team`)}>{safeTranslate(t, 'teams.title')}</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{t('auth.submit')}</Link>
+                  <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{safeTranslate(t, 'auth.submit')}</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to={viewDetailsPath}>{t('events.viewDetails')}</Link>
+                  <Link to={viewDetailsPath}>{safeTranslate(t, 'events.viewDetails')}</Link>
                 </Button>
               </>
             ) : (
               <>
                 <Button asChild variant="outline">
                   <Link to={tenantPath(`dashboard/events/${event.id}/projects`)}>
-                    {t('projects.title')}
+                    {safeTranslate(t, 'projects.title')}
                   </Link>
                 </Button>
                 <Button asChild>
                   <Link to={tenantPath(`dashboard/events/${event.id}/projects#create`)}>
-                    {t('projects.create')}
+                    {safeTranslate(t, 'projects.create')}
                   </Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{t('auth.submit')}</Link>
+                  <Link to={tenantPath(`dashboard/events/${event.id}/view`)}>{safeTranslate(t, 'auth.submit')}</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to={viewDetailsPath}>{t('events.viewDetails')}</Link>
+                  <Link to={viewDetailsPath}>{safeTranslate(t, 'events.viewDetails')}</Link>
                 </Button>
               </>
             )}
@@ -82,7 +83,7 @@ export function DashboardEventCard({ event, className }: DashboardEventCardProps
       showStatus={false}
       actions={
         <Button asChild variant="outline">
-          <Link to={viewDetailsPath}>{t('events.viewDetails')}</Link>
+          <Link to={viewDetailsPath}>{safeTranslate(t, 'events.viewDetails')}</Link>
         </Button>
       }
     />

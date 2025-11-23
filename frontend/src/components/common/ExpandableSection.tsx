@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 type ExpandableSectionProps = {
   children: ReactNode;
@@ -37,7 +38,7 @@ export function ExpandableSection({
           <button
             onClick={handleToggle}
             className="mt-0.5 flex-shrink-0 rounded-md border border-border/60 bg-background p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[color:var(--tenant-primary)]"
-            aria-label={isExpanded ? t('common.collapse') : t('common.expand')}
+            aria-label={isExpanded ? safeTranslate(t, 'common.collapse') : safeTranslate(t, 'common.expand')}
           >
             {isExpanded ? (
               <Minus className="h-4 w-4" aria-hidden="true" />

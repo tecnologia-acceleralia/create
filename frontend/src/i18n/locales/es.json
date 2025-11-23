@@ -20,6 +20,11 @@
     "yes": "Sí",
     "no": "No",
     "export": "Exportar CSV",
+    "languages": {
+      "es": "Español",
+      "ca": "Catalán",
+      "en": "Inglés"
+    },
     "viewAll": "Ver todos",
     "showPassword": "Mostrar contraseña",
     "hidePassword": "Ocultar contraseña"
@@ -72,6 +77,11 @@
     "backToLogin": "Volver a iniciar sesión",
     "dontHaveAccount": "¿No tienes una cuenta?",
     "goToRegister": "Crear cuenta",
+    "completeRegistration": {
+      "title": "Completar registro",
+      "description": "Por favor, completa los siguientes campos requeridos para continuar.",
+      "submit": "Completar"
+    },
     "passwordReset": {
       "requestTitle": "Recupera tu contraseña",
       "requestDescription": "Ingresa tu correo y te enviaremos un código de 6 dígitos.",
@@ -143,7 +153,8 @@
       "currentTooltip": "Eventos que están en curso (la fecha de hoy está entre la fecha de inicio y fin)",
       "future": "Futuros",
       "futureTooltip": "Eventos cuya fecha de inicio es posterior a hoy"
-    }
+    },
+    "backToDashboard": "Volver al panel"
   },
   "tenant": {
     "brandingFallback": "Personaliza tu experiencia"
@@ -152,6 +163,13 @@
     "title": "Gestión de eventos",
     "create": "Crear evento",
     "created": "Evento creado correctamente",
+    "clone": "Clonar",
+    "cloned": "Evento clonado correctamente",
+    "delete": "Eliminar",
+    "deleted": "Evento eliminado correctamente",
+    "deleteConfirmTitle": "¿Eliminar evento?",
+    "deleteConfirmDescription": "¿Estás seguro de que quieres eliminar el evento \"{{name}}\"? Esta acción es irreversible y el evento será archivado.",
+    "deleteConfirm": "Sí, eliminar",
     "name": "Nombre",
     "description": "Descripción",
     "descriptionHtml": "Descripción HTML",
@@ -280,8 +298,19 @@
     "noAssetsForMarkers": "No hay recursos disponibles para generar marcadores",
     "copyFirstMarker": "Copiar primer marcador",
     "markerCopied": "Marcador copiado al portapapeles",
+    "markerInserted": "Marcador insertado",
     "copyMarker": "Copiar marcador",
     "marker": "Marcador",
+    "editorBold": "Negrita",
+    "editorItalic": "Cursiva",
+    "editorBulletList": "Lista con viñetas",
+    "editorOrderedList": "Lista numerada",
+    "editorLink": "Insertar enlace",
+    "editorImage": "Insertar imagen",
+    "editorUndo": "Deshacer",
+    "editorRedo": "Rehacer",
+    "editorLinkPrompt": "URL",
+    "editorImagePrompt": "URL de la imagen",
     "assetsTitle": "Recursos del evento",
     "selectFile": "Seleccionar archivo",
     "assetName": "Nombre del recurso",
@@ -314,6 +343,28 @@
     "allowOpenRegistration": "Permitir registro abierto",
     "registrationSchema": "Esquema de registro",
     "registrationSchemaHint": "Configura los campos adicionales que se mostrarán en el formulario de registro",
+    "aiEvaluation": "Evaluación IA",
+    "aiEvaluationPrompt": "Prompt de Evaluación con IA",
+    "aiEvaluationPromptDescription": "Define un prompt personalizado para la evaluación con IA. Si está vacío, se usará el prompt por defecto del sistema.",
+    "aiEvaluationPromptPlaceholder": "Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación...",
+    "aiEvaluationModel": "Modelo de OpenAI",
+    "aiEvaluationModelDescription": "Modelo de OpenAI a usar (ej: gpt-4o-mini, gpt-4o). Si está vacío, se usa el modelo por defecto.",
+    "aiEvaluationModelTooltip": "El modelo de OpenAI determina las capacidades y el coste de la evaluación. Modelos más avanzados (gpt-4o) ofrecen mejor calidad pero son más costosos. Modelos más económicos (gpt-4o-mini) son más rápidos y baratos.",
+    "aiEvaluationTemperature": "Temperatura",
+    "aiEvaluationTemperatureDescription": "Temperatura (0-2). Valores más bajos = más determinista. Si está vacío, se usa 0.2.",
+    "aiEvaluationTemperatureTooltip": "Controla la aleatoriedad de las respuestas. 0 = muy determinista y consistente (ideal para evaluaciones objetivas). 2 = muy creativo y variado. Para evaluaciones estructuradas se recomienda valores bajos (0.1-0.3).",
+    "aiEvaluationMaxTokens": "Máximo de Tokens",
+    "aiEvaluationMaxTokensDescription": "Máximo de tokens en la respuesta. Si está vacío, no se limita.",
+    "aiEvaluationMaxTokensTooltip": "Limita la longitud máxima de la respuesta en tokens (1 token ≈ 0.75 palabras). Útil para controlar costes y asegurar respuestas concisas. Para evaluaciones con múltiples criterios, valores entre 1000-2000 suelen ser suficientes.",
+    "aiEvaluationTopP": "Top-p (Nucleus Sampling)",
+    "aiEvaluationTopPDescription": "Top-p (0-1). Controla la diversidad del texto generado. Si está vacío, se usa 1.0.",
+    "aiEvaluationTopPTooltip": "Controla la diversidad considerando solo las opciones más probables. 1.0 = considera todas las opciones (máxima diversidad). 0.1 = solo las más probables (más determinista). Para evaluaciones estructuradas, valores altos (0.9-1.0) suelen funcionar bien.",
+    "aiEvaluationFrequencyPenalty": "Penalización por Frecuencia",
+    "aiEvaluationFrequencyPenaltyDescription": "Penalización por frecuencia (-2.0 a 2.0). Reduce repeticiones de palabras. Si está vacío, se usa 0.0.",
+    "aiEvaluationFrequencyPenaltyTooltip": "Penaliza la repetición de palabras o frases. Valores positivos (0.1-0.5) reducen repeticiones y hacen las respuestas más variadas. Valores negativos aumentan repeticiones. Para evaluaciones estructuradas, valores entre 0.0-0.3 suelen funcionar bien.",
+    "aiEvaluationPresencePenalty": "Penalización por Presencia",
+    "aiEvaluationPresencePenaltyDescription": "Penalización por presencia (-2.0 a 2.0). Incentiva la introducción de nuevos temas. Si está vacío, se usa 0.0.",
+    "aiEvaluationPresencePenaltyTooltip": "Penaliza la aparición de nuevos temas o conceptos. Valores positivos (0.1-0.5) mantienen el modelo enfocado en el contexto proporcionado. Valores negativos incentivan explorar nuevos temas. Para evaluaciones estructuradas, valores entre 0.0-0.2 ayudan a mantener el foco.",
     "registrationSchemaAddField": "Añadir campo",
     "registrationSchemaEmpty": "No hay campos configurados. Haz clic en 'Añadir campo' para comenzar.",
     "registrationSchemaField": "Campo",
@@ -344,6 +395,15 @@
     "noPhases": "No hay fases configuradas",
     "tasksEmptyPhases": "Añade fases para empezar a configurar tareas.",
     "noTasksInPhase": "No hay tareas en esta fase",
+    "exportPhasesTasks": "Exportar fases y tareas",
+    "importPhasesTasks": "Importar fases y tareas",
+    "phasesTasksExported": "Fases y tareas exportadas correctamente",
+    "phasesTasksImported": "{{phases}} fases y {{tasks}} tareas importadas correctamente",
+    "phasesTasksImportedPartial": "Importación parcial: {{phases}} fases y {{tasks}} tareas importadas. {{errors}} errores encontrados.",
+    "invalidImportFormat": "Formato de importación inválido. Se requiere un array de fases.",
+    "invalidJsonFile": "El archivo JSON no es válido",
+    "importReplaceConfirm": "¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.",
+    "phasesTasksReplaced": "Todas las fases y tareas han sido reemplazadas. {{phases}} fases y {{tasks}} tareas importadas correctamente",
     "tracking": {
       "title": "Seguimiento del evento",
       "invalidEvent": "Evento inválido.",
@@ -470,7 +530,9 @@
       "noTeams": "No hay equipos registrados",
       "noPhases": "No hay fases configuradas",
       "noTasks": "No hay tareas configuradas",
-      "error": "Error al cargar los datos de seguimiento"
+      "error": "Error al cargar los datos de seguimiento",
+      "filterByPhase": "Filtrar por fase",
+      "allPhases": "Todas las fases"
     }
   },
   "tracking": {
@@ -552,7 +614,14 @@
     "noTeamsAvailable": "No hay equipos disponibles en este momento.",
     "alreadyMember": "Ya eres miembro",
     "joining": "Uniéndose…",
-    "moreMembers": "más"
+    "moreMembers": "más",
+    "submissionsAndEvaluations": "Entregas y revisiones",
+    "submissions": "entregas",
+    "final": "Final",
+    "provisional": "Provisional",
+    "noScore": "Sin puntuación",
+    "phaseEvaluation": "Evaluación de fase",
+    "finalProjectEvaluation": "Evaluación final del proyecto"
   },
   "projects": {
     "title": "Proyectos",
@@ -622,6 +691,7 @@
     "fileTooLarge": "{{name}} supera el tamaño máximo de {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} tiene un tipo de archivo no permitido.",
     "fileRequired": "Debes subir al menos un archivo para esta entrega.",
+    "filesSelected": "archivos seleccionados",
     "onlyCaptainCanSubmit": "Solo el capitán del equipo puede hacer entregas.",
     "notTeamCaptain": "No eres capitán de un equipo en este evento. Solo los capitanes pueden registrar entregas.",
     "allEvaluations": "Todas las evaluaciones",
@@ -703,7 +773,14 @@
     "evaluated": "Evaluada",
     "selectAtLeastOneSubmission": "Debes seleccionar al menos una entrega",
     "generatingAi": "Generando…",
-    "generatingAiEvaluation": "Evaluación con IA"
+    "generatingAiEvaluation": "Evaluación con IA",
+    "evaluatePhaseButton": "Evaluar fase",
+    "viewPhaseEvaluationButton": "Ver evaluación",
+    "evaluateProjectButton": "Evaluar proyecto",
+    "viewProjectEvaluationButton": "Ver evaluación",
+    "projectEvaluation": "Proyecto",
+    "evaluation": "Evaluación",
+    "evaluationLanguage": "Idioma de evaluación"
   },
   "notifications": {
     "title": "Notificaciones",
@@ -738,6 +815,7 @@
     "firstName": "Nombre",
     "lastName": "Apellido",
     "email": "Correo electrónico",
+    "language": "Idioma",
     "password": "Contraseña",
     "passwordHelper": "Debe tener al menos 8 caracteres.",
     "confirmPassword": "Confirmar contraseña",
@@ -750,7 +828,9 @@
     "gradeRequired": "Selecciona tu carrera",
     "gradeInvalid": "Selecciona una opción válida",
     "dynamicFieldRequired": "Este campo es obligatorio",
+    "dynamicFieldInvalid": "El valor seleccionado no es válido",
     "selectPlaceholder": "Selecciona una opción",
+    "missingRequiredFields": "Por favor, completa los siguientes campos obligatorios: {{fields}}",
     "acceptPrivacyPolicy": "Acepto la ",
     "privacyPolicy": "Política de Privacidad",
     "privacyPolicyRequired": "Debes aceptar la Política de Privacidad para continuar"
@@ -973,7 +1053,12 @@
       "empty": "Aún no hay usuarios registrados.",
       "tabs": {
         "general": "Datos generales",
+        "registration": "Campos de registro",
         "tenants": "Tenants"
+      },
+      "registrationFields": {
+        "title": "Campos de registro ({{tenant}})",
+        "titleDefault": "Campos de registro"
       },
       "fields": {
         "email": "Correo",
@@ -1012,7 +1097,14 @@
       "createSuccessWithPassword": "Usuario creado. Contraseña temporal: {{password}}",
       "createSuccess": "Usuario creado correctamente.",
       "updateSuccess": "Usuario actualizado correctamente.",
-      "deleteSuccess": "Usuario eliminado correctamente."
+      "deleteSuccess": "Usuario eliminado correctamente.",
+      "changePassword": "Cambiar contraseña",
+      "changePasswordTitle": "Cambiar contraseña de {{email}}",
+      "changePasswordDescription": "Ingresa una nueva contraseña para este usuario.",
+      "newPassword": "Nueva contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "passwordChangedSuccess": "Contraseña actualizada correctamente.",
+      "generatePassword": "Generar contraseña"
     }
   },
   "profile": {
@@ -1050,6 +1142,22 @@
     "lastNameRequired": "El apellido es obligatorio",
     "emailRequired": "El correo es obligatorio",
     "emailInvalid": "El formato del correo no es válido",
+    "changePassword": {
+      "title": "Cambiar contraseña",
+      "currentPassword": "Contraseña actual",
+      "newPassword": "Nueva contraseña",
+      "confirmNewPassword": "Confirmar nueva contraseña",
+      "currentPasswordRequired": "La contraseña actual es requerida",
+      "newPasswordRequired": "La nueva contraseña es requerida",
+      "newPasswordMinLength": "La nueva contraseña debe tener al menos 8 caracteres",
+      "passwordsMismatch": "Las contraseñas no coinciden",
+      "currentPasswordIncorrect": "La contraseña actual es incorrecta",
+      "newPasswordSameAsCurrent": "La nueva contraseña debe ser diferente a la contraseña actual",
+      "changePasswordSuccess": "Contraseña cambiada exitosamente",
+      "changePasswordError": "Error al cambiar la contraseña",
+      "submit": "Cambiar contraseña",
+      "cancel": "Cancelar"
+    },
     "status": {
       "active": "Activo",
       "inactive": "Inactivo",
@@ -1298,5 +1406,13 @@
       "modifications": "El Prestador se reserva el derecho de actualizar estos Términos periódicamente. Se recomienda al usuario revisar esta página de forma regular para estar informado de cualquier cambio."
     },
     "lastUpdate": "Fecha de la última actualización:"
+  },
+  "translation": {
+    "translateFromSpanish": "Traducir desde el español con IA",
+    "translating": "Traduciendo...",
+    "success": "Traducción completada",
+    "error": "Error al traducir el texto",
+    "noSpanishText": "No hay texto en español para traducir",
+    "overwriteConfirm": "Ya existe una traducción en {{language}}. ¿Deseas sobrescribirla?"
   }
 }

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { UseFormReturn, UseFieldArrayReturn } from 'react-hook-form';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   Dialog,
   DialogContent,
@@ -47,12 +48,12 @@ export function RubricModal({
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>
-            {editingRubric ? t('events.editRubric') : t('events.createRubric')}
+            {editingRubric ? safeTranslate(t, 'events.editRubric') : safeTranslate(t, 'events.createRubric')}
           </DialogTitle>
           <DialogDescription>
             {editingRubric
-              ? t('events.editRubricDescription', { defaultValue: 'Modifica los detalles de la rúbrica' })
-              : t('events.createRubricDescription', { defaultValue: 'Crea una nueva rúbrica de evaluación' })}
+              ? safeTranslate(t, 'events.editRubricDescription', { defaultValue: 'Modifica los detalles de la rúbrica' })
+              : safeTranslate(t, 'events.createRubricDescription', { defaultValue: 'Crea una nueva rúbrica de evaluación' })}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -60,8 +61,8 @@ export function RubricModal({
             <div className="flex-1 overflow-y-auto flex flex-col">
               <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pb-4 pt-4">
                 <TabsList data-rubric-form-tabs className="grid w-full grid-cols-2">
-                  <TabsTrigger value="basic">{t('common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
-                  <TabsTrigger value="criteria">{t('events.rubricCriteriaTitle', { defaultValue: 'Criterios' })}</TabsTrigger>
+                  <TabsTrigger value="basic">{safeTranslate(t, 'common.basic', { defaultValue: 'Básico' })}</TabsTrigger>
+                  <TabsTrigger value="criteria">{safeTranslate(t, 'events.rubricCriteriaTitle', { defaultValue: 'Criterios' })}</TabsTrigger>
                 </TabsList>
               </div>
               <div className="px-6">
@@ -101,17 +102,17 @@ export function RubricModal({
         </div>
         <DialogFooter className="px-6 pb-6 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
+            {safeTranslate(t, 'common.cancel')}
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
             disabled={isSubmitting}
           >
             {isSubmitting
-              ? t('common.loading')
+              ? safeTranslate(t, 'common.loading')
               : editingRubric
-                ? t('common.update')
-                : t('common.create')}
+                ? safeTranslate(t, 'common.update')
+                : safeTranslate(t, 'common.create')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,0 +1,49 @@
+{
+  "evaluations": {
+    "submissionNotFound": "Submission not found",
+    "commentRequired": "Comment is required",
+    "commentCannotBeEmpty": "Comment cannot be empty",
+    "scoreRange10": "Score must be between 0 and 10",
+    "scoreRange100": "Score must be between 0 and 100",
+    "atLeastOneSubmissionRequired": "You must provide at least one submission to evaluate",
+    "teamNotInSameEvent": "The team does not belong to the same event as the phase",
+    "submissionsNotBelongToTeamOrPhase": "Some submissions do not belong to the team or tasks of this phase",
+    "submissionsNotBelongToTeamOrEvent": "Some submissions do not belong to the team or event",
+    "phaseNotFound": "Phase not found",
+    "teamNotFound": "Team not found",
+    "projectNotFound": "Project not found",
+    "rubricNotConfigured": "There is no rubric configured for this phase or task",
+    "rubricNotConfiguredForPhase": "There is no rubric configured for this phase",
+    "evaluationNotFound": "Evaluation not found",
+    "noFinalEvaluation": "There is no final evaluation for this submission",
+    "mustEvaluatePhaseFirst": "You must evaluate the phase \"{phaseName}\" first before evaluating the complete project",
+    "tenantCannotBeDetermined": "Could not determine the tenant for the evaluation",
+    "aiServiceNotConfigured": "AI service not configured",
+    "taskNotAvailable": "The task associated with the submission is not available"
+  },
+  "teams": {
+    "userNotFoundByEmail": "No user found with email {email}. The user must be previously registered on the platform.",
+    "userIdOrEmailRequired": "You must specify user_id or user_email",
+    "memberNotFound": "Member not found",
+    "cannotRemoveCaptainIfOnlyMember": "You cannot remove the captain if they are the only member of the team",
+    "mustAssignCaptainBeforeLeave": "You must assign another captain before leaving the team",
+    "userNotMemberOfTeam": "The user is not a member of the team",
+    "onlyActiveMembersCanBeCaptain": "Only active members can be assigned as captain",
+    "unauthorizedToChangeStatus": "Unauthorized to change team status",
+    "invalidStatus": "Invalid status. Must be \"open\" or \"closed\"",
+    "cannotOpenTeamWithInactiveProject": "Cannot open a team whose project is inactive",
+    "teamNotOpenForMembers": "The team is not open for new members",
+    "alreadyMemberOfTeam": "You are already a member of this team",
+    "mustAssignCaptainBeforeJoinOtherTeam": "You must assign another captain to your current team before joining another team",
+    "notMemberOfTeam": "You are not a member of this team",
+    "cannotLeaveIfOnlyMember": "You cannot leave the team if you are the only member",
+    "notification": {
+      "memberRemovedTitle": "You have been removed from the team",
+      "memberRemovedMessage": "The captain of team \"{teamName}\" has removed you from the team."
+    }
+  },
+  "common": {
+    "unauthorized": "Unauthorized access"
+  }
+}
+

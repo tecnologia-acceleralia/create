@@ -9,6 +9,7 @@ import { SuperAdminStatsCard } from '@/components/superadmin';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   getSuperAdminOverview,
   testSuperAdminService,
@@ -54,13 +55,13 @@ function SuperAdminDashboardPage() {
         [data.service]: data.status
       }));
       toast.success(
-        t('superadmin.healthcheck.testSuccess', {
-          service: t(`superadmin.healthcheck.services.${data.service}`)
+        safeTranslate(t, 'superadmin.healthcheck.testSuccess', {
+          service: safeTranslate(t, `superadmin.healthcheck.services.${data.service}`, { defaultValue: data.service })
         })
       );
     },
     onError: () => {
-      toast.error(t('superadmin.healthcheck.testError'));
+      toast.error(safeTranslate(t, 'superadmin.healthcheck.testError'));
     },
     onSettled: () => {
       setTestingService(null);
@@ -86,7 +87,7 @@ function SuperAdminDashboardPage() {
     return (
       <Card className="border-destructive/40 bg-destructive/10">
         <CardHeader>
-          <CardTitle className="text-destructive">{t('common.error')}</CardTitle>
+          <CardTitle className="text-destructive">{safeTranslate(t, 'common.error')}</CardTitle>
         </CardHeader>
       </Card>
     );
@@ -101,17 +102,17 @@ function SuperAdminDashboardPage() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SuperAdminStatsCard
-          label={t('superadmin.dashboard.tenants')}
+          label={safeTranslate(t, 'superadmin.dashboard.tenants')}
           primaryValue={tenantTotal}
-          secondaryLabel={t('superadmin.dashboard.active')}
+          secondaryLabel={safeTranslate(t, 'superadmin.dashboard.active')}
           secondaryValue={tenantActive}
           icon={<Building2 className="h-5 w-5" aria-hidden />}
           onClick={() => navigate('/superadmin/tenants')}
         />
         <SuperAdminStatsCard
-          label={t('superadmin.dashboard.users')}
+          label={safeTranslate(t, 'superadmin.dashboard.users')}
           primaryValue={userTotal}
-          secondaryLabel={t('superadmin.dashboard.active')}
+          secondaryLabel={safeTranslate(t, 'superadmin.dashboard.active')}
           secondaryValue={userActive}
           icon={<Users2 className="h-5 w-5" aria-hidden />}
           onClick={() => navigate('/superadmin/users')}
@@ -121,8 +122,8 @@ function SuperAdminDashboardPage() {
       <Card className="border-border/70">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>{t('superadmin.healthcheck.title')}</CardTitle>
-            <CardDescription>{t('superadmin.healthcheck.description')}</CardDescription>
+            <CardTitle>{safeTranslate(t, 'superadmin.healthcheck.title')}</CardTitle>
+            <CardDescription>{safeTranslate(t, 'superadmin.healthcheck.description')}</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -130,24 +131,24 @@ function SuperAdminDashboardPage() {
             onClick={handleHealthRefresh}
             disabled={healthcheckQuery.isFetching}
           >
-            {healthcheckQuery.isFetching ? t('superadmin.healthcheck.running') : t('common.retry')}
+            {healthcheckQuery.isFetching ? safeTranslate(t, 'superadmin.healthcheck.running') : safeTranslate(t, 'common.retry')}
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           {healthcheckQuery.isFetching ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
-              <span>{t('superadmin.healthcheck.running')}</span>
+              <span>{safeTranslate(t, 'superadmin.healthcheck.running')}</span>
             </div>
           ) : null}
           {healthcheckQuery.isError ? (
-            <p className="text-sm text-destructive">{t('superadmin.healthcheck.error')}</p>
+            <p className="text-sm text-destructive">{safeTranslate(t, 'superadmin.healthcheck.error')}</p>
           ) : null}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {HEALTH_SERVICES.map(service => (
               <HealthcheckCard
                 key={service.key}
-                label={t(`superadmin.healthcheck.services.${service.key}`)}
+                label={safeTranslate(t, `superadmin.healthcheck.services.${service.key}`, { defaultValue: service.key })}
                 status={healthcheckQuery.data?.[service.key] ?? null}
                 icon={service.icon}
                 onTest={() => handleTestService(service.key)}
@@ -182,10 +183,10 @@ function HealthcheckCard({ label, status, icon, onTest, testing, disabled }: Hea
     : 'secondary';
 
   const badgeLabel = status
-    ? t(`superadmin.healthcheck.status.${status.status}`)
-    : t('superadmin.healthcheck.status.pending');
+    ? safeTranslate(t, `superadmin.healthcheck.status.${status.status}`, { defaultValue: status.status })
+    : safeTranslate(t, 'superadmin.healthcheck.status.pending');
 
-  const message = status?.message ?? t('superadmin.healthcheck.notRun');
+  const message = status?.message ?? safeTranslate(t, 'superadmin.healthcheck.notRun');
 
   return (
     <Card className="h-full border-border/70">
@@ -207,7 +208,7 @@ function HealthcheckCard({ label, status, icon, onTest, testing, disabled }: Hea
         ) : null}
         <div className="flex justify-end">
           <Button variant="outline" size="sm" onClick={onTest} disabled={testing || disabled}>
-            {testing ? t('superadmin.healthcheck.testing') : t('superadmin.healthcheck.testButton')}
+            {testing ? safeTranslate(t, 'superadmin.healthcheck.testing') : safeTranslate(t, 'superadmin.healthcheck.testButton')}
           </Button>
         </div>
       </CardContent>

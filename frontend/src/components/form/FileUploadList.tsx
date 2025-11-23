@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 type FileUploadListProps = {
   files: File[];
@@ -21,11 +22,11 @@ export function FileUploadList({ files, onRemove, className }: FileUploadListPro
           <div className="flex flex-col">
             <span className="font-medium">{file.name}</span>
             <span className="text-xs text-muted-foreground">
-              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || t('submissions.unknownType')}
+              {(file.size / 1024 / 1024).toFixed(2)} MB · {file.type || safeTranslate(t, 'submissions.unknownType')}
             </span>
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(index)}>
-            {t('common.remove')}
+            {safeTranslate(t, 'common.remove')}
           </Button>
         </li>
       ))}

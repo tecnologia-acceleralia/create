@@ -175,3 +175,33 @@ export async function createPhaseAiEvaluation(
   return response.data.data as PhaseEvaluation;
 }
 
+export async function updatePhaseEvaluation(
+  phaseId: number,
+  teamId: number,
+  evaluationId: number,
+  payload: {
+    submission_ids?: number[];
+    score?: number;
+    comment?: string;
+    status?: 'draft' | 'final';
+    rubric_snapshot?: unknown;
+    metadata?: unknown;
+  }
+) {
+  const response = await apiClient.put(`/phases/${phaseId}/teams/${teamId}/evaluations/${evaluationId}`, payload);
+  return response.data.data as PhaseEvaluation;
+}
+
+// Evaluaciones de proyecto
+export type ProjectEvaluation = Evaluation & {
+  evaluation_scope: 'project';
+  project_id: number;
+  team_id: number;
+  evaluated_submission_ids: number[] | null;
+};
+
+export async function getProjectEvaluations(projectId: number) {
+  const response = await apiClient.get(`/projects/${projectId}/evaluations`);
+  return response.data.data as ProjectEvaluation[];
+}
+

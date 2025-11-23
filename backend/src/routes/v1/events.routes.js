@@ -46,10 +46,29 @@ eventsRouter.post(
   EventsController.create
 );
 
+eventsRouter.post(
+  '/:eventId/clone',
+  authorizeRoles('tenant_admin'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventsController.clone
+);
+
 eventsRouter.get(
   '/:eventId',
   authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),
-  [param('eventId').isInt()],
+  [
+    param('eventId')
+      .custom(value => {
+        // Verificar que sea un número entero válido (no acepta "1:1" u otros formatos)
+        const num = Number.parseInt(value, 10);
+        if (Number.isNaN(num) || num.toString() !== String(value).trim()) {
+          throw new Error('El ID del evento debe ser un número entero válido');
+        }
+        return true;
+      })
+      .toInt()
+  ],
   validateRequest,
   EventsController.detail
 );
@@ -83,8 +102,34 @@ eventsRouter.put(
   authorizeRoles('tenant_admin'),
   [
     param('eventId').isInt(),
-    body('name').optional().isString().notEmpty(),
-    body('description').optional().isString(),
+    // name puede ser string o objeto multiidioma
+    body('name')
+      .optional()
+      .custom(value => {
+        if (value === undefined || value === null) return true;
+        if (typeof value === 'string') {
+          return value.trim().length > 0;
+        }
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Objeto multiidioma: debe tener al menos una propiedad con valor no vacío
+          return Object.values(value).some(v => typeof v === 'string' && v.trim().length > 0);
+        }
+        return false;
+      })
+      .withMessage('El nombre debe ser un string no vacío o un objeto multiidioma válido'),
+    // description puede ser string, objeto multiidioma o null
+    body('description')
+      .optional({ nullable: true })
+      .custom(value => {
+        if (value === undefined || value === null || value === '') return true;
+        if (typeof value === 'string') return true;
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Objeto multiidioma válido
+          return true;
+        }
+        return false;
+      })
+      .withMessage('La descripción debe ser un string, un objeto multiidioma o null'),
     body('start_date').optional().isISO8601(),
     body('end_date').optional().isISO8601(),
     body('min_team_size').optional().isInt({ min: 1 }),
@@ -220,6 +265,49 @@ eventsRouter.delete(
   [param('eventId').isInt(), param('phaseId').isInt()],
   validateRequest,
   EventsController.deletePhase
+);
+
+// Rutas de exportación e importación de fases y tareas
+eventsRouter.get(
+  '/:eventId/phases/export',
+  authorizeRoles('tenant_admin'),
+  [param('eventId').isInt()],
+  validateRequest,
+  EventsController.exportPhasesAndTasks
+);
+
+eventsRouter.post(
+  '/:eventId/phases/import',
+  authorizeRoles('tenant_admin'),
+  [
+    param('eventId').isInt(),
+    body('replace').optional().isBoolean().toBoolean(),
+    body('phases').isArray().notEmpty().withMessage('Se requiere un array de fases'),
+    body('phases.*.name').isString().notEmpty().withMessage('Cada fase debe tener un nombre'),
+    body('phases.*.description').optional().isString(),
+    body('phases.*.intro_html').optional().isString(),
+    body('phases.*.start_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+    body('phases.*.end_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+    body('phases.*.view_start_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+    body('phases.*.view_end_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+    body('phases.*.order_index').optional().isInt({ min: 1 }),
+    body('phases.*.is_elimination').optional().isBoolean(),
+    body('phases.*.tasks').optional().isArray(),
+    body('phases.*.tasks.*.title').optional().isString().notEmpty(),
+    body('phases.*.tasks.*.description').optional().isString(),
+    body('phases.*.tasks.*.intro_html').optional().isString(),
+    body('phases.*.tasks.*.delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']),
+    body('phases.*.tasks.*.is_required').optional().isBoolean(),
+    body('phases.*.tasks.*.due_date').optional({ nullable: true, checkFalsy: true }).isISO8601(),
+    body('phases.*.tasks.*.status').optional().isIn(['draft', 'active', 'closed']),
+    body('phases.*.tasks.*.order_index').optional().isInt({ min: 1 }),
+    body('phases.*.tasks.*.max_files').optional().isInt({ min: 1 }),
+    body('phases.*.tasks.*.max_file_size_mb').optional({ nullable: true }).isInt({ min: 1 }),
+    body('phases.*.tasks.*.allowed_mime_types').optional().isArray(),
+    body('phases.*.tasks.*.allowed_mime_types.*').optional().isString()
+  ],
+  validateRequest,
+  EventsController.importPhasesAndTasks
 );
 
 eventsRouter.get('/:eventId/tasks', [param('eventId').isInt()], validateRequest, EventsController.listTasks);

@@ -20,6 +20,11 @@
     "yes": "Sí",
     "no": "No",
     "export": "Exportar CSV",
+    "languages": {
+      "es": "Español",
+      "ca": "Català",
+      "en": "Anglès"
+    },
     "viewAll": "Veure tots",
     "showPassword": "Mostrar contrasenya",
     "hidePassword": "Ocultar contrasenya"
@@ -72,6 +77,11 @@
     "backToLogin": "Torna a iniciar sessió",
     "dontHaveAccount": "No tens un compte?",
     "goToRegister": "Crear compte",
+    "completeRegistration": {
+      "title": "Completar registre",
+      "description": "Si us plau, completa els següents camps requerits per continuar.",
+      "submit": "Completar"
+    },
     "passwordReset": {
       "requestTitle": "Recupera la teva contrasenya",
       "requestDescription": "Introdueix el teu correu i t'enviarem un codi de 6 dígits.",
@@ -143,7 +153,8 @@
       "currentTooltip": "Esdeveniments que estan en curs (la data d'avui està entre la data d'inici i finalització)",
       "future": "Futurs",
       "futureTooltip": "Esdeveniments la data d'inici dels quals és posterior a avui"
-    }
+    },
+    "backToDashboard": "Tornar al panell"
   },
   "tenant": {
     "brandingFallback": "Personalitza la teva experiència"
@@ -152,6 +163,13 @@
     "title": "Gestió d'esdeveniments",
     "create": "Crear esdeveniment",
     "created": "Esdeveniment creat correctament",
+    "clone": "Clonar",
+    "cloned": "Esdeveniment clonat correctament",
+    "delete": "Eliminar",
+    "deleted": "Esdeveniment eliminat correctament",
+    "deleteConfirmTitle": "¿Eliminar esdeveniment?",
+    "deleteConfirmDescription": "¿Estàs segur que vols eliminar l'esdeveniment \"{{name}}\"? Aquesta acció és irreversible i l'esdeveniment serà arxivat.",
+    "deleteConfirm": "Sí, eliminar",
     "name": "Nom",
     "description": "Descripció",
     "descriptionHtml": "Descripció HTML",
@@ -280,8 +298,19 @@
     "noAssetsForMarkers": "No hi ha recursos disponibles per generar marcadors",
     "copyFirstMarker": "Copiar primer marcador",
     "markerCopied": "Marcador copiat al porta-retalls",
+    "markerInserted": "Marcador inserit",
     "copyMarker": "Copiar marcador",
     "marker": "Marcador",
+    "editorBold": "Negreta",
+    "editorItalic": "Cursiva",
+    "editorBulletList": "Llista amb vinyetes",
+    "editorOrderedList": "Llista numerada",
+    "editorLink": "Inserir enllaç",
+    "editorImage": "Inserir imatge",
+    "editorUndo": "Desfer",
+    "editorRedo": "Refer",
+    "editorLinkPrompt": "URL",
+    "editorImagePrompt": "URL de la imatge",
     "assetsTitle": "Recursos de l'esdeveniment",
     "selectFile": "Seleccionar fitxer",
     "assetName": "Nom del recurs",
@@ -314,6 +343,28 @@
     "allowOpenRegistration": "Permetre registre obert",
     "registrationSchema": "Esquema de registre",
     "registrationSchemaHint": "Configura els camps addicionals que es mostraran al formulari de registre",
+    "aiEvaluation": "Avaluació IA",
+    "aiEvaluationPrompt": "Prompt d'Avaluació amb IA",
+    "aiEvaluationPromptDescription": "Defineix un prompt personalitzat per a l'avaluació amb IA. Si està buit, s'utilitzarà el prompt per defecte del sistema.",
+    "aiEvaluationPromptPlaceholder": "Ets un assistent avaluador de projectes d'emprenedoria per a alumnat de formació...",
+    "aiEvaluationModel": "Model d'OpenAI",
+    "aiEvaluationModelDescription": "Model d'OpenAI a utilitzar (ex: gpt-4o-mini, gpt-4o). Si està buit, s'utilitza el model per defecte.",
+    "aiEvaluationModelTooltip": "El model d'OpenAI determina les capacitats i el cost de l'avaluació. Models més avançats (gpt-4o) ofereixen millor qualitat però són més cars. Models més econòmics (gpt-4o-mini) són més ràpids i barats.",
+    "aiEvaluationTemperature": "Temperatura",
+    "aiEvaluationTemperatureDescription": "Temperatura (0-2). Valors més baixos = més determinista. Si està buit, s'utilitza 0.2.",
+    "aiEvaluationTemperatureTooltip": "Controla l'aleatorietat de les respostes. 0 = molt determinista i consistent (ideal per a avaluacions objectives). 2 = molt creatiu i variat. Per a avaluacions estructurades es recomana valors baixos (0.1-0.3).",
+    "aiEvaluationMaxTokens": "Màxim de Tokens",
+    "aiEvaluationMaxTokensDescription": "Màxim de tokens en la resposta. Si està buit, no es limita.",
+    "aiEvaluationMaxTokensTooltip": "Limita la longitud màxima de la resposta en tokens (1 token ≈ 0.75 paraules). Útil per a controlar costos i assegurar respostes concises. Per a avaluacions amb múltiples criteris, valors entre 1000-2000 solen ser suficients.",
+    "aiEvaluationTopP": "Top-p (Nucleus Sampling)",
+    "aiEvaluationTopPDescription": "Top-p (0-1). Controla la diversitat del text generat. Si està buit, s'utilitza 1.0.",
+    "aiEvaluationTopPTooltip": "Controla la diversitat considerant només les opcions més probables. 1.0 = considera totes les opcions (màxima diversitat). 0.1 = només les més probables (més determinista). Per a avaluacions estructurades, valors alts (0.9-1.0) solen funcionar bé.",
+    "aiEvaluationFrequencyPenalty": "Penalització per Freqüència",
+    "aiEvaluationFrequencyPenaltyDescription": "Penalització per freqüència (-2.0 a 2.0). Redueix repeticions de paraules. Si està buit, s'utilitza 0.0.",
+    "aiEvaluationFrequencyPenaltyTooltip": "Penalitza la repetició de paraules o frases. Valors positius (0.1-0.5) redueixen repeticions i fan les respostes més variades. Valors negatius augmenten repeticions. Per a avaluacions estructurades, valors entre 0.0-0.3 solen funcionar bé.",
+    "aiEvaluationPresencePenalty": "Penalització per Presència",
+    "aiEvaluationPresencePenaltyDescription": "Penalització per presència (-2.0 a 2.0). Incentiva la introducció de nous temes. Si està buit, s'utilitza 0.0.",
+    "aiEvaluationPresencePenaltyTooltip": "Penalitza l'aparició de nous temes o conceptes. Valors positius (0.1-0.5) mantenen el model enfocat en el context proporcionat. Valors negatius incentiven explorar nous temes. Per a avaluacions estructurades, valors entre 0.0-0.2 ajuden a mantenir el focus.",
     "registrationSchemaAddField": "Afegir camp",
     "registrationSchemaEmpty": "No hi ha camps configurats. Fes clic a 'Afegir camp' per començar.",
     "registrationSchemaField": "Camp",
@@ -344,6 +395,15 @@
     "noPhases": "No hi ha fases configurades",
     "tasksEmptyPhases": "Afegeix fases per començar a configurar tasques.",
     "noTasksInPhase": "No hi ha tasques en aquesta fase",
+    "exportPhasesTasks": "Exportar fases i tasques",
+    "importPhasesTasks": "Importar fases i tasques",
+    "phasesTasksExported": "Fases i tasques exportades correctament",
+    "phasesTasksImported": "{{phases}} fases i {{tasks}} tasques importades correctament",
+    "phasesTasksImportedPartial": "Importació parcial: {{phases}} fases i {{tasks}} tasques importades. {{errors}} errors trobats.",
+    "invalidImportFormat": "Format d'importació invàlid. Es requereix un array de fases.",
+    "invalidJsonFile": "El fitxer JSON no és vàlid",
+    "importReplaceConfirm": "Vols reemplaçar totes les fases i tasques existents?\n\n- Sí: S'eliminaran totes les fases i tasques actuals i s'importaran les del fitxer.\n- No: S'afegiran les fases i tasques del fitxer a les existents.",
+    "phasesTasksReplaced": "Totes les fases i tasques han estat reemplaçades. {{phases}} fases i {{tasks}} tasques importades correctament",
     "tracking": {
       "title": "Seguiment de l'esdeveniment",
       "invalidEvent": "Esdeveniment no vàlid.",
@@ -470,7 +530,9 @@
       "noTeams": "No hi ha equips registrats",
       "noPhases": "No hi ha fases configurades",
       "noTasks": "No hi ha tasques configurades",
-      "error": "Error en carregar les dades de seguiment"
+      "error": "Error en carregar les dades de seguiment",
+      "filterByPhase": "Filtrar per fase",
+      "allPhases": "Totes les fases"
     }
   },
   "tracking": {
@@ -552,7 +614,14 @@
     "noTeamsAvailable": "No hi ha equips disponibles en aquest moment.",
     "alreadyMember": "Ja ets membre",
     "joining": "Unint-se…",
-    "moreMembers": "més"
+    "moreMembers": "més",
+    "submissionsAndEvaluations": "Lliuraments i revisions",
+    "submissions": "lliuraments",
+    "final": "Final",
+    "provisional": "Provisional",
+    "noScore": "Sense puntuació",
+    "phaseEvaluation": "Avaluació de fase",
+    "finalProjectEvaluation": "Avaluació final del projecte"
   },
   "projects": {
     "title": "Projectes",
@@ -622,6 +691,7 @@
     "fileTooLarge": "{{name}} supera la mida màxima de {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} té un tipus d'arxiu no permès.",
     "fileRequired": "Has de pujar almenys un arxiu per a aquesta entrega.",
+    "filesSelected": "fitxers seleccionats",
     "onlyCaptainCanSubmit": "Només el capità de l'equip pot fer entregues.",
     "notTeamCaptain": "No ets capità d'un equip en aquest esdeveniment. Només els capitans poden registrar entregues.",
     "allEvaluations": "Totes les avaluacions",
@@ -703,7 +773,14 @@
     "evaluated": "Avaluada",
     "selectAtLeastOneSubmission": "Has de seleccionar almenys un lliurament",
     "generatingAi": "Generant…",
-    "generatingAiEvaluation": "Avaluació amb IA"
+    "generatingAiEvaluation": "Avaluació amb IA",
+    "evaluatePhaseButton": "Avaluar fase",
+    "viewPhaseEvaluationButton": "Veure avaluació",
+    "evaluateProjectButton": "Avaluar projecte",
+    "viewProjectEvaluationButton": "Veure avaluació",
+    "projectEvaluation": "Projecte",
+    "evaluation": "Avaluació",
+    "evaluationLanguage": "Idioma d'avaluació"
   },
   "notifications": {
     "title": "Notificacions",
@@ -738,6 +815,7 @@
     "firstName": "Nom",
     "lastName": "Cognom",
     "email": "Correu electrònic",
+    "language": "Idioma",
     "password": "Contrasenya",
     "passwordHelper": "Ha de tenir com a mínim 8 caràcters.",
     "confirmPassword": "Confirmar contrasenya",
@@ -750,7 +828,9 @@
     "gradeRequired": "Selecciona els teus estudis",
     "gradeInvalid": "Selecciona una opció vàlida",
     "dynamicFieldRequired": "Aquest camp és obligatori",
+    "dynamicFieldInvalid": "El valor seleccionat no és vàlid",
     "selectPlaceholder": "Selecciona una opció",
+    "missingRequiredFields": "Si us plau, completa els següents camps obligatoris: {{fields}}",
     "acceptPrivacyPolicy": "Accepto la ",
     "privacyPolicy": "Política de Privacitat",
     "privacyPolicyRequired": "Has d'acceptar la Política de Privacitat per continuar"
@@ -973,7 +1053,12 @@
       "empty": "Encara no hi ha usuaris registrats.",
       "tabs": {
         "general": "Dades generals",
+        "registration": "Camps de registre",
         "tenants": "Tenants"
+      },
+      "registrationFields": {
+        "title": "Camps de registre ({{tenant}})",
+        "titleDefault": "Camps de registre"
       },
       "fields": {
         "email": "Correu",
@@ -1012,7 +1097,14 @@
       "createSuccessWithPassword": "Usuari creat. Contrasenya temporal: {{password}}",
       "createSuccess": "Usuari creat correctament.",
       "updateSuccess": "Usuari actualitzat correctament.",
-      "deleteSuccess": "Usuari eliminat correctament."
+      "deleteSuccess": "Usuari eliminat correctament.",
+      "changePassword": "Canviar contrasenya",
+      "changePasswordTitle": "Canviar contrasenya de {{email}}",
+      "changePasswordDescription": "Introdueix una nova contrasenya per a aquest usuari.",
+      "newPassword": "Nova contrasenya",
+      "confirmPassword": "Confirmar contrasenya",
+      "passwordChangedSuccess": "Contrasenya actualitzada correctament.",
+      "generatePassword": "Generar contrasenya"
     }
   },
   "profile": {
@@ -1050,6 +1142,22 @@
     "lastNameRequired": "El cognom és obligatori",
     "emailRequired": "El correu és obligatori",
     "emailInvalid": "El format del correu no és vàlid",
+    "changePassword": {
+      "title": "Canviar contrasenya",
+      "currentPassword": "Contrasenya actual",
+      "newPassword": "Nova contrasenya",
+      "confirmNewPassword": "Confirmar nova contrasenya",
+      "currentPasswordRequired": "La contrasenya actual és obligatòria",
+      "newPasswordRequired": "La nova contrasenya és obligatòria",
+      "newPasswordMinLength": "La nova contrasenya ha de tenir almenys 8 caràcters",
+      "passwordsMismatch": "Les contrasenyes no coincideixen",
+      "currentPasswordIncorrect": "La contrasenya actual és incorrecta",
+      "newPasswordSameAsCurrent": "La nova contrasenya ha de ser diferent a la contrasenya actual",
+      "changePasswordSuccess": "Contrasenya canviada correctament",
+      "changePasswordError": "Error en canviar la contrasenya",
+      "submit": "Canviar contrasenya",
+      "cancel": "Cancel·lar"
+    },
     "status": {
       "active": "Actiu",
       "inactive": "Inactiu",
@@ -1298,5 +1406,13 @@
       "modifications": "El Prestador es reserva el dret d'actualitzar aquests Termes periòdicament. Es recomana a l'usuari revisar aquesta pàgina de forma regular per estar informat de qualsevol canvi."
     },
     "lastUpdate": "Data de l'última actualització:"
+  },
+  "translation": {
+    "translateFromSpanish": "Traduir des de l'espanyol amb IA",
+    "translating": "Traduint...",
+    "success": "Traducció completada",
+    "error": "Error en traduir el text",
+    "noSpanishText": "No hi ha text en espanyol per traduir",
+    "overwriteConfirm": "Ja existeix una traducció en {{language}}. Vols sobreescriure-la?"
   }
 }

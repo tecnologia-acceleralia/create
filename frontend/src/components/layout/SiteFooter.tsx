@@ -6,6 +6,7 @@ import { Globe, createLucideIcon } from "lucide-react";
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { createSurfaceTheme } from '@/utils/color';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 const FacebookIcon = createLucideIcon("social-facebook", [
   [
@@ -98,7 +99,7 @@ export function SiteFooter() {
         key: entry.key,
         Icon: entry.Icon,
         href: value,
-        label: t(entry.translationKey)
+        label: safeTranslate(t, entry.translationKey)
       }
     ];
   });
@@ -119,7 +120,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-4">
             <span className="text-lg font-semibold text-[color:var(--footer-fg)]">Create</span>
-            <p className="text-sm text-[color:var(--footer-muted)]">{t('footer.description')}</p>
+            <p className="text-sm text-[color:var(--footer-muted)]">{safeTranslate(t, 'footer.description')}</p>
             {hasTenantLogo && tenantLogoUrl ? (
               <div className="flex pt-2">
                 <div
@@ -153,11 +154,11 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{t('footer.resources')}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{safeTranslate(t, 'footer.resources')}</h3>
             <ul className="mt-4 space-y-2 text-sm text-[color:var(--footer-muted)]">
               <li>
                 <a href="mailto:support+create@acceleralia.com" className="transition-colors hover:text-[color:var(--footer-fg)]">
-                  {t('footer.support')}
+                  {safeTranslate(t, 'footer.support')}
                 </a>
               </li>
               <li>
@@ -167,28 +168,28 @@ export function SiteFooter() {
                   rel="noreferrer"
                   className="transition-colors hover:text-[color:var(--footer-fg)]"
                 >
-                  {t('footer.aboutCreate')}
+                  {safeTranslate(t, 'footer.aboutCreate')}
                 </a>
               </li>
             </ul>
           </div>
 
           <div>
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{t('footer.legal')}</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[color:var(--footer-muted)]">{safeTranslate(t, 'footer.legal')}</h3>
             <ul className="mt-4 space-y-2 text-sm text-[color:var(--footer-muted)]">
               <li>
                 <Link to={tenantPath('legal/privacy')} className="transition-colors hover:text-[color:var(--footer-fg)]">
-                  {t('footer.privacy')}
+                  {safeTranslate(t, 'footer.privacy')}
                 </Link>
               </li>
               <li>
                 <Link to={tenantPath('legal/terms')} className="transition-colors hover:text-[color:var(--footer-fg)]">
-                  {t('footer.terms')}
+                  {safeTranslate(t, 'footer.terms')}
                 </Link>
               </li>
               <li>
                 <Link to={tenantPath('legal/cookies')} className="transition-colors hover:text-[color:var(--footer-fg)]">
-                  {t('footer.cookies')}
+                  {safeTranslate(t, 'footer.cookies')}
                 </Link>
               </li>
             </ul>
@@ -203,7 +204,7 @@ export function SiteFooter() {
         />
         <div className="relative mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-center text-xs text-[color:var(--footer-muted)] sm:flex-row sm:px-6 lg:px-8">
           <span>
-            {'\u00a9'} {year} Create. {t('footer.rights')}
+            {'\u00a9'} {year} Create. {safeTranslate(t, 'footer.rights')}
           </span>
           <span>
             <a
@@ -212,7 +213,7 @@ export function SiteFooter() {
               rel="noreferrer"
               className="transition-colors hover:text-[color:var(--footer-fg)]"
             >
-              {t('footer.madeWith')}
+              {safeTranslate(t, 'footer.madeWith')}
             </a>
           </span>
         </div>

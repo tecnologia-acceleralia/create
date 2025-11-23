@@ -1,3 +1,16 @@
+/**
+ * Migración consolidada que crea todas las tablas del sistema en su versión final.
+ * 
+ * Esta migración incluye todos los cambios de las migraciones 0002-0017:
+ * - Tablas: password_reset_tokens, event_assets
+ * - Campos multiidioma (JSON) en events, tasks, phases
+ * - Campos de evaluación con IA en events
+ * - Campos de evaluación extendida en evaluations
+ * - registration_answers en users (sin grade)
+ * - Timestamps corregidos en todas las tablas
+ * - ENUMs actualizados (delivery_type incluye 'none')
+ */
+
 export async function up(queryInterface, Sequelize) {
   await queryInterface.createTable('tenants', {
     id: {
@@ -70,7 +83,7 @@ export async function up(queryInterface, Sequelize) {
       comment: 'Contenido del hero por idioma'
     },
     plan_type: {
-      type: Sequelize.ENUM('free', 'professional'),
+      type: Sequelize.ENUM('free', 'professional', 'enterprise'),
       defaultValue: 'free'
     },
     max_evaluators: {
@@ -86,13 +99,20 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.ENUM('active', 'suspended', 'trial', 'cancelled'),
       defaultValue: 'trial'
     },
+    registration_schema: {
+      type: Sequelize.JSON,
+      allowNull: true,
+      comment: 'Esquema de registro personalizado del tenant'
+    },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -124,11 +144,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -155,9 +177,6 @@ export async function up(queryInterface, Sequelize) {
       type: Sequelize.STRING(150),
       allowNull: false
     },
-    avatar_url: {
-      type: Sequelize.STRING(500)
-    },
     language: {
       type: Sequelize.STRING(10),
       defaultValue: 'es'
@@ -165,8 +184,10 @@ export async function up(queryInterface, Sequelize) {
     profile_image_url: {
       type: Sequelize.STRING(500)
     },
-    grade: {
-      type: Sequelize.STRING(255)
+    registration_answers: {
+      type: Sequelize.JSON,
+      allowNull: true,
+      comment: 'Respuestas adicionales del usuario al formulario de registro según el schema del tenant'
     },
     status: {
       type: Sequelize.ENUM('active', 'inactive', 'invited'),
@@ -183,11 +204,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -221,11 +244,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -269,12 +294,14 @@ export async function up(queryInterface, Sequelize) {
       onDelete: 'CASCADE'
     },
     created_at: {
+      allowNull: false,
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
+      allowNull: false,
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -309,16 +336,19 @@ export async function up(queryInterface, Sequelize) {
       onDelete: 'RESTRICT'
     },
     name: {
-      type: Sequelize.STRING(255),
-      allowNull: false
+      type: Sequelize.JSON,
+      allowNull: false,
+      comment: 'Nombre del evento por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     description: {
-      type: Sequelize.TEXT
+      type: Sequelize.TEXT('long'),
+      allowNull: true,
+      comment: 'Descripción del evento por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     description_html: {
-      type: Sequelize.TEXT,
+      type: Sequelize.TEXT('long'),
       allowNull: true,
-      comment: 'HTML content for event description displayed in the home page'
+      comment: 'Contenido HTML de la descripción por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     start_date: {
       type: Sequelize.DATE,
@@ -364,13 +394,50 @@ export async function up(queryInterface, Sequelize) {
     publish_end_at: {
       type: Sequelize.DATE
     },
+    ai_evaluation_prompt: {
+      type: Sequelize.TEXT,
+      allowNull: true,
+      comment: 'Prompt personalizado para la evaluación con IA en texto plano (un solo idioma). El idioma de respuesta se indica al ejecutar el prompt. Si está vacío, se usa el prompt por defecto.'
+    },
+    ai_evaluation_model: {
+      type: Sequelize.STRING(100),
+      allowNull: true,
+      comment: 'Modelo de OpenAI a usar para la evaluación con IA. Si está vacío, se usa el modelo por defecto del sistema.'
+    },
+    ai_evaluation_temperature: {
+      type: Sequelize.DECIMAL(3, 2),
+      allowNull: true,
+      comment: 'Temperatura para la evaluación con IA (0-2). Si está vacío, se usa 0.2 por defecto.'
+    },
+    ai_evaluation_max_tokens: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: true,
+      comment: 'Máximo de tokens en la respuesta de OpenAI. Si está vacío, no se limita.'
+    },
+    ai_evaluation_top_p: {
+      type: Sequelize.DECIMAL(3, 2),
+      allowNull: true,
+      comment: 'Top-p (nucleus sampling) para la evaluación con IA (0-1). Si está vacío, se usa 1.0 por defecto.'
+    },
+    ai_evaluation_frequency_penalty: {
+      type: Sequelize.DECIMAL(3, 2),
+      allowNull: true,
+      comment: 'Penalización por frecuencia para la evaluación con IA (-2.0 a 2.0). Si está vacío, se usa 0.0 por defecto.'
+    },
+    ai_evaluation_presence_penalty: {
+      type: Sequelize.DECIMAL(3, 2),
+      allowNull: true,
+      comment: 'Penalización por presencia para la evaluación con IA (-2.0 a 2.0). Si está vacío, se usa 0.0 por defecto.'
+    },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -399,15 +466,19 @@ export async function up(queryInterface, Sequelize) {
       onDelete: 'CASCADE'
     },
     name: {
-      type: Sequelize.STRING(200),
-      allowNull: false
+      type: Sequelize.JSON,
+      allowNull: false,
+      comment: 'Nombre de la fase por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     description: {
-      type: Sequelize.TEXT
+      type: Sequelize.TEXT('long'),
+      allowNull: true,
+      comment: 'Descripción de la fase por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     intro_html: {
       type: Sequelize.TEXT('long'),
-      allowNull: true
+      allowNull: true,
+      comment: 'Contenido HTML de introducción por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     start_date: {
       type: Sequelize.DATE
@@ -435,11 +506,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -628,11 +701,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -670,11 +745,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -736,11 +813,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -787,18 +866,22 @@ export async function up(queryInterface, Sequelize) {
       onUpdate: 'CASCADE'
     },
     title: {
-      type: Sequelize.STRING(255),
-      allowNull: false
+      type: Sequelize.JSON,
+      allowNull: false,
+      comment: 'Título de la tarea por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     description: {
-      type: Sequelize.TEXT
+      type: Sequelize.TEXT('long'),
+      allowNull: true,
+      comment: 'Descripción de la tarea por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     intro_html: {
       type: Sequelize.TEXT('long'),
-      allowNull: true
+      allowNull: true,
+      comment: 'Contenido HTML de introducción por idioma: { "es": "...", "ca": "...", "en": "..." }'
     },
     delivery_type: {
-      type: Sequelize.ENUM('text', 'file', 'url', 'video', 'audio', 'zip'),
+      type: Sequelize.ENUM('text', 'file', 'url', 'video', 'audio', 'zip', 'none'),
       defaultValue: 'file'
     },
     is_required: {
@@ -830,11 +913,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -958,11 +1043,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -1040,9 +1127,10 @@ export async function up(queryInterface, Sequelize) {
     },
     submission_id: {
       type: Sequelize.INTEGER.UNSIGNED,
-      allowNull: false,
+      allowNull: true,
       references: { model: 'submissions', key: 'id' },
-      onDelete: 'CASCADE'
+      onDelete: 'CASCADE',
+      comment: 'ID de la submission evaluada (nullable para evaluaciones de fase/proyecto)'
     },
     reviewer_id: {
       type: Sequelize.INTEGER.UNSIGNED,
@@ -1050,11 +1138,57 @@ export async function up(queryInterface, Sequelize) {
       references: { model: 'users', key: 'id' },
       onDelete: 'CASCADE'
     },
+    evaluation_scope: {
+      type: Sequelize.ENUM('submission', 'phase', 'project'),
+      allowNull: false,
+      defaultValue: 'submission',
+      comment: 'Tipo de evaluación: submission (individual), phase (por fase), project (por proyecto)'
+    },
+    phase_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: true,
+      references: {
+        model: 'phases',
+        key: 'id'
+      },
+      onDelete: 'CASCADE',
+      comment: 'ID de la fase evaluada (solo para evaluation_scope = phase)'
+    },
+    project_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: true,
+      references: {
+        model: 'projects',
+        key: 'id'
+      },
+      onDelete: 'CASCADE',
+      comment: 'ID del proyecto evaluado (solo para evaluation_scope = project)'
+    },
+    team_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: true,
+      references: {
+        model: 'teams',
+        key: 'id'
+      },
+      onDelete: 'CASCADE',
+      comment: 'ID del equipo evaluado (para phase y project)'
+    },
+    evaluated_submission_ids: {
+      type: Sequelize.JSON,
+      allowNull: true,
+      comment: 'Array de IDs de submissions usadas en la evaluación (para phase y project)'
+    },
     score: {
       type: Sequelize.DECIMAL(5, 2)
     },
     comment: {
       type: Sequelize.TEXT
+    },
+    status: {
+      type: Sequelize.ENUM('draft', 'final'),
+      allowNull: false,
+      defaultValue: 'draft'
     },
     source: {
       type: Sequelize.ENUM('manual', 'ai_assisted'),
@@ -1069,11 +1203,13 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
@@ -1113,14 +1249,147 @@ export async function up(queryInterface, Sequelize) {
     },
     created_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
     },
     updated_at: {
       type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
     }
   });
 
+  // Tabla password_reset_tokens (0002)
+  await queryInterface.createTable('password_reset_tokens', {
+    id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      autoIncrement: true,
+      primaryKey: true
+    },
+    tenant_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'tenants',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    user_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    code_hash: {
+      type: Sequelize.STRING(255),
+      allowNull: false
+    },
+    expires_at: {
+      type: Sequelize.DATE,
+      allowNull: false
+    },
+    consumed_at: {
+      type: Sequelize.DATE,
+      allowNull: true
+    },
+    created_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+    }
+  });
+
+  // Tabla event_assets (0003)
+  await queryInterface.createTable('event_assets', {
+    id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      autoIncrement: true,
+      primaryKey: true
+    },
+    tenant_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'tenants',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    event_id: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'events',
+        key: 'id'
+      },
+      onDelete: 'CASCADE'
+    },
+    name: {
+      type: Sequelize.STRING(255),
+      allowNull: false,
+      comment: 'Nombre identificador del recurso (usado en marcadores)'
+    },
+    original_filename: {
+      type: Sequelize.STRING(500),
+      allowNull: false,
+      comment: 'Nombre original del archivo subido'
+    },
+    s3_key: {
+      type: Sequelize.STRING(1000),
+      allowNull: false,
+      comment: 'Clave del objeto en S3/Spaces'
+    },
+    url: {
+      type: Sequelize.STRING(1000),
+      allowNull: false,
+      comment: 'URL pública del archivo'
+    },
+    mime_type: {
+      type: Sequelize.STRING(255),
+      allowNull: false,
+      comment: 'Tipo MIME del archivo'
+    },
+    file_size: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      comment: 'Tamaño del archivo en bytes'
+    },
+    description: {
+      type: Sequelize.STRING(500),
+      allowNull: true,
+      comment: 'Texto descriptivo del recurso que se mostrará en lugar de la URL completa'
+    },
+    uploaded_by: {
+      type: Sequelize.INTEGER.UNSIGNED,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id'
+      },
+      onDelete: 'RESTRICT'
+    },
+    created_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
+    },
+    updated_at: {
+      type: Sequelize.DATE,
+      allowNull: false,
+      defaultValue: Sequelize.literal('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
+    }
+  });
+
+  // Índices
   await queryInterface.addIndex('user_tenants', ['tenant_id', 'user_id']);
   await queryInterface.addIndex('user_tenant_roles', ['tenant_id', 'role_id']);
   await queryInterface.addIndex('events', ['tenant_id', 'start_date']);
@@ -1139,25 +1408,47 @@ export async function up(queryInterface, Sequelize) {
     name: 'event_registrations_tenant_grade_idx'
   });
   await queryInterface.addIndex('notifications', ['tenant_id', 'user_id']);
+  await queryInterface.addIndex('password_reset_tokens', ['tenant_id', 'user_id'], {
+    name: 'password_reset_tokens_tenant_user_idx'
+  });
+  await queryInterface.addIndex('password_reset_tokens', ['tenant_id', 'expires_at'], {
+    name: 'password_reset_tokens_tenant_expiration_idx'
+  });
+  await queryInterface.addIndex('event_assets', ['tenant_id', 'event_id'], {
+    name: 'idx_event_assets_tenant_event'
+  });
+  await queryInterface.addIndex('event_assets', ['tenant_id', 'event_id', 'name'], {
+    name: 'idx_event_assets_tenant_event_name',
+    unique: true
+  });
+  await queryInterface.addIndex('event_assets', ['event_id'], {
+    name: 'idx_event_assets_event'
+  });
 }
 
 export async function down(queryInterface) {
-  await queryInterface.removeIndex('user_tenant_roles', ['tenant_id', 'role_id']);
-  await queryInterface.removeIndex('user_tenants', ['tenant_id', 'user_id']);
+  await queryInterface.removeIndex('event_assets', 'idx_event_assets_event');
+  await queryInterface.removeIndex('event_assets', 'idx_event_assets_tenant_event_name');
+  await queryInterface.removeIndex('event_assets', 'idx_event_assets_tenant_event');
+  await queryInterface.removeIndex('password_reset_tokens', 'password_reset_tokens_tenant_expiration_idx');
+  await queryInterface.removeIndex('password_reset_tokens', 'password_reset_tokens_tenant_user_idx');
   await queryInterface.removeIndex('notifications', ['tenant_id', 'user_id']);
+  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_grade_idx');
+  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_event_idx');
   await queryInterface.removeIndex('evaluations', ['tenant_id', 'submission_id']);
   await queryInterface.removeIndex('submissions', ['tenant_id', 'task_id']);
   await queryInterface.removeIndex('projects', ['tenant_id', 'event_id']);
   await queryInterface.removeIndex('team_members', ['tenant_id', 'user_id']);
   await queryInterface.removeIndex('teams', ['tenant_id', 'event_id']);
   await queryInterface.removeIndex('tasks', ['tenant_id', 'event_id', 'phase_id']);
-  await queryInterface.removeIndex('phases', ['tenant_id', 'event_id', 'order_index']);
   await queryInterface.removeIndex('phases', ['tenant_id', 'view_start_date', 'view_end_date']);
+  await queryInterface.removeIndex('phases', ['tenant_id', 'event_id', 'order_index']);
   await queryInterface.removeIndex('events', ['tenant_id', 'start_date']);
-  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_grade_idx');
-  await queryInterface.removeIndex('event_registrations', 'event_registrations_tenant_event_idx');
-  await queryInterface.removeIndex('users', ['tenant_id', 'email']);
+  await queryInterface.removeIndex('user_tenant_roles', ['tenant_id', 'role_id']);
+  await queryInterface.removeIndex('user_tenants', ['tenant_id', 'user_id']);
 
+  await queryInterface.dropTable('event_assets');
+  await queryInterface.dropTable('password_reset_tokens');
   await queryInterface.dropTable('notifications');
   await queryInterface.dropTable('evaluations');
   await queryInterface.dropTable('submission_files');

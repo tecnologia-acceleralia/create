@@ -20,6 +20,11 @@
     "yes": "Yes",
     "no": "No",
     "export": "Export CSV",
+    "languages": {
+      "es": "Spanish",
+      "ca": "Catalan",
+      "en": "English"
+    },
     "viewAll": "View all",
     "showPassword": "Show password",
     "hidePassword": "Hide password"
@@ -72,6 +77,11 @@
     "backToLogin": "Back to sign in",
     "dontHaveAccount": "Don't have an account?",
     "goToRegister": "Create account",
+    "completeRegistration": {
+      "title": "Complete registration",
+      "description": "Please complete the following required fields to continue.",
+      "submit": "Complete"
+    },
     "passwordReset": {
       "requestTitle": "Recover your password",
       "requestDescription": "Enter your email and we'll send you a 6-digit code.",
@@ -143,7 +153,8 @@
       "currentTooltip": "Events that are in progress (today's date is between start and end date)",
       "future": "Future",
       "futureTooltip": "Events whose start date is after today"
-    }
+    },
+    "backToDashboard": "Back to dashboard"
   },
   "tenant": {
     "brandingFallback": "Customize your experience"
@@ -152,6 +163,13 @@
     "title": "Event management",
     "create": "Create event",
     "created": "Event created successfully",
+    "clone": "Clone",
+    "cloned": "Event cloned successfully",
+    "delete": "Delete",
+    "deleted": "Event deleted successfully",
+    "deleteConfirmTitle": "Delete event?",
+    "deleteConfirmDescription": "Are you sure you want to delete the event \"{{name}}\"? This action is irreversible and the event will be archived.",
+    "deleteConfirm": "Yes, delete",
     "name": "Name",
     "description": "Description",
     "descriptionHtml": "HTML Description",
@@ -280,8 +298,19 @@
     "noAssetsForMarkers": "No resources available to generate markers",
     "copyFirstMarker": "Copy first marker",
     "markerCopied": "Marker copied to clipboard",
+    "markerInserted": "Marker inserted",
     "copyMarker": "Copy marker",
     "marker": "Marker",
+    "editorBold": "Bold",
+    "editorItalic": "Italic",
+    "editorBulletList": "Bullet list",
+    "editorOrderedList": "Ordered list",
+    "editorLink": "Insert link",
+    "editorImage": "Insert image",
+    "editorUndo": "Undo",
+    "editorRedo": "Redo",
+    "editorLinkPrompt": "URL",
+    "editorImagePrompt": "Image URL",
     "assetsTitle": "Event resources",
     "selectFile": "Select file",
     "assetName": "Resource name",
@@ -314,6 +343,28 @@
     "allowOpenRegistration": "Allow open registration",
     "registrationSchema": "Registration schema",
     "registrationSchemaHint": "Configure additional fields to display in the registration form",
+    "aiEvaluation": "AI Evaluation",
+    "aiEvaluationPrompt": "AI Evaluation Prompt",
+    "aiEvaluationPromptDescription": "Define a custom prompt for AI evaluation. If empty, the system default prompt will be used.",
+    "aiEvaluationPromptPlaceholder": "You are an evaluation assistant for entrepreneurship projects for training students...",
+    "aiEvaluationModel": "OpenAI Model",
+    "aiEvaluationModelDescription": "OpenAI model to use (e.g., gpt-4o-mini, gpt-4o). If empty, the default model is used.",
+    "aiEvaluationModelTooltip": "The OpenAI model determines the capabilities and cost of the evaluation. More advanced models (gpt-4o) offer better quality but are more expensive. More economical models (gpt-4o-mini) are faster and cheaper.",
+    "aiEvaluationTemperature": "Temperature",
+    "aiEvaluationTemperatureDescription": "Temperature (0-2). Lower values = more deterministic. If empty, 0.2 is used.",
+    "aiEvaluationTemperatureTooltip": "Controls the randomness of responses. 0 = very deterministic and consistent (ideal for objective evaluations). 2 = very creative and varied. For structured evaluations, low values (0.1-0.3) are recommended.",
+    "aiEvaluationMaxTokens": "Max Tokens",
+    "aiEvaluationMaxTokensDescription": "Maximum tokens in the response. If empty, it is not limited.",
+    "aiEvaluationMaxTokensTooltip": "Limits the maximum length of the response in tokens (1 token ≈ 0.75 words). Useful for controlling costs and ensuring concise responses. For evaluations with multiple criteria, values between 1000-2000 are usually sufficient.",
+    "aiEvaluationTopP": "Top-p (Nucleus Sampling)",
+    "aiEvaluationTopPDescription": "Top-p (0-1). Controls the diversity of generated text. If empty, 1.0 is used.",
+    "aiEvaluationTopPTooltip": "Controls diversity by considering only the most probable options. 1.0 = considers all options (maximum diversity). 0.1 = only the most probable (more deterministic). For structured evaluations, high values (0.9-1.0) usually work well.",
+    "aiEvaluationFrequencyPenalty": "Frequency Penalty",
+    "aiEvaluationFrequencyPenaltyDescription": "Frequency penalty (-2.0 to 2.0). Reduces word repetitions. If empty, 0.0 is used.",
+    "aiEvaluationFrequencyPenaltyTooltip": "Penalizes repetition of words or phrases. Positive values (0.1-0.5) reduce repetitions and make responses more varied. Negative values increase repetitions. For structured evaluations, values between 0.0-0.3 usually work well.",
+    "aiEvaluationPresencePenalty": "Presence Penalty",
+    "aiEvaluationPresencePenaltyDescription": "Presence penalty (-2.0 to 2.0). Encourages introduction of new topics. If empty, 0.0 is used.",
+    "aiEvaluationPresencePenaltyTooltip": "Penalizes the appearance of new topics or concepts. Positive values (0.1-0.5) keep the model focused on the provided context. Negative values encourage exploring new topics. For structured evaluations, values between 0.0-0.2 help maintain focus.",
     "registrationSchemaAddField": "Add field",
     "registrationSchemaEmpty": "No fields configured. Click 'Add field' to get started.",
     "registrationSchemaField": "Field",
@@ -344,6 +395,15 @@
     "noPhases": "No phases configured",
     "tasksEmptyPhases": "Add phases to start configuring tasks.",
     "noTasksInPhase": "No tasks in this phase",
+    "exportPhasesTasks": "Export phases and tasks",
+    "importPhasesTasks": "Import phases and tasks",
+    "phasesTasksExported": "Phases and tasks exported successfully",
+    "phasesTasksImported": "{{phases}} phases and {{tasks}} tasks imported successfully",
+    "phasesTasksImportedPartial": "Partial import: {{phases}} phases and {{tasks}} tasks imported. {{errors}} errors found.",
+    "invalidImportFormat": "Invalid import format. An array of phases is required.",
+    "invalidJsonFile": "The JSON file is not valid",
+    "importReplaceConfirm": "Do you want to replace all existing phases and tasks?\n\n- Yes: All current phases and tasks will be deleted and the file's phases and tasks will be imported.\n- No: The file's phases and tasks will be added to the existing ones.",
+    "phasesTasksReplaced": "All phases and tasks have been replaced. {{phases}} phases and {{tasks}} tasks imported successfully",
     "tracking": {
       "title": "Event tracking",
       "invalidEvent": "Invalid event.",
@@ -470,7 +530,9 @@
       "noTeams": "No teams registered",
       "noPhases": "No phases configured",
       "noTasks": "No tasks configured",
-      "error": "Error loading tracking data"
+      "error": "Error loading tracking data",
+      "filterByPhase": "Filter by phase",
+      "allPhases": "All phases"
     }
   },
   "tracking": {
@@ -552,7 +614,14 @@
     "noTeamsAvailable": "No teams available at this time.",
     "alreadyMember": "Already a member",
     "joining": "Joining…",
-    "moreMembers": "more"
+    "moreMembers": "more",
+    "submissionsAndEvaluations": "Submissions and reviews",
+    "submissions": "submissions",
+    "final": "Final",
+    "provisional": "Provisional",
+    "noScore": "No score",
+    "phaseEvaluation": "Phase evaluation",
+    "finalProjectEvaluation": "Final project evaluation"
   },
   "projects": {
     "title": "Projects",
@@ -622,6 +691,7 @@
     "fileTooLarge": "{{name}} exceeds the maximum size of {{size}} MB.",
     "fileTypeNotAllowed": "{{name}} has a file type that is not allowed.",
     "fileRequired": "You must upload at least one file for this submission.",
+    "filesSelected": "files selected",
     "onlyCaptainCanSubmit": "Only the team captain can submit deliverables.",
     "notTeamCaptain": "You are not a team captain in this event. Only captains can register submissions.",
     "allEvaluations": "All evaluations",
@@ -705,7 +775,14 @@
     "evaluated": "Evaluated",
     "selectAtLeastOneSubmission": "You must select at least one submission",
     "generatingAi": "Generating…",
-    "generatingAiEvaluation": "AI Evaluation"
+    "generatingAiEvaluation": "AI Evaluation",
+    "evaluatePhaseButton": "Evaluate phase",
+    "viewPhaseEvaluationButton": "View evaluation",
+    "evaluateProjectButton": "Evaluate project",
+    "viewProjectEvaluationButton": "View evaluation",
+    "projectEvaluation": "Project",
+    "evaluation": "Evaluation",
+    "evaluationLanguage": "Evaluation language"
   },
   "notifications": {
     "title": "Notifications",
@@ -740,6 +817,7 @@
     "firstName": "First name",
     "lastName": "Last name",
     "email": "Email",
+    "language": "Language",
     "password": "Password",
     "passwordHelper": "It must be at least 8 characters long.",
     "confirmPassword": "Confirm password",
@@ -752,7 +830,9 @@
     "gradeRequired": "Select your degree",
     "gradeInvalid": "Select a valid option",
     "dynamicFieldRequired": "This field is required",
+    "dynamicFieldInvalid": "The selected value is not valid",
     "selectPlaceholder": "Select an option",
+    "missingRequiredFields": "Please complete the following required fields: {{fields}}",
     "acceptPrivacyPolicy": "I accept the ",
     "privacyPolicy": "Privacy Policy",
     "privacyPolicyRequired": "You must accept the Privacy Policy to continue"
@@ -975,7 +1055,12 @@
       "empty": "No users registered yet.",
       "tabs": {
         "general": "General info",
+        "registration": "Registration fields",
         "tenants": "Tenants"
+      },
+      "registrationFields": {
+        "title": "Registration fields ({{tenant}})",
+        "titleDefault": "Registration fields"
       },
       "fields": {
         "email": "Email",
@@ -1014,7 +1099,14 @@
       "createSuccessWithPassword": "User created. Temporary password: {{password}}",
       "createSuccess": "User created successfully.",
       "updateSuccess": "User updated successfully.",
-      "deleteSuccess": "User deleted successfully."
+      "deleteSuccess": "User deleted successfully.",
+      "changePassword": "Change password",
+      "changePasswordTitle": "Change password for {{email}}",
+      "changePasswordDescription": "Enter a new password for this user.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "passwordChangedSuccess": "Password updated successfully.",
+      "generatePassword": "Generate password"
     }
   },
   "profile": {
@@ -1052,6 +1144,22 @@
     "lastNameRequired": "Last name is required",
     "emailRequired": "Email is required",
     "emailInvalid": "Email format is invalid",
+    "changePassword": {
+      "title": "Change password",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "confirmNewPassword": "Confirm new password",
+      "currentPasswordRequired": "Current password is required",
+      "newPasswordRequired": "New password is required",
+      "newPasswordMinLength": "New password must be at least 8 characters",
+      "passwordsMismatch": "Passwords do not match",
+      "currentPasswordIncorrect": "Current password is incorrect",
+      "newPasswordSameAsCurrent": "New password must be different from current password",
+      "changePasswordSuccess": "Password changed successfully",
+      "changePasswordError": "Error changing password",
+      "submit": "Change password",
+      "cancel": "Cancel"
+    },
     "status": {
       "active": "Active",
       "inactive": "Inactive",
@@ -1300,5 +1408,13 @@
       "modifications": "The Provider reserves the right to update these Terms periodically. The user is recommended to review this page regularly to be informed of any changes."
     },
     "lastUpdate": "Last update date:"
+  },
+  "translation": {
+    "translateFromSpanish": "Translate from Spanish with AI",
+    "translating": "Translating...",
+    "success": "Translation completed",
+    "error": "Error translating text",
+    "noSpanishText": "No Spanish text available to translate",
+    "overwriteConfirm": "A translation already exists in {{language}}. Do you want to overwrite it?"
   }
 }

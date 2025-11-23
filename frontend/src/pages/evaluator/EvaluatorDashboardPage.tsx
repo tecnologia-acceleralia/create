@@ -6,6 +6,7 @@ import { useTenantPath } from '@/hooks/useTenantPath';
 import { Spinner } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Button } from '@/components/ui/button';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getEvents, type Event } from '@/services/events';
 import { EventCard } from '@/components/events/EventCard';
 
@@ -19,7 +20,7 @@ function EvaluatorDashboardPage() {
   }
 
   return (
-    <DashboardLayout title={t('dashboard.evaluator')} subtitle={t('dashboard.welcome')}>
+    <DashboardLayout title={safeTranslate(t, 'dashboard.evaluator')} subtitle={safeTranslate(t, 'dashboard.welcome')}>
       <div className="grid gap-4 md:grid-cols-2">
         {events?.map(event => {
           return (
@@ -31,7 +32,7 @@ function EvaluatorDashboardPage() {
               actions={
                 <Button asChild>
                   <Link to={tenantPath(`dashboard/tracking/deliverables?eventId=${event.id}`)}>
-                    {t('events.tracking.title')}
+                    {safeTranslate(t, 'events.tracking.title')}
                   </Link>
                 </Button>
               }

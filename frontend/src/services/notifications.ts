@@ -6,7 +6,7 @@ export type Notification = {
   message: string;
   type: 'system' | 'evaluation' | 'reminder';
   is_read: boolean;
-  created_at: string;
+  created_at: string | null;
 };
 
 export async function getNotifications() {

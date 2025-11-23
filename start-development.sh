@@ -288,7 +288,7 @@ remove_project_docker_resources() {
     
     write_info "Eliminando recursos Docker del proyecto '$project_name'"
     
-    # Eliminar volúmenes
+    # Eliminar volumenes
     local volumes
     volumes=$(docker volume ls --filter "label=com.docker.compose.project=$project_name" --format "{{.Name}}" 2>/dev/null || true)
     if [[ -n "$volumes" ]]; then
@@ -406,6 +406,35 @@ FLUSH PRIVILEGES;"
     fi
 }
 
+request_data_loss_confirmation() {
+    local action_description="$1"
+    local confirmation_text="${2:-ELIMINAR-DATOS}"
+    
+    echo ""
+    echo "=================================================="
+    echo "  ADVERTENCIA: PERDIDA DE DATOS"
+    echo "=================================================="
+    echo ""
+    echo "La siguiente accion causara perdida de datos:"
+    echo "  $action_description"
+    echo ""
+    echo "Para confirmar esta accion destructiva, escribe exactamente:"
+    echo "  $confirmation_text"
+    echo ""
+    read -r user_input
+    
+    if [[ "$user_input" != "$confirmation_text" ]]; then
+        echo ""
+        write_error "Operacion cancelada. El texto de confirmacion no coincide."
+        echo ""
+        exit 1
+    fi
+    
+    echo ""
+    write_info "Confirmacion recibida. Procediendo con la operacion..."
+    echo ""
+}
+
 reset_database() {
     local env_file_path="$SCRIPT_ROOT/.env"
     
@@ -469,7 +498,7 @@ get_seeders_status() {
     if command -v jq >/dev/null 2>&1; then
         echo "$raw_output" | jq -r '.' 2>/dev/null || echo "{}"
     else
-        # Fallback: buscar primera línea que parezca JSON
+        # Fallback: buscar primera linea que parezca JSON
         while IFS= read -r line; do
             if [[ -n "$line" && "$line" =~ ^\{ ]]; then
                 echo "$line"
@@ -494,7 +523,7 @@ invoke_seeders_if_pending() {
         return
     fi
     
-    # Verificar si hay seeders pendientes usando jq si está disponible
+    # Verificar si hay seeders pendientes usando jq si esta disponible
     local has_pending=false
     if command -v jq >/dev/null 2>&1; then
         if echo "$status" | jq -e '.[] | select(.pending != null and (.pending | length) > 0)' >/dev/null 2>&1; then
@@ -630,7 +659,7 @@ new_backup() {
     
     local should_dump_database=false
     
-    # Verificar si el contenedor de base de datos está corriendo
+    # Verificar si el contenedor de base de datos esta corriendo
     if docker compose --profile dev ps --services --filter "status=running" 2>/dev/null | grep -q "^database$"; then
         should_dump_database=true
     else
@@ -792,8 +821,16 @@ install_dependencies() {
     shift 2
     local arguments=("$@")
     local max_retries="${MAX_RETRIES:-3}"
+    local pre_stop="${PRE_STOP:-false}"
     
     write_info "Installing dependencies in $working_directory"
+    
+    # Detener procesos antes del primer intento si se solicita
+    if [[ "$pre_stop" == "true" ]]; then
+        write_info "Deteniendo procesos y contenedores que puedan estar bloqueando archivos antes de instalar..."
+        stop_docker_containers
+        sleep 2
+    fi
     
     local attempt=0
     local success=false
@@ -820,13 +857,23 @@ install_dependencies() {
             fi
         fi
         
-        if (cd "$working_directory" && "$command" "${arguments[@]}" >/dev/null 2>&1); then
+        write_info "$command ${arguments[*]}"
+        if (cd "$working_directory" && "$command" "${arguments[@]}"); then
             success=true
         else
             local exit_code=$?
+            local error_message="Error al ejecutar $command (codigo $exit_code)"
+            
+            # Verificar si es un error de permisos
             if [[ $exit_code -ne 0 ]]; then
                 if [[ $attempt -lt $max_retries ]]; then
-                    write_info "Error detectado (código $exit_code). Reintentando..."
+                    write_info "Error detectado: $error_message"
+                    write_info "Deteniendo procesos y limpiando archivos bloqueados antes de reintentar..."
+                    stop_docker_containers
+                    stop_pnpm_processes
+                    write_info "Esperando 5 segundos para que los archivos se liberen..."
+                    sleep 5
+                    write_info "Reintentando..."
                     continue
                 else
                     write_error "Error persistente despues de $max_retries intentos."
@@ -835,7 +882,8 @@ install_dependencies() {
                     write_error "  2. Ejecuta el script con permisos de administrador"
                     write_error "  3. Desactiva temporalmente el antivirus o agrega una exclusion para $working_directory"
                     write_error "  4. Cierra otros procesos de pnpm o node que puedan estar ejecutandose"
-                    write_error "  5. Intenta eliminar manualmente: rm -rf '$working_directory/node_modules'"
+                    local node_modules_path="$working_directory/node_modules"
+                    write_error "  5. Intenta eliminar manualmente: rm -rf '$node_modules_path'"
                     exit 1
                 fi
             fi
@@ -925,6 +973,7 @@ main() {
         fi
         
         if [[ "$RESET_DB" == true ]]; then
+            request_data_loss_confirmation "Se eliminara el volumen de la base de datos (todos los datos se perderan permanentemente)"
             write_info "ResetDB activado: se eliminara el volumen de la base de datos"
             invoke_cli docker compose --profile dev down --volumes --remove-orphans
         else
@@ -938,10 +987,10 @@ main() {
         remove_project_docker_resources "$PROJECT_NAME"
         
         write_info "Instalando dependencias locales sin archivos lock"
-        install_dependencies "$SCRIPT_ROOT/backend" pnpm install
-        install_dependencies "$SCRIPT_ROOT/frontend" pnpm install
+        PRE_STOP=true install_dependencies "$SCRIPT_ROOT/backend" pnpm install
+        PRE_STOP=true install_dependencies "$SCRIPT_ROOT/frontend" pnpm install
         
-        write_info "Construyendo imágenes Docker"
+        write_info "Construyendo imagenes Docker"
         invoke_cli docker compose --profile dev build backend frontend
         
         update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose --profile dev run --build --rm backend pnpm install
@@ -1018,6 +1067,7 @@ main() {
     fi
     
     if [[ "$RESET_DB" == true ]]; then
+        request_data_loss_confirmation "Se reseteara la base de datos (todos los datos se perderan permanentemente)"
         write_info "ResetDB activado: reseteando base de datos"
         reset_database
         invoke_migrations
@@ -1033,6 +1083,6 @@ main() {
     write_environment_summary
 }
 
-# Ejecutar función principal
+# Ejecutar funcion principal
 main "$@"
 

@@ -8,8 +8,11 @@ import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { FileInput } from '@/components/ui/file-input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Spinner } from '@/components/common';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getFileIcon } from '@/utils/files';
 import { getEventAssets, uploadEventAsset, deleteEventAsset, updateEventAsset, validateEventAssets, checkMarkers, type EventAsset, type AssetValidationResult, type InvalidMarker } from '@/services/event-assets';
 
 interface EventAssetsManagerProps {
@@ -41,7 +44,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     mutationFn: ({ file, name, description, overwrite }: { file: File; name: string; description?: string; overwrite?: boolean }) => 
       uploadEventAsset(eventId, file, name, overwrite || false, description),
     onSuccess: () => {
-      toast.success(t('events.assetUploaded', { defaultValue: 'Archivo subido correctamente' }));
+      toast.success(safeTranslate(t, 'events.assetUploaded', { defaultValue: 'Archivo subido correctamente' }));
       setSelectedFile(null);
       setAssetName('');
       setAssetDescription('');
@@ -51,7 +54,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
       setValidationResults(new Map());
     },
     onError: (error: any) => {
-      const message = error?.response?.data?.message || t('common.error');
+      const message = error?.response?.data?.message || safeTranslate(t, 'common.error');
       toast.error(message);
     }
   });
@@ -67,10 +70,10 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
       
       const missingCount = results.filter(r => !r.exists).length;
       if (missingCount === 0) {
-        toast.success(t('events.allAssetsValid', { defaultValue: 'Todos los recursos están presentes en S3' }));
+        toast.success(safeTranslate(t, 'events.allAssetsValid', { defaultValue: 'Todos los recursos están presentes en S3' }));
       } else {
         toast.warning(
-          t('events.someAssetsMissing', { 
+          safeTranslate(t, 'events.someAssetsMissing', { 
             count: missingCount,
             defaultValue: `Se encontraron ${missingCount} recurso(s) faltante(s) en S3` 
           })
@@ -78,7 +81,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
       }
     },
     onError: () => {
-      toast.error(t('events.validationError', { defaultValue: 'Error al validar los recursos' }));
+      toast.error(safeTranslate(t, 'events.validationError', { defaultValue: 'Error al validar los recursos' }));
     }
   });
 
@@ -89,10 +92,10 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
       setMarkersDialogOpen(true);
       
       if (result.totalInvalid === 0) {
-        toast.success(t('events.allMarkersValid', { defaultValue: 'Todos los marcadores son correctos' }));
+        toast.success(safeTranslate(t, 'events.allMarkersValid', { defaultValue: 'Todos los marcadores son correctos' }));
       } else {
         toast.warning(
-          t('events.invalidMarkersFound', { 
+          safeTranslate(t, 'events.invalidMarkersFound', { 
             count: result.totalInvalid,
             defaultValue: `Se encontraron ${result.totalInvalid} marcador(es) incorrecto(s)` 
           })
@@ -100,7 +103,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
       }
     },
     onError: () => {
-      toast.error(t('events.checkMarkersError', { defaultValue: 'Error al comprobar los marcadores' }));
+      toast.error(safeTranslate(t, 'events.checkMarkersError', { defaultValue: 'Error al comprobar los marcadores' }));
     }
   });
 
@@ -108,14 +111,14 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     mutationFn: ({ assetId, data }: { assetId: number; data: { name?: string; description?: string | null } }) =>
       updateEventAsset(eventId, assetId, data),
     onSuccess: () => {
-      toast.success(t('events.assetUpdated', { defaultValue: 'Recurso actualizado correctamente' }));
+      toast.success(safeTranslate(t, 'events.assetUpdated', { defaultValue: 'Recurso actualizado correctamente' }));
       setEditingAsset(null);
       setEditName('');
       setEditDescription('');
       void queryClient.invalidateQueries({ queryKey: ['event-assets', eventId] });
     },
     onError: (error: any) => {
-      const message = error?.response?.data?.message || t('common.error');
+      const message = error?.response?.data?.message || safeTranslate(t, 'common.error');
       toast.error(message);
     }
   });
@@ -123,11 +126,11 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
   const deleteMutation = useMutation({
     mutationFn: (assetId: number) => deleteEventAsset(eventId, assetId),
     onSuccess: () => {
-      toast.success(t('events.assetDeleted', { defaultValue: 'Archivo eliminado correctamente' }));
+      toast.success(safeTranslate(t, 'events.assetDeleted', { defaultValue: 'Archivo eliminado correctamente' }));
       void queryClient.invalidateQueries({ queryKey: ['event-assets', eventId] });
     },
     onError: () => {
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   });
 
@@ -163,7 +166,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
 
   const handleUpload = () => {
     if (!selectedFile || !assetName.trim()) {
-      toast.error(t('events.assetNameRequired', { defaultValue: 'Debes seleccionar un archivo y proporcionar un nombre' }));
+      toast.error(safeTranslate(t, 'events.assetNameRequired', { defaultValue: 'Debes seleccionar un archivo y proporcionar un nombre' }));
       return;
     }
 
@@ -177,7 +180,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     const nameRegex = /^[a-zA-Z0-9._-]+$/;
     if (!nameRegex.test(normalizedName)) {
       toast.error(
-        t('events.assetNameInvalid', {
+        safeTranslate(t, 'events.assetNameInvalid', {
           defaultValue: 'El nombre solo puede contener letras, números, guiones, puntos y guiones bajos'
         })
       );
@@ -190,7 +193,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
 
     if (overwrite && !assetToOverwrite) {
       // Si existe pero no se ha seleccionado explícitamente para sobreescribir, preguntar
-      if (!confirm(t('events.confirmOverwrite', { 
+      if (!confirm(safeTranslate(t, 'events.confirmOverwrite', { 
         defaultValue: `Ya existe un recurso con el nombre "${normalizedName}". ¿Deseas sobreescribirlo?` 
       }))) {
         return;
@@ -231,10 +234,10 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     try {
       await navigator.clipboard.writeText(url);
       setCopiedUrl(url);
-      toast.success(t('events.urlCopied', { defaultValue: 'URL copiada al portapapeles' }));
+      toast.success(safeTranslate(t, 'events.urlCopied', { defaultValue: 'URL copiada al portapapeles' }));
       setTimeout(() => setCopiedUrl(null), 2000);
     } catch (error) {
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   };
 
@@ -242,9 +245,9 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     const marker = `{{asset:${name}}}`;
     try {
       await navigator.clipboard.writeText(marker);
-      toast.success(t('events.markerCopied', { defaultValue: 'Marcador copiado al portapapeles' }));
+      toast.success(safeTranslate(t, 'events.markerCopied', { defaultValue: 'Marcador copiado al portapapeles' }));
     } catch (error) {
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   };
 
@@ -273,7 +276,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     const nameRegex = /^[a-zA-Z0-9._-]+$/;
     if (!nameRegex.test(normalizedName)) {
       toast.error(
-        t('events.assetNameInvalid', {
+        safeTranslate(t, 'events.assetNameInvalid', {
           defaultValue: 'El nombre solo puede contener letras, números, guiones, puntos y guiones bajos'
         })
       );
@@ -306,75 +309,11 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
     return fileName.includes(searchLower) || marker.includes(searchLower);
   }) || [];
 
-
-  const getFileIcon = (mimeType: string, fileName: string): { icon: LucideIcon; color: string } => {
-    const extension = fileName.split('.').pop()?.toLowerCase() || '';
-    const mime = mimeType.toLowerCase();
-
-    // PDF - debe ir primero porque algunos PDFs pueden tener mime types genéricos
-    if (extension === 'pdf' || mime === 'application/pdf') {
-      return { icon: FileText, color: '#dc2626' }; // red-600
-    }
-
-    // PowerPoint - verificar extensión primero
-    if (extension === 'ppt' || extension === 'pptx' || 
-        mime.includes('presentation') || mime.includes('powerpoint')) {
-      return { icon: FileText, color: '#ea580c' }; // orange-600
-    }
-
-    // Word - verificar extensión primero
-    if (extension === 'doc' || extension === 'docx' || 
-        mime.includes('word') || mime === 'application/msword') {
-      return { icon: FileText, color: '#2563eb' }; // blue-600
-    }
-
-    // Excel - verificar extensión primero
-    if (extension === 'xls' || extension === 'xlsx' || 
-        mime.includes('spreadsheet') || mime.includes('excel')) {
-      return { icon: FileSpreadsheet, color: '#16a34a' }; // green-600
-    }
-
-    // Imágenes
-    if (mime.startsWith('image/')) {
-      return { icon: FileImage, color: '#9333ea' }; // purple-600
-    }
-
-    // Videos
-    if (mime.startsWith('video/')) {
-      return { icon: FileVideo, color: '#db2777' }; // pink-600
-    }
-
-    // Audio
-    if (mime.startsWith('audio/')) {
-      return { icon: FileAudio, color: '#4f46e5' }; // indigo-600
-    }
-
-    // Archivos comprimidos
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension) ||
-        mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
-      return { icon: FileArchive, color: '#ca8a04' }; // yellow-600
-    }
-
-    // Código
-    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension) ||
-        (mime.includes('text/') && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension))) {
-      return { icon: FileCode, color: '#0891b2' }; // cyan-600
-    }
-
-    // Texto plano
-    if (extension === 'txt' || mime.startsWith('text/')) {
-      return { icon: FileText, color: '#4b5563' }; // gray-600
-    }
-
-    // Por defecto
-    return { icon: FileIcon, color: '#6b7280' }; // gray-500
-  };
-
   return (
     <div className="space-y-6">
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle>{t('events.assetsTitle', { defaultValue: 'Recursos del evento' })}</CardTitle>
+          <CardTitle>{safeTranslate(t, 'events.assetsTitle', { defaultValue: 'Recursos del evento' })}</CardTitle>
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -385,12 +324,12 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
               {checkMarkersMutation.isPending ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-t-2 border-primary" />
-                  {t('common.loading')}
+                  {safeTranslate(t, 'common.loading')}
                 </>
               ) : (
                 <>
                   <FileCheck className="h-4 w-4 mr-2" />
-                  {t('events.checkMarkers', { defaultValue: 'Comprobar marcadores' })}
+                  {safeTranslate(t, 'events.checkMarkers', { defaultValue: 'Comprobar marcadores' })}
                 </>
               )}
             </Button>
@@ -403,12 +342,12 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
               {validateMutation.isPending ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-t-2 border-primary" />
-                  {t('common.loading')}
+                  {safeTranslate(t, 'common.loading')}
                 </>
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2" />
-                  {t('events.validateAssets', { defaultValue: 'Validar recursos' })}
+                  {safeTranslate(t, 'events.validateAssets', { defaultValue: 'Validar recursos' })}
                 </>
               )}
             </Button>
@@ -417,12 +356,10 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
         <CardContent className="space-y-4">
           <div className="space-y-4 rounded-lg border border-border/70 p-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">{t('events.selectFile', { defaultValue: 'Seleccionar archivo' })}</label>
-              <Input
-                type="file"
+              <FileInput
                 onChange={handleFileSelect}
-                className="cursor-pointer"
                 accept="*/*"
+                showFileName={false}
               />
               {selectedFile && (
                 <p className="text-sm text-muted-foreground">
@@ -432,51 +369,51 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                {t('events.assetName', { defaultValue: 'Nombre del recurso' })}
+                {safeTranslate(t, 'events.assetName', { defaultValue: 'Nombre del recurso' })}
                 <span className="text-destructive ml-1">*</span>
               </label>
               <Input
                 value={assetName}
                 onChange={e => setAssetName(e.target.value)}
-                placeholder={t('events.assetNamePlaceholder', { defaultValue: 'nombre-del-recurso' })}
+                placeholder={safeTranslate(t, 'events.assetNamePlaceholder', { defaultValue: 'nombre-del-recurso' })}
               />
               <p className="text-xs text-muted-foreground">
-                {t('events.assetNameHint', {
+                {safeTranslate(t, 'events.assetNameHint', {
                   defaultValue: 'Solo letras, números, guiones, puntos y guiones bajos. Los acentos se eliminarán automáticamente. Este nombre se usará en los marcadores.'
                 })}
               </p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                {t('events.assetDescription', { defaultValue: 'Descripción' })}
+                {safeTranslate(t, 'events.assetDescription', { defaultValue: 'Descripción' })}
               </label>
               <Input
                 value={assetDescription}
                 onChange={e => setAssetDescription(e.target.value)}
-                placeholder={t('events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
+                placeholder={safeTranslate(t, 'events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground">
-                {t('events.assetDescriptionHint', {
+                {safeTranslate(t, 'events.assetDescriptionHint', {
                   defaultValue: 'Texto que se mostrará cuando se use el marcador en lugar de la URL completa. Si se deja vacío, se usará el nombre del archivo.'
                 })}
               </p>
             </div>
             {assetToOverwrite && (
               <div className="rounded-md bg-orange-50 border border-orange-200 p-3 text-sm text-orange-800">
-                {t('events.overwritingAsset', { 
+                {safeTranslate(t, 'events.overwritingAsset', { 
                   name: assetToOverwrite.name,
                   defaultValue: `Sobreescribiendo recurso: ${assetToOverwrite.name}` 
                 })}
               </div>
             )}
             <Button onClick={handleUpload} disabled={!selectedFile || !assetName.trim() || uploadMutation.isPending}>
-              <Upload className="h-4 w-4 mr-2" />
+                  <Upload className="h-4 w-4 mr-2" />
               {uploadMutation.isPending 
-                ? t('common.loading') 
+                ? safeTranslate(t, 'common.loading') 
                 : (assetToOverwrite 
-                  ? t('events.overwriteAsset', { defaultValue: 'Sobreescribir archivo' })
-                  : t('events.uploadAsset', { defaultValue: 'Subir archivo' }))
+                  ? safeTranslate(t, 'events.overwriteAsset', { defaultValue: 'Sobreescribir archivo' })
+                  : safeTranslate(t, 'events.uploadAsset', { defaultValue: 'Subir archivo' }))
               }
             </Button>
           </div>
@@ -486,7 +423,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
           ) : assets && assets.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">{t('events.uploadedAssets', { defaultValue: 'Archivos subidos' })}</h3>
+                <h3 className="text-sm font-semibold">{safeTranslate(t, 'events.uploadedAssets', { defaultValue: 'Archivos subidos' })}</h3>
                 {assets.length > 0 && (
                   <span className="text-xs text-muted-foreground">
                     {filteredAssets.length} / {assets.length}
@@ -497,7 +434,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder={t('events.searchAssets', { defaultValue: 'Buscar por nombre de archivo o marcador...' })}
+                  placeholder={safeTranslate(t, 'events.searchAssets', { defaultValue: 'Buscar por nombre de archivo o marcador...' })}
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   className="pl-9 pr-9"
@@ -506,7 +443,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                   <button
                     onClick={() => setSearchFilter('')}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={t('common.clear', { defaultValue: 'Limpiar búsqueda' })}
+                    aria-label={safeTranslate(t, 'common.clear', { defaultValue: 'Limpiar búsqueda' })}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -514,7 +451,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
               </div>
               {filteredAssets.length === 0 && searchFilter ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  {t('events.noAssetsFound', { defaultValue: 'No se encontraron recursos que coincidan con la búsqueda' })}
+                  {safeTranslate(t, 'events.noAssetsFound', { defaultValue: 'No se encontraron recursos que coincidan con la búsqueda' })}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -539,12 +476,12 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                             </p>
                             {validationResults.has(asset.id) && (
                               validationResults.get(asset.id) ? (
-                                <span title={t('events.assetExists', { defaultValue: 'Recurso encontrado en S3' })}>
-                                  <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" aria-label={t('events.assetExists', { defaultValue: 'Recurso encontrado en S3' })} />
+                                <span title={safeTranslate(t, 'events.assetExists', { defaultValue: 'Recurso encontrado en S3' })}>
+                                  <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" aria-label={safeTranslate(t, 'events.assetExists', { defaultValue: 'Recurso encontrado en S3' })} />
                                 </span>
                               ) : (
-                                <span title={t('events.assetMissing', { defaultValue: 'Recurso no encontrado en S3' })}>
-                                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" aria-label={t('events.assetMissing', { defaultValue: 'Recurso no encontrado en S3' })} />
+                                <span title={safeTranslate(t, 'events.assetMissing', { defaultValue: 'Recurso no encontrado en S3' })}>
+                                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0" aria-label={safeTranslate(t, 'events.assetMissing', { defaultValue: 'Recurso no encontrado en S3' })} />
                                 </span>
                               )
                             )}
@@ -554,7 +491,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                               {formatFileSize(asset.file_size)}
                               {validationResults.has(asset.id) && !validationResults.get(asset.id) && (
                                 <span className="text-red-600 ml-2">
-                                  {t('events.missingInS3', { defaultValue: '(Faltante en S3)' })}
+                                  {safeTranslate(t, 'events.missingInS3', { defaultValue: '(Faltante en S3)' })}
                                 </span>
                               )}
                             </p>
@@ -570,7 +507,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                           size="sm"
                           variant="outline"
                           onClick={() => handleReupload(asset)}
-                          title={t('events.reuploadAsset', { defaultValue: 'Re-subir archivo' })}
+                          title={safeTranslate(t, 'events.reuploadAsset', { defaultValue: 'Re-subir archivo' })}
                           className="text-orange-600 hover:text-orange-700"
                         >
                           <Upload className="h-4 w-4" />
@@ -580,7 +517,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenEditDialog(asset)}
-                        title={t('common.edit', { defaultValue: 'Editar' })}
+                        title={safeTranslate(t, 'common.edit', { defaultValue: 'Editar' })}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -588,17 +525,17 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                         size="sm"
                         variant="outline"
                         onClick={() => handleCopyUrl(asset.url)}
-                        title={t('events.copyUrl', { defaultValue: 'Copiar URL' })}
+                        title={safeTranslate(t, 'events.copyUrl', { defaultValue: 'Copiar URL' })}
                       >
                         {copiedUrl === asset.url ? (
                           <>
                             <Check className="h-4 w-4 mr-2" />
-                            {t('events.url', { defaultValue: 'URL' })}
+                            {safeTranslate(t, 'events.url', { defaultValue: 'URL' })}
                           </>
                         ) : (
                           <>
                             <Copy className="h-4 w-4 mr-2" />
-                            {t('events.url', { defaultValue: 'URL' })}
+                            {safeTranslate(t, 'events.url', { defaultValue: 'URL' })}
                           </>
                         )}
                       </Button>
@@ -606,25 +543,25 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                         size="sm"
                         variant="outline"
                         onClick={() => handleCopyMarker(asset.name)}
-                        title={t('events.copyMarker', { defaultValue: 'Copiar marcador' })}
+                        title={safeTranslate(t, 'events.copyMarker', { defaultValue: 'Copiar marcador' })}
                       >
                         <Copy className="h-4 w-4 mr-2" />
-                        {t('events.marker', { defaultValue: 'Marcador' })}
+                        {safeTranslate(t, 'events.marker', { defaultValue: 'Marcador' })}
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => window.open(asset.url, '_blank', 'noopener,noreferrer')}
-                        title={t('events.viewAsset', { defaultValue: 'Ver recurso' })}
+                        title={safeTranslate(t, 'events.viewAsset', { defaultValue: 'Ver recurso' })}
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />
-                        {t('events.view', { defaultValue: 'Ver' })}
+                        {safeTranslate(t, 'events.view', { defaultValue: 'Ver' })}
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => {
-                          if (confirm(t('events.confirmDeleteAsset', { defaultValue: '¿Eliminar este archivo?' }))) {
+                          if (confirm(safeTranslate(t, 'events.confirmDeleteAsset', { defaultValue: '¿Eliminar este archivo?' }))) {
                             deleteMutation.mutate(asset.id);
                           }
                         }}
@@ -640,7 +577,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
               )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">{t('events.noAssets', { defaultValue: 'No hay archivos subidos' })}</p>
+            <p className="text-sm text-muted-foreground">{safeTranslate(t, 'events.noAssets', { defaultValue: 'No hay archivos subidos' })}</p>
           )}
         </CardContent>
       </Card>
@@ -649,12 +586,12 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {t('events.markersCheckResults', { defaultValue: 'Resultados de comprobación de marcadores' })}
+              {safeTranslate(t, 'events.markersCheckResults', { defaultValue: 'Resultados de comprobación de marcadores' })}
             </DialogTitle>
             <DialogDescription>
               {invalidMarkers.length === 0
-                ? t('events.allMarkersValidDesc', { defaultValue: 'Todos los marcadores son correctos y referencian recursos existentes.' })
-                : t('events.invalidMarkersDesc', { 
+                ? safeTranslate(t, 'events.allMarkersValidDesc', { defaultValue: 'Todos los marcadores son correctos y referencian recursos existentes.' })
+                : safeTranslate(t, 'events.invalidMarkersDesc', { 
                     count: invalidMarkers.length,
                     defaultValue: `Se encontraron ${invalidMarkers.length} marcador(es) que referencian recursos que no existen.` 
                   })
@@ -666,7 +603,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <CheckCircle2 className="h-12 w-12 text-green-600 mb-4" />
               <p className="text-sm text-muted-foreground">
-                {t('events.noInvalidMarkers', { defaultValue: 'No se encontraron marcadores incorrectos.' })}
+                {safeTranslate(t, 'events.noInvalidMarkers', { defaultValue: 'No se encontraron marcadores incorrectos.' })}
               </p>
             </div>
           ) : (
@@ -681,9 +618,9 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-xs font-semibold text-red-800 uppercase">
-                          {marker.type === 'phase' && t('events.phase', { defaultValue: 'Fase' })}
-                          {marker.type === 'task' && t('events.task', { defaultValue: 'Tarea' })}
-                          {marker.type === 'event' && t('events.event', { defaultValue: 'Evento' })}
+                          {marker.type === 'phase' && safeTranslate(t, 'events.phase', { defaultValue: 'Fase' })}
+                          {marker.type === 'task' && safeTranslate(t, 'events.task', { defaultValue: 'Tarea' })}
+                          {marker.type === 'event' && safeTranslate(t, 'events.event', { defaultValue: 'Evento' })}
                         </span>
                       </div>
                       {marker.type === 'phase' && (
@@ -697,7 +634,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                             {marker.title}
                           </p>
                           <p className="text-xs text-gray-600">
-                            {t('events.inPhase', { 
+                            {safeTranslate(t, 'events.inPhase', { 
                               phase: marker.phaseName,
                               defaultValue: `En fase: ${marker.phaseName}` 
                             })}
@@ -711,13 +648,13 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
                       )}
                       <div className="mt-2 pt-2 border-t border-red-200">
                         <p className="text-xs text-gray-600 mb-1">
-                          {t('events.invalidMarker', { defaultValue: 'Marcador incorrecto:' })}
+                          {safeTranslate(t, 'events.invalidMarker', { defaultValue: 'Marcador incorrecto:' })}
                         </p>
                         <code className="text-sm font-mono bg-red-100 text-red-900 px-2 py-1 rounded">
                           {marker.marker}
                         </code>
                         <p className="text-xs text-gray-600 mt-2">
-                          {t('events.missingAsset', { 
+                          {safeTranslate(t, 'events.missingAsset', { 
                             asset: marker.assetName,
                             defaultValue: `Recurso faltante: ${marker.assetName}` 
                           })}
@@ -732,7 +669,7 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
 
           <DialogFooter>
             <Button onClick={() => setMarkersDialogOpen(false)}>
-              {t('common.close', { defaultValue: 'Cerrar' })}
+              {safeTranslate(t, 'common.close', { defaultValue: 'Cerrar' })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -742,47 +679,47 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {t('events.editAsset', { defaultValue: 'Editar recurso' })}
+              {safeTranslate(t, 'events.editAsset', { defaultValue: 'Editar recurso' })}
             </DialogTitle>
             <DialogDescription>
-              {t('events.editAssetDescription', { defaultValue: 'Modifica el nombre del marcador y la descripción del recurso.' })}
+              {safeTranslate(t, 'events.editAssetDescription', { defaultValue: 'Modifica el nombre del marcador y la descripción del recurso.' })}
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                {t('events.assetName', { defaultValue: 'Nombre del recurso' })}
+                {safeTranslate(t, 'events.assetName', { defaultValue: 'Nombre del recurso' })}
                 <span className="text-destructive ml-1">*</span>
               </label>
               <Input
                 value={editName}
                 onChange={e => setEditName(e.target.value)}
-                placeholder={t('events.assetNamePlaceholder', { defaultValue: 'nombre-del-recurso' })}
+                placeholder={safeTranslate(t, 'events.assetNamePlaceholder', { defaultValue: 'nombre-del-recurso' })}
               />
               <p className="text-xs text-muted-foreground">
-                {t('events.assetNameHint', {
+                {safeTranslate(t, 'events.assetNameHint', {
                   defaultValue: 'Solo letras, números, guiones, puntos y guiones bajos. Los acentos se eliminarán automáticamente. Este nombre se usará en los marcadores.'
                 })}
               </p>
               {editingAsset && (
                 <p className="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded">
-                  {t('events.markerPreview', { defaultValue: 'Marcador:' })} {`{{asset:${editName}}}`}
+                  {safeTranslate(t, 'events.markerPreview', { defaultValue: 'Marcador:' })} {`{{asset:${editName}}}`}
                 </p>
               )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                {t('events.assetDescription', { defaultValue: 'Descripción' })}
+                {safeTranslate(t, 'events.assetDescription', { defaultValue: 'Descripción' })}
               </label>
               <Input
                 value={editDescription}
                 onChange={e => setEditDescription(e.target.value)}
-                placeholder={t('events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
+                placeholder={safeTranslate(t, 'events.assetDescriptionPlaceholder', { defaultValue: 'Texto descriptivo que se mostrará en lugar de la URL' })}
                 maxLength={500}
               />
               <p className="text-xs text-muted-foreground">
-                {t('events.assetDescriptionHint', {
+                {safeTranslate(t, 'events.assetDescriptionHint', {
                   defaultValue: 'Texto que se mostrará cuando se use el marcador en lugar de la URL completa. Si se deja vacío, se usará el nombre del archivo.'
                 })}
               </p>
@@ -791,10 +728,10 @@ export function EventAssetsManager({ eventId }: EventAssetsManagerProps) {
 
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseEditDialog}>
-              {t('common.cancel', { defaultValue: 'Cancelar' })}
+              {safeTranslate(t, 'common.cancel', { defaultValue: 'Cancelar' })}
             </Button>
             <Button onClick={handleSaveEdit} disabled={updateMutation.isPending || !editName.trim()}>
-              {updateMutation.isPending ? t('common.loading') : t('common.save', { defaultValue: 'Guardar' })}
+              {updateMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'common.save', { defaultValue: 'Guardar' })}
             </Button>
           </DialogFooter>
         </DialogContent>

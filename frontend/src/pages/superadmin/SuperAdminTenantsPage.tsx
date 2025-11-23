@@ -32,6 +32,8 @@ import { TenantModal, TenantTrackingModal } from '@/components/superadmin/modals
 import { FormField } from '@/components/form';
 import { Badge } from '@/components/ui/badge';
 import { formatDateValue } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { FilterCard, DataTable, type Column } from '@/components/common';
 
 const TENANT_STATUS = ['active', 'trial', 'suspended', 'cancelled'] as const;
@@ -76,9 +78,10 @@ const INITIAL_MODAL_STATE: TenantModalState = {
 const PAGE_SIZE = 10;
 
 function SuperAdminTenantsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
   const [filters, setFilters] = useState<TenantFilters>(DEFAULT_FILTERS);
   const [pendingDelete, setPendingDelete] = useState<SuperAdminTenant | null>(null);
@@ -87,7 +90,7 @@ function SuperAdminTenantsPage() {
   const [trackingEventId, setTrackingEventId] = useState('');
 
   const trackingEventsQuery = useQuery<TrackingEventOption[]>({
-    queryKey: ['superadmin', 'tenant-events', trackingTenant?.slug],
+    queryKey: ['superadmin', 'tenant-events', trackingTenant?.slug, currentLang],
     queryFn: async () => {
       if (!trackingTenant?.slug) {
         return [];
@@ -95,10 +98,14 @@ function SuperAdminTenantsPage() {
       const events = await getAllPublicEvents();
       return events
         .filter(event => event.tenant?.slug === trackingTenant.slug)
-        .map<TrackingEventOption>(event => ({
-          id: event.id,
-          name: event.name
-        }));
+        .map<TrackingEventOption>(event => {
+          // Asegurar que el nombre sea siempre un string usando getMultilingualText
+          const eventName = getMultilingualText(event.name, currentLang);
+          return {
+            id: event.id,
+            name: typeof eventName === 'string' ? eventName : String(eventName || '')
+          };
+        });
     },
     enabled: Boolean(trackingTenant?.slug),
     staleTime: 60_000
@@ -123,48 +130,48 @@ function SuperAdminTenantsPage() {
   const createTenantMutation = useMutation({
     mutationFn: createTenantSuperAdmin,
     onSuccess: () => {
-      toast.success(t('superadmin.tenants.createSuccess'));
+      toast.success(safeTranslate(t, 'superadmin.tenants.createSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenants'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const updateTenantMutation = useMutation({
     mutationFn: (variables: { tenantId: number; payload: Parameters<typeof updateTenantSuperAdmin>[1] }) =>
       updateTenantSuperAdmin(variables.tenantId, variables.payload),
     onSuccess: () => {
-      toast.success(t('superadmin.tenants.updateSuccess'));
+      toast.success(safeTranslate(t, 'superadmin.tenants.updateSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenants'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const deleteTenantMutation = useMutation({
     mutationFn: deleteTenantSuperAdmin,
     onSuccess: () => {
-      toast.success(t('superadmin.tenants.deleteSuccess'));
+      toast.success(safeTranslate(t, 'superadmin.tenants.deleteSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenants'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const cleanEventMutation = useMutation({
     mutationFn: cleanEventSuperAdmin,
     onSuccess: (_, eventId) => {
       const eventName = trackingEvents.find(e => e.id === eventId)?.name ?? '';
-      toast.success(t('superadmin.tenants.cleanEventSuccess', { eventName }));
+      toast.success(safeTranslate(t, 'superadmin.tenants.cleanEventSuccess', { eventName }));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'tenant-events'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const tenantsData: TenantsListResponse | undefined = tenantsQuery.data;
   useEffect(() => {
     if (trackingEventsQuery.isError) {
-      toast.error(t('superadmin.tenants.trackingEventsError'));
+      toast.error(safeTranslate(t, 'superadmin.tenants.trackingEventsError'));
     }
   }, [trackingEventsQuery.isError, t]);
 
@@ -236,7 +243,7 @@ function SuperAdminTenantsPage() {
     }
     const eventId = trackingEventId.trim();
     if (!eventId) {
-      toast.error(t('superadmin.tenants.trackingMissingEvent'));
+      toast.error(safeTranslate(t, 'superadmin.tenants.trackingMissingEvent'));
       return;
     }
     const tenantSlug = trackingTenant.slug;
@@ -249,41 +256,41 @@ function SuperAdminTenantsPage() {
   const columns: Column<SuperAdminTenant>[] = [
     {
       key: 'name',
-      header: t('superadmin.tenants.table.name'),
+      header: safeTranslate(t, 'superadmin.tenants.table.name'),
       render: (tenant: SuperAdminTenant) => <span className="font-medium">{tenant.name}</span>
     },
     {
       key: 'slug',
-      header: t('superadmin.tenants.table.slug'),
+      header: safeTranslate(t, 'superadmin.tenants.table.slug'),
       render: (tenant: SuperAdminTenant) => (
         <code className="rounded bg-muted px-2 py-1 text-xs">{tenant.slug}</code>
       )
     },
     {
       key: 'status',
-      header: t('superadmin.tenants.table.status'),
+      header: safeTranslate(t, 'superadmin.tenants.table.status'),
       render: (tenant: SuperAdminTenant) => (
-        <Badge variant="secondary">{t(`superadmin.tenantStatus.${tenant.status}`)}</Badge>
+        <Badge variant="secondary">{safeTranslate(t, `superadmin.tenantStatus.${tenant.status}`, { defaultValue: tenant.status })}</Badge>
       )
     },
     {
       key: 'plan',
-      header: t('superadmin.tenants.table.plan'),
-      render: (tenant: SuperAdminTenant) => t(`superadmin.tenantPlan.${tenant.plan_type}`)
+      header: safeTranslate(t, 'superadmin.tenants.table.plan'),
+      render: (tenant: SuperAdminTenant) => safeTranslate(t, `superadmin.tenantPlan.${tenant.plan_type}`, { defaultValue: tenant.plan_type })
     },
     {
       key: 'users',
-      header: t('superadmin.tenants.table.users'),
+      header: safeTranslate(t, 'superadmin.tenants.table.users'),
       render: (tenant: SuperAdminTenant) => tenant.user_count
     },
     {
       key: 'created',
-      header: t('superadmin.tenants.table.created'),
-      render: (tenant: SuperAdminTenant) => formatDateValue(tenant.created_at) ?? t('common.notAvailable')
+      header: safeTranslate(t, 'superadmin.tenants.table.created'),
+      render: (tenant: SuperAdminTenant) => formatDateValue(tenant.created_at) ?? safeTranslate(t, 'common.notAvailable')
     },
     {
       key: 'actions',
-      header: t('superadmin.tenants.table.actions'),
+      header: safeTranslate(t, 'superadmin.tenants.table.actions'),
       className: 'text-right',
       render: (tenant: SuperAdminTenant) => (
         <div className="flex items-center justify-end gap-2">
@@ -291,7 +298,7 @@ function SuperAdminTenantsPage() {
             type="button"
             variant="ghost"
             size="icon"
-            aria-label={t('superadmin.tenants.openTracking')}
+            aria-label={safeTranslate(t, 'superadmin.tenants.openTracking')}
             onClick={() => handleOpenTrackingDialog(tenant)}
           >
             <LineChart className="h-4 w-4" aria-hidden />
@@ -301,7 +308,7 @@ function SuperAdminTenantsPage() {
             variant="ghost"
             size="icon"
             onClick={() => navigate(`/superadmin/users?tenantId=${tenant.id}`)}
-            aria-label={t('superadmin.tenants.manageUsers')}
+            aria-label={safeTranslate(t, 'superadmin.tenants.manageUsers')}
           >
             <Users className="h-4 w-4" aria-hidden />
           </Button>
@@ -309,7 +316,7 @@ function SuperAdminTenantsPage() {
             type="button"
             variant="outline"
             size="icon"
-            aria-label={t('common.edit')}
+            aria-label={safeTranslate(t, 'common.edit')}
             onClick={() => openEditModal(tenant)}
           >
             <Pencil className="h-4 w-4" aria-hidden />
@@ -320,7 +327,7 @@ function SuperAdminTenantsPage() {
                 type="button"
                 variant="destructive"
                 size="icon"
-                aria-label={t('common.remove')}
+                aria-label={safeTranslate(t, 'common.remove')}
                 onClick={() => setPendingDelete(tenant)}
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
@@ -328,14 +335,14 @@ function SuperAdminTenantsPage() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('superadmin.tenants.deleteTitle')}</AlertDialogTitle>
+                <AlertDialogTitle>{safeTranslate(t, 'superadmin.tenants.deleteTitle')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t('superadmin.tenants.deleteDescription', { name: pendingDelete?.name })}
+                  {safeTranslate(t, 'superadmin.tenants.deleteDescription', { name: pendingDelete?.name })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setPendingDelete(null)}>
-                  {t('common.cancel')}
+                  {safeTranslate(t, 'common.cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
@@ -346,7 +353,7 @@ function SuperAdminTenantsPage() {
                   }}
                   disabled={deleteTenantMutation.isPending}
                 >
-                  {deleteTenantMutation.isPending ? t('common.loading') : t('common.confirm')}
+                  {deleteTenantMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'common.confirm')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -359,35 +366,35 @@ function SuperAdminTenantsPage() {
   return (
     <div className="space-y-6">
       <FilterCard
-        title={t('superadmin.tenants.filtersTitle')}
+        title={safeTranslate(t, 'superadmin.tenants.filtersTitle')}
         onSubmit={handleApplyFilters}
         onReset={handleResetFilters}
-        applyLabel={t('superadmin.tenants.applyFilters')}
-        resetLabel={t('superadmin.tenants.resetFilters')}
+        applyLabel={safeTranslate(t, 'superadmin.tenants.applyFilters')}
+        resetLabel={safeTranslate(t, 'superadmin.tenants.resetFilters')}
       >
-        <FormField label={t('common.search')}>
+        <FormField label={safeTranslate(t, 'common.search')}>
           <Input
             name="search"
             defaultValue={filters.search}
-            placeholder={t('superadmin.tenants.searchPlaceholder')}
+            placeholder={safeTranslate(t, 'superadmin.tenants.searchPlaceholder')}
           />
         </FormField>
-        <FormField label={t('superadmin.tenants.filterStatus')}>
+        <FormField label={safeTranslate(t, 'superadmin.tenants.filterStatus')}>
           <Select name="status" defaultValue={filters.status}>
-            <option value="">{t('superadmin.tenants.allStatuses')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.tenants.allStatuses')}</option>
             {TENANT_STATUS.map(statusOption => (
               <option key={statusOption} value={statusOption}>
-                {t(`superadmin.tenantStatus.${statusOption}`)}
+                {safeTranslate(t, `superadmin.tenantStatus.${statusOption}`, { defaultValue: statusOption })}
               </option>
             ))}
           </Select>
         </FormField>
-        <FormField label={t('superadmin.tenants.filterPlan')}>
+        <FormField label={safeTranslate(t, 'superadmin.tenants.filterPlan')}>
           <Select name="plan" defaultValue={filters.plan}>
-            <option value="">{t('superadmin.tenants.allPlans')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.tenants.allPlans')}</option>
             {TENANT_PLANS.map(planOption => (
               <option key={planOption} value={planOption}>
-                {t(`superadmin.tenantPlan.${planOption}`)}
+                {safeTranslate(t, `superadmin.tenantPlan.${planOption}`, { defaultValue: planOption })}
               </option>
             ))}
           </Select>
@@ -397,16 +404,16 @@ function SuperAdminTenantsPage() {
       <div className="flex justify-end">
         <Button onClick={openCreateModal}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
-          {t('superadmin.tenants.create')}
+          {safeTranslate(t, 'superadmin.tenants.create')}
         </Button>
       </div>
 
       <DataTable
-        title={t('superadmin.tenants.listTitle')}
+        title={safeTranslate(t, 'superadmin.tenants.listTitle')}
         columns={columns}
         data={tenantsData?.items ?? []}
         isLoading={tenantsQuery.isLoading}
-        emptyMessage={t('superadmin.tenants.empty')}
+        emptyMessage={safeTranslate(t, 'superadmin.tenants.empty')}
         pagination={
           tenantsData
             ? {
@@ -418,9 +425,9 @@ function SuperAdminTenantsPage() {
                 },
                 onPageChange: page => setFilters(prev => ({ ...prev, page })),
                 paginationLabel: (from, to, total) =>
-                  t('superadmin.tenants.pagination', { from, to, total }),
-                prevLabel: t('superadmin.tenants.prevPage'),
-                nextLabel: t('superadmin.tenants.nextPage')
+                  safeTranslate(t, 'superadmin.tenants.pagination', { from, to, total }),
+                prevLabel: safeTranslate(t, 'superadmin.tenants.prevPage'),
+                nextLabel: safeTranslate(t, 'superadmin.tenants.nextPage')
               }
             : undefined
         }

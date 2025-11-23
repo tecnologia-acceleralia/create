@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateRange } from '@/utils/date';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import type { Task, Phase } from '@/services/events';
 
 type TaskContextCardProps = {
@@ -33,10 +35,37 @@ export function TaskContextCard({
   isPhaseZero = false,
   periodStatus
 }: TaskContextCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tenantPath = useTenantPath();
+  const currentLang = (i18n.language?.split('-')[0] || locale || 'es') as 'es' | 'ca' | 'en';
+
+  const taskTitle = getMultilingualText(task.title, currentLang);
+  const taskDescription = task.description ? getMultilingualText(task.description, currentLang) : null;
+  const introHtml = task.intro_html ? getMultilingualText(task.intro_html, currentLang) : null;
 
   const hasValidDates = phase?.start_date || phase?.end_date;
+
+  // Función para convertir texto plano con saltos de línea en HTML
+  // Si el texto ya contiene HTML, lo devuelve tal cual; si no, convierte \n en HTML
+  const formatDescriptionAsHtml = (text: string): string => {
+    if (!text) return '';
+    // Si el texto ya contiene etiquetas HTML, devolverlo tal cual
+    if (/<[a-z][\s\S]*>/i.test(text)) {
+      return text;
+    }
+    // Si es texto plano, convertir saltos de línea en HTML
+    // Dividir por párrafos (doble salto de línea) y procesar cada uno
+    const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+    if (paragraphs.length === 0) return '';
+    
+    return paragraphs
+      .map(para => {
+        // Convertir saltos de línea simples en <br>
+        const withBreaks = para.trim().replace(/\n/g, '<br>');
+        return `<p>${withBreaks}</p>`;
+      })
+      .join('');
+  };
 
   return (
     <div className={`rounded-2xl border border-border/70 bg-card/80 p-6 ${className ?? ''}`}>
@@ -46,38 +75,43 @@ export function TaskContextCard({
           <div className="flex items-start justify-between gap-3 flex-1">
             <div className="flex-1">
               <p className="text-sm font-semibold text-muted-foreground mb-1">Tarea</p>
-              <p className="text-base font-semibold text-foreground">{task.title}</p>
+              <p className="text-base font-semibold text-foreground">{taskTitle}</p>
               {hasValidDates && (
                 <p className="text-xs text-muted-foreground mt-1">
                   {formatDateRange(locale, phase?.start_date ?? null, phase?.end_date ?? null) ??
-                    t('events.taskPeriodNotSet')}
+                    safeTranslate(t, 'events.taskPeriodNotSet')}
                 </p>
               )}
-              {task.description ? (
-                <p className="text-sm text-muted-foreground mt-2">{task.description}</p>
-              ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {task.is_required ? (
-                <Badge variant="secondary">{t('events.taskRequiredBadge')}</Badge>
+                <Badge variant="secondary">{safeTranslate(t, 'events.taskRequiredBadge')}</Badge>
               ) : null}
             </div>
           </div>
         }
       >
         <div className="space-y-3 mt-3">
-          {task.intro_html ? (
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: task.intro_html }}
-            />
+          {taskDescription ? (
+            <div className="mx-auto w-full max-w-4xl">
+              <div className="prose prose-sm max-w-none">
+                <div dangerouslySetInnerHTML={{ __html: formatDescriptionAsHtml(taskDescription) }} />
+              </div>
+            </div>
+          ) : null}
+          {introHtml ? (
+            <div className="mx-auto w-full max-w-4xl">
+              <div className="prose prose-sm max-w-none">
+                <div dangerouslySetInnerHTML={{ __html: introHtml }} />
+              </div>
+            </div>
           ) : null}
           {showActions && !isPhaseZero && eventId && task.delivery_type !== 'none' && (
             <div className="flex flex-wrap gap-3 items-center">
               {periodStatus?.isValid ? (
                 <Button asChild>
                   <Link to={tenantPath(`dashboard/events/${eventId}/tasks/${task.id}`)}>
-                    {t('submissions.register')}
+                    {safeTranslate(t, 'submissions.register')}
                   </Link>
                 </Button>
               ) : (
@@ -85,16 +119,16 @@ export function TaskContextCard({
                   <p className="text-sm text-muted-foreground">
                     {(() => {
                       if (periodStatus?.reason === 'not_started') {
-                        return t('events.taskPeriodNotStarted');
+                        return safeTranslate(t, 'events.taskPeriodNotStarted');
                       }
                       if (periodStatus?.reason === 'ended') {
-                        return t('events.taskPeriodEnded');
+                        return safeTranslate(t, 'events.taskPeriodEnded');
                       }
-                      return t('events.taskPeriodNotAvailable');
+                      return safeTranslate(t, 'events.taskPeriodNotAvailable');
                     })()}
                   </p>
                   <Button variant="outline" disabled>
-                    {t('submissions.register')}
+                    {safeTranslate(t, 'submissions.register')}
                   </Button>
                 </div>
               )}

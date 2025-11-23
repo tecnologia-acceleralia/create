@@ -335,6 +335,7 @@ export type SuperAdminUser = {
   is_super_admin: boolean;
   isSuperAdmin?: boolean;
   profile_image_url: string | null;
+  registration_answers: Record<string, unknown> | null;
   last_login_at?: string | null;
   created_at?: string;
   createdAt?: string;
@@ -400,6 +401,8 @@ type CreateSuperAdminUserPayload = {
   is_super_admin?: boolean;
   password?: string;
   profile_image_url?: string | null;
+  grade?: string | null;
+  registration_answers?: Record<string, unknown>;
   tenantIds?: number[];
   tenantRoles?: Record<number, TenantRoleScope[]>;
 };

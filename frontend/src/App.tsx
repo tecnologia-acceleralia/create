@@ -1,4 +1,4 @@
-﻿import { Suspense, useEffect } from 'react';
+﻿import { Suspense, useEffect, lazy } from 'react';
 import { useRoutes, Navigate, Outlet, useParams, useNavigate, useLocation } from 'react-router';
 import { Spinner } from '@/components/common';
 import { Toaster } from 'sonner';
@@ -7,32 +7,46 @@ import { SiteLayout } from '@/components/layout/SiteLayout';
 import { ProtectedRoute } from '@/components/auth';
 import { useAuth } from '@/context/AuthContext';
 
-import LandingPage from '@/pages/public/LandingPage';
-import LoginPage from '@/pages/public/LoginPage';
-import PublicEventsHubPage from '@/pages/public/PublicEventsHubPage';
-import AdminDashboardPage from '@/pages/admin/AdminDashboardPage';
-import EventsListPage from '@/pages/admin/events/EventsListPage';
-import EventDetailAdminPage from '@/pages/admin/events/EventDetailAdminPage';
-import EventDeliverablesTrackingPage from '@/pages/admin/events/EventDeliverablesTrackingPage';
-import DeliverablesTrackingPage from '@/pages/common/DeliverablesTrackingPage';
-import MyTeamPage from '@/pages/participant/MyTeamPage';
-import ProjectsPage from '@/pages/participant/ProjectsPage';
-import ParticipantDashboardPage from '@/pages/participant/ParticipantDashboardPage';
-import PhaseDetailParticipantPage from '@/pages/participant/PhaseDetailParticipantPage';
-import EventHomePage from '@/pages/participant/EventHomePage';
-import EvaluatorDashboardPage from '@/pages/evaluator/EvaluatorDashboardPage';
-import TaskSubmissionPage from '@/pages/participant/TaskSubmissionPage';
-import EvaluationPage from '@/pages/evaluator/EvaluationPage';
-import PhaseEvaluationPage from '@/pages/evaluator/PhaseEvaluationPage';
-import NotificationsPage from '@/pages/common/NotificationsPage';
-import ProfilePage from '@/pages/common/ProfilePage';
-import SuperAdminRootPage from '@/pages/superadmin/SuperAdminRootPage';
-import EventLandingPage from '@/pages/public/EventLandingPage';
-import PasswordResetPage from '@/pages/public/PasswordResetPage';
-import RegisterPage from '@/pages/public/RegisterPage';
-import PrivacyPolicyPage from '@/pages/public/PrivacyPolicyPage';
-import CookiesPolicyPage from '@/pages/public/CookiesPolicyPage';
-import TermsAndConditionsPage from '@/pages/public/TermsAndConditionsPage';
+// Lazy load de páginas públicas (cargadas frecuentemente)
+const TenantHomePage = lazy(() => import('@/pages/public/TenantHomePage'));
+const LandingPage = lazy(() => import('@/pages/public/LandingPage'));
+const LoginPage = lazy(() => import('@/pages/public/LoginPage'));
+const RegisterPage = lazy(() => import('@/pages/public/RegisterPage'));
+const PasswordResetPage = lazy(() => import('@/pages/public/PasswordResetPage'));
+const EventLandingPage = lazy(() => import('@/pages/public/EventLandingPage'));
+const PublicEventsHubPage = lazy(() => import('@/pages/public/PublicEventsHubPage'));
+
+// Lazy load de páginas legales (poco frecuentes)
+const PrivacyPolicyPage = lazy(() => import('@/pages/public/PrivacyPolicyPage'));
+const CookiesPolicyPage = lazy(() => import('@/pages/public/CookiesPolicyPage'));
+const TermsAndConditionsPage = lazy(() => import('@/pages/public/TermsAndConditionsPage'));
+
+// Lazy load de páginas comunes
+const ProfilePage = lazy(() => import('@/pages/common/ProfilePage'));
+const NotificationsPage = lazy(() => import('@/pages/common/NotificationsPage'));
+const DeliverablesTrackingPage = lazy(() => import('@/pages/common/DeliverablesTrackingPage'));
+
+// Lazy load de páginas de administrador
+const AdminDashboardPage = lazy(() => import('@/pages/admin/AdminDashboardPage'));
+const EventsListPage = lazy(() => import('@/pages/admin/events/EventsListPage'));
+const EventDetailAdminPage = lazy(() => import('@/pages/admin/events/EventDetailAdminPage'));
+const EventDeliverablesTrackingPage = lazy(() => import('@/pages/admin/events/EventDeliverablesTrackingPage'));
+
+// Lazy load de páginas de participante
+const ParticipantDashboardPage = lazy(() => import('@/pages/participant/ParticipantDashboardPage'));
+const EventHomePage = lazy(() => import('@/pages/participant/EventHomePage'));
+const PhaseDetailParticipantPage = lazy(() => import('@/pages/participant/PhaseDetailParticipantPage'));
+const MyTeamPage = lazy(() => import('@/pages/participant/MyTeamPage'));
+const ProjectsPage = lazy(() => import('@/pages/participant/ProjectsPage'));
+const TaskSubmissionPage = lazy(() => import('@/pages/participant/TaskSubmissionPage'));
+
+// Lazy load de páginas de evaluador
+const EvaluatorDashboardPage = lazy(() => import('@/pages/evaluator/EvaluatorDashboardPage'));
+const EvaluationPage = lazy(() => import('@/pages/evaluator/EvaluationPage'));
+const PhaseEvaluationPage = lazy(() => import('@/pages/evaluator/PhaseEvaluationPage'));
+
+// Lazy load de páginas de superadmin
+const SuperAdminRootPage = lazy(() => import('@/pages/superadmin/SuperAdminRootPage'));
 
 function TenantNotFoundRedirect() {
   const params = useParams<{ tenantSlug?: string }>();
@@ -119,7 +133,7 @@ function AppRoutes() {
       path: '/:tenantSlug/*',
       element: <TenantLayout />,
       children: [
-        { index: true, element: <LandingPage /> },
+        { index: true, element: <TenantHomePage /> },
         { path: 'login', element: <LoginPage /> },
         { path: 'register', element: <RegisterPage /> },
         { path: 'password-reset', element: <PasswordResetPage /> },

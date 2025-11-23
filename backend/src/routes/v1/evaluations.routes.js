@@ -112,6 +112,25 @@ evaluationsRouter.get(
   EvaluationsController.getPhaseEvaluations
 );
 
+evaluationsRouter.put(
+  '/phases/:phaseId/teams/:teamId/evaluations/:evaluationId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [
+    param('phaseId').isInt(),
+    param('teamId').isInt(),
+    param('evaluationId').isInt(),
+    body('submission_ids').optional().isArray({ min: 1 }),
+    body('submission_ids.*').optional().isInt(),
+    body('score').optional().isInt({ min: 0, max: 100 }),
+    body('comment').optional().isString().notEmpty(),
+    body('status').optional().isIn(['draft', 'final']),
+    body('rubric_snapshot').optional().isObject(),
+    body('metadata').optional().isObject()
+  ],
+  validateRequest,
+  EvaluationsController.updatePhaseEvaluation
+);
+
 // Rutas para evaluaciones de proyecto
 evaluationsRouter.post(
   '/projects/:projectId/evaluations',

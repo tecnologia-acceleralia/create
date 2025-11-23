@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/common';
 import { EmptyState } from '@/components/common';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 export type Column<T> = {
   key: string;
@@ -51,11 +52,11 @@ export function DataTable<T extends { id: number | string }>({
   const { t } = useTranslation();
 
   const paginationLabel = pagination?.paginationLabel ?? ((from, to, total) => 
-    t('common.pagination', { from, to, total, defaultValue: `${from}-${to} de ${total}` })
+    safeTranslate(t, 'common.pagination', { from, to, total, defaultValue: `${from}-${to} de ${total}` })
   );
 
-  const prevLabel = pagination?.prevLabel ?? t('common.prevPage', { defaultValue: 'Anterior' });
-  const nextLabel = pagination?.nextLabel ?? t('common.nextPage', { defaultValue: 'Siguiente' });
+  const prevLabel = pagination?.prevLabel ?? safeTranslate(t, 'common.prevPage', { defaultValue: 'Anterior' });
+  const nextLabel = pagination?.nextLabel ?? safeTranslate(t, 'common.nextPage', { defaultValue: 'Siguiente' });
 
   return (
     <Card className={className}>

@@ -10,6 +10,9 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
+    "build": "node --check src/index.js src/server.js src/config/env.js && echo '✓ Validación de sintaxis completada - Backend listo (no requiere compilación)'",
+    "build:check": "node --check src/index.js src/server.js src/config/env.js && echo '✓ Validación de sintaxis completada'",
+    "build:full": "node --check src/index.js src/server.js src/config/env.js && echo '✓ Validación de sintaxis completada' && echo '✓ Backend listo para producción (no requiere compilación)'",
     "migrate": "node src/scripts/db.js migrate:up",
     "migrate:up": "node src/scripts/db.js migrate:up",
     "migrate:down": "node src/scripts/db.js migrate:down",
@@ -45,6 +48,7 @@
     "mysql2": "^3.15.3",
     "nodemon": "^3.1.10",
     "openai": "^4.70.0",
+    "sanitize-html": "^2.17.0",
     "sequelize": "^6.37.7",
     "umzug": "^3.8.2"
   },

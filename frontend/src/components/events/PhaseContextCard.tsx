@@ -1,6 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { ExpandableSection } from '@/components/common';
 import { formatDateRange } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import type { Phase } from '@/services/events';
 
 type PhaseContextCardProps = {
@@ -17,9 +19,14 @@ export function PhaseContextCard({
   defaultExpanded = true,
   className
 }: PhaseContextCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language?.split('-')[0] || locale || 'es') as 'es' | 'ca' | 'en';
+  
+  const phaseName = getMultilingualText(phase.name, currentLang);
+  const phaseDescription = phase.description ? getMultilingualText(phase.description, currentLang) : null;
+  const introHtml = phase.intro_html ? getMultilingualText(phase.intro_html, currentLang) : null;
 
-  if (!phase.intro_html) {
+  if (!introHtml) {
     return null;
   }
 
@@ -31,19 +38,23 @@ export function PhaseContextCard({
           <div className="flex-1">
             <p className="text-sm font-semibold text-muted-foreground mb-1">Fase</p>
             <p className="text-base font-semibold text-foreground">
-              {phase.description ? `${phase.name} - ${phase.description}` : phase.name}
+              {phaseDescription ? `${phaseName} - ${phaseDescription}` : phaseName}
             </p>
             {(phase.start_date || phase.end_date) && (
               <p className="text-xs text-muted-foreground mt-1">
                 {formatDateRange(locale, phase.start_date ?? null, phase.end_date ?? null) ??
-                  t('events.taskPeriodNotSet')}
+                  safeTranslate(t, 'events.taskPeriodNotSet')}
               </p>
             )}
           </div>
         }
-        contentClassName="prose prose-sm max-w-none mt-3"
+        contentClassName="mt-3"
       >
-        <div dangerouslySetInnerHTML={{ __html: phase.intro_html }} />
+        <div className="mx-auto w-full max-w-4xl">
+          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
+            <div dangerouslySetInnerHTML={{ __html: introHtml }} />
+          </div>
+        </div>
       </ExpandableSection>
     </div>
   );

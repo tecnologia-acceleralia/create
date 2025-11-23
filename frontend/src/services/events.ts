@@ -1,11 +1,45 @@
 import { apiClient } from './api';
 import type { RegistrationSchema } from './public';
 
+/**
+ * Limpia y valida un eventId, extrayendo solo la parte numérica válida
+ * Maneja casos como "1:1", "1.5", etc.
+ */
+function cleanEventId(eventId: number | string | undefined | null): number {
+  if (eventId === undefined || eventId === null) {
+    throw new Error('ID de evento requerido');
+  }
+  
+  // Si ya es un número válido, retornarlo
+  if (typeof eventId === 'number') {
+    if (Number.isInteger(eventId) && eventId > 0) {
+      return eventId;
+    }
+    throw new Error(`ID de evento inválido: ${eventId}`);
+  }
+  
+  // Si es string, limpiar y parsear
+  const cleaned = String(eventId).trim().split(':')[0].split('.')[0];
+  const parsed = Number.parseInt(cleaned, 10);
+  
+  if (Number.isNaN(parsed) || !Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`ID de evento inválido: ${eventId}`);
+  }
+  
+  return parsed;
+}
+
+export type MultilingualText = {
+  es: string;
+  ca?: string;
+  en?: string;
+};
+
 export type Event = {
   id: number;
-  name: string;
-  description?: string;
-  description_html?: string | null;
+  name: MultilingualText | string;
+  description?: MultilingualText | string | null;
+  description_html?: MultilingualText | string | null;
   start_date: string;
   end_date: string;
   min_team_size: number;
@@ -17,6 +51,13 @@ export type Event = {
   publish_start_at?: string | null;
   publish_end_at?: string | null;
   registration_schema?: RegistrationSchema | null;
+  ai_evaluation_prompt?: string | null;
+  ai_evaluation_model?: string | null;
+  ai_evaluation_temperature?: number | null;
+  ai_evaluation_max_tokens?: number | null;
+  ai_evaluation_top_p?: number | null;
+  ai_evaluation_frequency_penalty?: number | null;
+  ai_evaluation_presence_penalty?: number | null;
   is_registered?: boolean;
   registration_status?: string | null;
   has_team?: boolean;
@@ -27,9 +68,9 @@ export type Event = {
 
 export type Phase = {
   id: number;
-  name: string;
-  description?: string;
-  intro_html?: string | null;
+  name: MultilingualText | string;
+  description?: MultilingualText | string | null;
+  intro_html?: MultilingualText | string | null;
   order_index: number;
   is_elimination: boolean;
   start_date?: string;
@@ -40,9 +81,9 @@ export type Phase = {
 
 export type Task = {
   id: number;
-  title: string;
-  description?: string;
-  intro_html?: string | null;
+  title: MultilingualText | string;
+  description?: MultilingualText | string | null;
+  intro_html?: MultilingualText | string | null;
   order_index?: number | null;
   delivery_type: string;
   is_required: boolean;
@@ -89,50 +130,71 @@ export async function createEvent(payload: Partial<Event>) {
 }
 
 export async function updateEvent(eventId: number, payload: Partial<Event>) {
-  const response = await apiClient.put(`/events/${eventId}`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.put(`/events/${cleanedId}`, payload);
   return response.data.data as Event;
 }
 
 export async function archiveEvent(eventId: number) {
-  await apiClient.delete(`/events/${eventId}`);
+  const cleanedId = cleanEventId(eventId);
+  await apiClient.delete(`/events/${cleanedId}`);
+}
+
+export async function cloneEvent(eventId: number) {
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/clone`);
+  return response.data.data as Event;
 }
 
 export async function getEventDetail(eventId: number, rawHtml = false) {
-  const url = `/events/${eventId}${rawHtml ? '?raw=true' : ''}`;
+  const cleanedId = cleanEventId(eventId);
+  const url = `/events/${cleanedId}${rawHtml ? '?raw=true' : ''}`;
+  
+  if (import.meta.env.DEV) {
+    console.log(`[getEventDetail] Llamando a:`, url, { eventId, cleanedId });
+  }
+  
   const response = await apiClient.get(url);
   return response.data.data as Event & { phases: Phase[]; tasks: Task[]; rubrics: PhaseRubric[] };
 }
 
 export async function createPhase(eventId: number, payload: Partial<Phase>) {
-  const response = await apiClient.post(`/events/${eventId}/phases`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/phases`, payload);
   return response.data.data as Phase;
 }
 
 export async function updatePhase(eventId: number, phaseId: number, payload: Partial<Phase>) {
-  const response = await apiClient.put(`/events/${eventId}/phases/${phaseId}`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.put(`/events/${cleanedId}/phases/${phaseId}`, payload);
   return response.data.data as Phase;
 }
 
 export async function deletePhase(eventId: number, phaseId: number) {
-  await apiClient.delete(`/events/${eventId}/phases/${phaseId}`);
+  const cleanedId = cleanEventId(eventId);
+  await apiClient.delete(`/events/${cleanedId}/phases/${phaseId}`);
 }
 
 export async function createTask(eventId: number, payload: Partial<Task>) {
-  const response = await apiClient.post(`/events/${eventId}/tasks`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/tasks`, payload);
   return response.data.data as Task;
 }
 
 export async function updateTask(eventId: number, taskId: number, payload: Partial<Task>) {
-  const response = await apiClient.put(`/events/${eventId}/tasks/${taskId}`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.put(`/events/${cleanedId}/tasks/${taskId}`, payload);
   return response.data.data as Task;
 }
 
 export async function deleteTask(eventId: number, taskId: number) {
-  await apiClient.delete(`/events/${eventId}/tasks/${taskId}`);
+  const cleanedId = cleanEventId(eventId);
+  await apiClient.delete(`/events/${cleanedId}/tasks/${taskId}`);
 }
 
 export async function getEventTasks(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}/tasks`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/tasks`);
   return response.data.data as Task[];
 }
 
@@ -153,42 +215,50 @@ export type RubricPayload = {
 };
 
 export async function getRubrics(eventId: number, phaseId: number) {
-  const response = await apiClient.get(`/events/${eventId}/phases/${phaseId}/rubrics`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/phases/${phaseId}/rubrics`);
   return response.data.data as PhaseRubric[];
 }
 
 export async function createRubric(eventId: number, phaseId: number, payload: RubricPayload) {
-  const response = await apiClient.post(`/events/${eventId}/phases/${phaseId}/rubrics`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/phases/${phaseId}/rubrics`, payload);
   return response.data.data as PhaseRubric;
 }
 
 export async function updateRubric(eventId: number, phaseId: number, rubricId: number, payload: Partial<RubricPayload>) {
-  const response = await apiClient.put(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.put(`/events/${cleanedId}/phases/${phaseId}/rubrics/${rubricId}`, payload);
   return response.data.data as PhaseRubric;
 }
 
 export async function deleteRubric(eventId: number, phaseId: number, rubricId: number) {
-  await apiClient.delete(`/events/${eventId}/phases/${phaseId}/rubrics/${rubricId}`);
+  const cleanedId = cleanEventId(eventId);
+  await apiClient.delete(`/events/${cleanedId}/phases/${phaseId}/rubrics/${rubricId}`);
 }
 
 // Funciones para rúbricas de proyecto
 export async function getProjectRubrics(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}/rubrics/project`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/rubrics/project`);
   return response.data.data as PhaseRubric[];
 }
 
 export async function createProjectRubric(eventId: number, payload: RubricPayload) {
-  const response = await apiClient.post(`/events/${eventId}/rubrics/project`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/rubrics/project`, payload);
   return response.data.data as PhaseRubric;
 }
 
 export async function updateProjectRubric(eventId: number, rubricId: number, payload: Partial<RubricPayload>) {
-  const response = await apiClient.put(`/events/${eventId}/rubrics/project/${rubricId}`, payload);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.put(`/events/${cleanedId}/rubrics/project/${rubricId}`, payload);
   return response.data.data as PhaseRubric;
 }
 
 export async function deleteProjectRubric(eventId: number, rubricId: number) {
-  await apiClient.delete(`/events/${eventId}/rubrics/project/${rubricId}`);
+  const cleanedId = cleanEventId(eventId);
+  await apiClient.delete(`/events/${cleanedId}/rubrics/project/${rubricId}`);
 }
 
 export type TeamMemberTracking = {
@@ -285,7 +355,8 @@ export type EventTrackingOverview = {
 };
 
 export async function getEventTrackingOverview(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}/tracking/overview`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/tracking/overview`);
   return response.data.data as EventTrackingOverview;
 }
 
@@ -355,7 +426,8 @@ export type EventStatistics = {
 };
 
 export async function getEventStatistics(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}/statistics`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/statistics`);
   return response.data.data as EventStatistics;
 }
 
@@ -396,7 +468,62 @@ export type EventDeliverablesTracking = {
 };
 
 export async function getEventDeliverablesTracking(eventId: number) {
-  const response = await apiClient.get(`/events/${eventId}/deliverables-tracking`);
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/deliverables-tracking`);
   return response.data.data as EventDeliverablesTracking;
+}
+
+export type PhaseTaskExportData = {
+  version: string;
+  event_name: string;
+  exported_at: string;
+  phases: Array<{
+    name: string;
+    description?: string | null;
+    intro_html?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    view_start_date?: string | null;
+    view_end_date?: string | null;
+    order_index: number;
+    is_elimination: boolean;
+    tasks: Array<{
+      title: string;
+      description?: string | null;
+      intro_html?: string | null;
+      delivery_type: string;
+      is_required: boolean;
+      due_date?: string | null;
+      status: string;
+      order_index: number;
+      max_files: number;
+      max_file_size_mb?: number | null;
+      allowed_mime_types?: string[] | null;
+    }>;
+  }>;
+};
+
+export type PhaseTaskImportResult = {
+  success: boolean;
+  imported: {
+    phases: number;
+    tasks: number;
+  };
+  errors?: string[];
+};
+
+export async function exportPhasesAndTasks(eventId: number): Promise<PhaseTaskExportData> {
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.get(`/events/${cleanedId}/phases/export`);
+  return response.data.data as PhaseTaskExportData;
+}
+
+export async function importPhasesAndTasks(eventId: number, data: PhaseTaskExportData, replace = false): Promise<PhaseTaskImportResult> {
+  const cleanedId = cleanEventId(eventId);
+  const response = await apiClient.post(`/events/${cleanedId}/phases/import`, {
+    ...data,
+    replace
+  });
+  return response.data.data as PhaseTaskImportResult;
 }
 

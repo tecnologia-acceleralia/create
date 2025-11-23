@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 
 import { Spinner } from '@/components/common';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getAllPublicEvents } from '@/services/public';
 import { useTenant } from '@/context/TenantContext';
 import { EventCard } from '@/components/events/EventCard';
@@ -74,8 +75,8 @@ function PublicEventsHubPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-white to-background">
       <PublicHero
-        title={t('publicHub.title')}
-        subtitle={t('publicHub.subtitle')}
+        title={safeTranslate(t, 'publicHub.title')}
+        subtitle={safeTranslate(t, 'publicHub.subtitle')}
         className="mx-auto max-w-5xl text-center"
       />
 
@@ -87,11 +88,11 @@ function PublicEventsHubPage() {
         ) : null}
 
         {!loading && error ? (
-          <p className="text-center text-sm text-destructive">{t('publicHub.error')}</p>
+          <p className="text-center text-sm text-destructive">{safeTranslate(t, 'publicHub.error')}</p>
         ) : null}
 
         {!loading && !error && publishedEvents.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">{t('publicHub.noEvents')}</p>
+          <p className="text-center text-sm text-muted-foreground">{safeTranslate(t, 'publicHub.noEvents')}</p>
         ) : null}
 
         {!loading && !error && publishedEvents.length > 0 ? (
@@ -122,7 +123,7 @@ function PublicEventsHubPage() {
                       ) : null}
                       <div>
                         <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                          {t('publicHub.tenantLabel')}
+                          {safeTranslate(t, 'publicHub.tenantLabel')}
                         </p>
                         <h2 className="text-2xl font-semibold text-foreground">
                           {tenantSlugForLinks ? (

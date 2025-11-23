@@ -13,6 +13,9 @@ void i18n.use(initReactI18next).init({
   lng: 'es',
   fallbackLng: 'es',
   supportedLngs: ['es', 'ca', 'en'],
+  returnObjects: false,
+  returnNull: false,
+  returnEmptyString: false,
   interpolation: {
     escapeValue: false
   }

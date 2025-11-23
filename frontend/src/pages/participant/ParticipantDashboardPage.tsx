@@ -6,6 +6,7 @@ import { Spinner, EmptyState } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DashboardEventCard } from '@/components/ui/dashboard';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getEvents, type Event } from '@/services/events';
 
 function ParticipantDashboardPage() {
@@ -31,14 +32,14 @@ function ParticipantDashboardPage() {
 
   return (
     <DashboardLayout
-      title={t('dashboard.participant')}
-      subtitle={t('dashboard.participantActions')}
+      title={safeTranslate(t, 'dashboard.participant')}
+      subtitle={safeTranslate(t, 'dashboard.participantActions')}
     >
       <div className="grid gap-8 md:grid-cols-2 md:items-start">
-        <section aria-label={t('dashboard.registeredEvents')} className="flex flex-col">
+        <section aria-label={safeTranslate(t, 'dashboard.registeredEvents')} className="flex flex-col">
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
-              <CardTitle>{t('dashboard.registeredEvents')}</CardTitle>
+              <CardTitle>{safeTranslate(t, 'dashboard.registeredEvents')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
@@ -46,17 +47,17 @@ function ParticipantDashboardPage() {
                   <DashboardEventCard key={event.id} event={event} />
                 ))}
                 {registeredEvents.length === 0 ? (
-                  <EmptyState message={t('events.noRegisteredEvents')} />
+                  <EmptyState message={safeTranslate(t, 'events.noRegisteredEvents')} />
                 ) : null}
               </div>
             </CardContent>
           </Card>
         </section>
 
-        <section aria-label={t('dashboard.tenantEvents')} className="flex flex-col">
+        <section aria-label={safeTranslate(t, 'dashboard.tenantEvents')} className="flex flex-col">
           <Card className="border-border/70 shadow-sm">
             <CardHeader>
-              <CardTitle>{t('dashboard.tenantEvents')}</CardTitle>
+              <CardTitle>{safeTranslate(t, 'dashboard.tenantEvents')}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid gap-4">
@@ -64,7 +65,7 @@ function ParticipantDashboardPage() {
                   <DashboardEventCard key={event.id} event={event} />
                 ))}
                 {tenantEvents.length === 0 ? (
-                  <EmptyState message={t('events.empty')} />
+                  <EmptyState message={safeTranslate(t, 'events.empty')} />
                 ) : null}
               </div>
             </CardContent>

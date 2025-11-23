@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField, FormGrid } from '@/components/form';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import type { Phase } from '@/services/events';
 import type { RubricFormValues } from './schemas';
 
@@ -37,14 +39,15 @@ export function RubricForm({
   idPrefix = 'rubric',
   sections = ['basic', 'criteria']
 }: RubricFormProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const {
     handleSubmit,
     register,
     formState: { errors }
   } = form;
 
-  const translateError = (message?: string) => (message ? t(message, { defaultValue: message }) : undefined);
+  const translateError = (message?: string) => (message ? safeTranslate(t, message, { defaultValue: message }) : undefined);
   const showBasic = sections.includes('basic');
   const showCriteria = sections.includes('criteria');
 
@@ -53,19 +56,19 @@ export function RubricForm({
       {showBasic && (
         <FormGrid columns={2}>
         <FormField
-          label={t('events.rubricScope')}
+          label={safeTranslate(t, 'events.rubricScope')}
           htmlFor={`${idPrefix}-scope`}
           error={translateError(errors.rubric_scope?.message)}
           required
         >
           <Select id={`${idPrefix}-scope`} {...register('rubric_scope')}>
-            <option value="phase">{t('events.rubricScopePhase')}</option>
-            <option value="project">{t('events.rubricScopeProject')}</option>
+            <option value="phase">{safeTranslate(t, 'events.rubricScopePhase')}</option>
+            <option value="project">{safeTranslate(t, 'events.rubricScopeProject')}</option>
           </Select>
         </FormField>
         {form.watch('rubric_scope') === 'phase' && (
           <FormField
-            label={t('events.rubricPhase')}
+            label={safeTranslate(t, 'events.rubricPhase')}
             htmlFor={`${idPrefix}-phase`}
             error={translateError(errors.phase_id?.message)}
             required
@@ -73,25 +76,25 @@ export function RubricForm({
             <Select id={`${idPrefix}-phase`} {...register('phase_id', { valueAsNumber: true })} disabled={!phases.length}>
               {phases.map(phase => (
                 <option key={phase.id} value={phase.id}>
-                  {phase.name}
+                  {getMultilingualText(phase.name, currentLang)}
                 </option>
               ))}
             </Select>
           </FormField>
         )}
         <FormField
-          label={t('events.rubricName')}
+          label={safeTranslate(t, 'events.rubricName')}
           htmlFor={`${idPrefix}-name`}
           error={translateError(errors.name?.message)}
           required
         >
           <Input id={`${idPrefix}-name`} {...register('name')} />
         </FormField>
-        <FormField className="md:col-span-2" label={t('events.rubricDescription')} htmlFor={`${idPrefix}-description`}>
+        <FormField className="md:col-span-2" label={safeTranslate(t, 'events.rubricDescription')} htmlFor={`${idPrefix}-description`}>
           <Textarea id={`${idPrefix}-description`} rows={2} {...register('description')} />
         </FormField>
         <FormField
-          label={t('events.rubricScaleMin')}
+          label={safeTranslate(t, 'events.rubricScaleMin')}
           htmlFor={`${idPrefix}-scale-min`}
           error={translateError(errors.scale_min?.message)}
         >
@@ -103,7 +106,7 @@ export function RubricForm({
           />
         </FormField>
         <FormField
-          label={t('events.rubricScaleMax')}
+          label={safeTranslate(t, 'events.rubricScaleMax')}
           htmlFor={`${idPrefix}-scale-max`}
           error={translateError(errors.scale_max?.message)}
         >
@@ -114,7 +117,7 @@ export function RubricForm({
             {...register('scale_max', { valueAsNumber: true })}
           />
         </FormField>
-        <FormField className="md:col-span-2" label={t('events.rubricModelPreference')} htmlFor={`${idPrefix}-model`}>
+        <FormField className="md:col-span-2" label={safeTranslate(t, 'events.rubricModelPreference')} htmlFor={`${idPrefix}-model`}>
           <Input id={`${idPrefix}-model`} placeholder="gpt-4o-mini" {...register('model_preference')} />
         </FormField>
         </FormGrid>
@@ -123,9 +126,9 @@ export function RubricForm({
       {showCriteria && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-muted-foreground">{t('events.rubricCriteriaTitle')}</p>
+            <p className="text-sm font-medium text-muted-foreground">{safeTranslate(t, 'events.rubricCriteriaTitle')}</p>
             <Button type="button" size="sm" variant="outline" onClick={onAddCriterion}>
-              {t('events.rubricAddCriterion')}
+              {safeTranslate(t, 'events.rubricAddCriterion')}
             </Button>
           </div>
           <div className="space-y-4">
@@ -136,7 +139,7 @@ export function RubricForm({
                 <div key={field.fieldId} className="rounded-lg border border-border/70 p-4">
                   <FormGrid columns={2}>
                     <FormField
-                      label={t('events.rubricCriterionTitle')}
+                      label={safeTranslate(t, 'events.rubricCriterionTitle')}
                       htmlFor={`${idPrefix}-criterion-title-${index}`}
                       error={translateError(fieldErrors?.title?.message)}
                       required
@@ -144,7 +147,7 @@ export function RubricForm({
                       <Input id={`${idPrefix}-criterion-title-${index}`} {...register(`criteria.${index}.title` as const)} />
                     </FormField>
                     <FormField
-                      label={t('events.rubricCriterionWeight')}
+                      label={safeTranslate(t, 'events.rubricCriterionWeight')}
                       htmlFor={`${idPrefix}-criterion-weight-${index}`}
                       error={translateError(fieldErrors?.weight?.message)}
                     >
@@ -157,7 +160,7 @@ export function RubricForm({
                     </FormField>
                     <FormField
                       className="md:col-span-2"
-                      label={t('events.rubricCriterionDescription')}
+                      label={safeTranslate(t, 'events.rubricCriterionDescription')}
                       htmlFor={`${idPrefix}-criterion-description-${index}`}
                       error={translateError(fieldErrors?.description?.message)}
                     >
@@ -168,7 +171,7 @@ export function RubricForm({
                       />
                     </FormField>
                     <FormField
-                      label={t('events.rubricCriterionMaxScore')}
+                      label={safeTranslate(t, 'events.rubricCriterionMaxScore')}
                       htmlFor={`${idPrefix}-criterion-max-score-${index}`}
                       error={translateError(fieldErrors?.max_score?.message)}
                     >
@@ -180,7 +183,7 @@ export function RubricForm({
                       />
                     </FormField>
                     <FormField
-                      label={t('events.rubricCriterionOrder')}
+                      label={safeTranslate(t, 'events.rubricCriterionOrder')}
                       htmlFor={`${idPrefix}-criterion-order-${index}`}
                       error={translateError(fieldErrors?.order_index?.message)}
                     >
@@ -194,7 +197,7 @@ export function RubricForm({
                   {criteriaFields.length > 1 ? (
                     <div className="mt-3 flex justify-end">
                       <Button type="button" variant="ghost" size="sm" onClick={() => onRemoveCriterion(index)}>
-                        {t('events.rubricRemoveCriterion')}
+                        {safeTranslate(t, 'events.rubricRemoveCriterion')}
                       </Button>
                     </div>
                   ) : null}
@@ -209,11 +212,11 @@ export function RubricForm({
         <div className="flex flex-wrap gap-3">
           {isEditing ? (
             <Button type="button" variant="outline" onClick={onCancelEdit}>
-              {t('events.rubricCancelEdit')}
+              {safeTranslate(t, 'events.rubricCancelEdit')}
             </Button>
           ) : null}
           <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? t('common.loading') : isEditing ? t('events.rubricUpdateAction') : t('events.rubricCreateAction')}
+            {isSubmitting ? safeTranslate(t, 'common.loading') : isEditing ? safeTranslate(t, 'events.rubricUpdateAction') : safeTranslate(t, 'events.rubricCreateAction')}
           </Button>
         </div>
       )}

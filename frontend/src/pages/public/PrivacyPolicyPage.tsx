@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '@/components/common';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 export default function PrivacyPolicyPage() {
   const { t } = useTranslation();
   const translate = (key: string) => {
-    const translation = t(key);
+    const translation = safeTranslate(t, key);
     return translation === key ? 'Contenido no encontrado' : translation;
   };
 

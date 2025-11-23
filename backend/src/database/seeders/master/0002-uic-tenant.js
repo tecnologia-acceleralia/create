@@ -1,10 +1,22 @@
 import bcrypt from 'bcryptjs';
-import { normalizeFileName } from '../../../utils/s3-utils.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  normalizeFileName,
+  listEventAssetsFromS3,
+  getMimeTypeFromFileName,
+  buildPublicUrl
+} from '../../../utils/s3-utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ADMIN_PASSWORD = 'UdS*r2ZD5?;O';
 
 // Seeder maestro para registrar el tenant UIC junto con su evento SPP 2026.
 // Dependencias: ninguna.
+// IMPORTANTE: Este seeder es idempotente y maneja tanto columnas STRING como JSON (multiidioma).
 
 /**
  * Normaliza un nombre de archivo para usar en marcadores (sin acentos)
@@ -14,33 +26,67 @@ function normalizeAssetName(fileName) {
 }
 
 export async function up(queryInterface) {
-  await queryInterface.bulkInsert('tenants', [
-    {
-      slug: 'uic',
-      name: 'UIC Universitat Internacional de Catalunya',
-      subdomain: 'uic',
-      custom_domain: 'uicbarcelona.acceleralia.com',
-      logo_url: 'https://acc-create-test.fra1.digitaloceanspaces.com/tenants/uic/branding/logo-1763364706619-26ef4de4-3091-4e9b-a154-20a1d4f42706.svg',
-      primary_color: '#00416b',
-      secondary_color: '#007bff',
-      accent_color: '#007bff',
-      hero_content: JSON.stringify({
-        es: {
-          title: 'Transforma ideas en impacto real',
-          subtitle: 'Únete a los programas de innovación de la UIC y lleva tu proyecto al siguiente nivel.'
-        },
-        en: {
-          title: 'Turn ideas into real-world impact',
-          subtitle: 'Join UIC innovation programs and take your project to the next level.'
-        }
-      }),
-      plan_type: 'enterprise',
-      max_evaluators: null,
-      max_participants: null,
-      max_appointments_per_month: null,
-      status: 'active',
-      start_date: '2025-09-01',
-      end_date: '2026-06-30',
+  // Verificar tipos de columnas para manejar formato JSON o STRING
+  const eventsTableDesc = await queryInterface.describeTable('events').catch(() => ({}));
+  const phasesTableDesc = await queryInterface.describeTable('phases').catch(() => ({}));
+  const tasksTableDesc = await queryInterface.describeTable('tasks').catch(() => ({}));
+
+  const isEventsNameJSON = eventsTableDesc.name && (eventsTableDesc.name.type === 'json' || eventsTableDesc.name.type?.includes('json') || eventsTableDesc.name.type === 'JSON');
+  const isEventsDescriptionJSON = eventsTableDesc.description && (eventsTableDesc.description.type === 'text' || eventsTableDesc.description.type?.includes('text'));
+  const isEventsDescriptionHtmlJSON = eventsTableDesc.description_html && (eventsTableDesc.description_html.type === 'text' || eventsTableDesc.description_html.type?.includes('text'));
+  
+  const isPhasesNameJSON = phasesTableDesc.name && (phasesTableDesc.name.type === 'json' || phasesTableDesc.name.type?.includes('json') || phasesTableDesc.name.type === 'JSON');
+  const isPhasesDescriptionJSON = phasesTableDesc.description && (phasesTableDesc.description.type === 'text' || phasesTableDesc.description.type?.includes('text'));
+  const isPhasesIntroHtmlJSON = phasesTableDesc.intro_html && (phasesTableDesc.intro_html.type === 'text' || phasesTableDesc.intro_html.type?.includes('text'));
+  
+  const isTasksTitleJSON = tasksTableDesc.title && (tasksTableDesc.title.type === 'json' || tasksTableDesc.title.type?.includes('json') || tasksTableDesc.title.type === 'JSON');
+  const isTasksDescriptionJSON = tasksTableDesc.description && (tasksTableDesc.description.type === 'text' || tasksTableDesc.description.type?.includes('text'));
+  const isTasksIntroHtmlJSON = tasksTableDesc.intro_html && (tasksTableDesc.intro_html.type === 'text' || tasksTableDesc.intro_html.type?.includes('text'));
+
+  // Helper para convertir valores a JSON si es necesario
+  const toJSONField = (value, isJSON) => {
+    if (!isJSON) return value;
+    if (value === null || value === undefined) return null;
+    return JSON.stringify({ es: value, ca: value, en: value });
+  };
+
+  // Verificar si el tenant ya existe para hacer el seeder idempotente
+  const [[existingTenant]] = await queryInterface.sequelize.query(
+    "SELECT id FROM tenants WHERE slug = 'uic' LIMIT 1"
+  );
+
+  if (!existingTenant) {
+    await queryInterface.bulkInsert('tenants', [
+      {
+        slug: 'uic',
+        name: 'UIC Universitat Internacional de Catalunya',
+        subdomain: 'uic',
+        custom_domain: 'uicbarcelona.acceleralia.com',
+        logo_url: 'https://acc-create-test.fra1.digitaloceanspaces.com/tenants/uic/branding/logo-1763364706619-26ef4de4-3091-4e9b-a154-20a1d4f42706.svg',
+        primary_color: '#00416b',
+        secondary_color: '#007bff',
+        accent_color: '#007bff',
+        hero_content: JSON.stringify({
+          es: {
+            title: 'Bienvenid@ al Startup Pioneer Program (SPP)',
+            subtitle: 'Únete a los programas de innovación de la UIC y lleva tu proyecto al siguiente nivel.'
+          },
+          ca: {
+            title: 'Benvingut/da al Startup Pioneer Program (SPP)',
+            subtitle: 'Uneix-te als programes d\'innovació de la UIC i porta el teu projecte al següent nivell.'
+          },
+          en: {
+            title: 'Welcome to the Startup Pioneer Program (SPP)',
+            subtitle: 'Join UIC innovation programs and take your project to the next level.'
+          }
+        }),
+        plan_type: 'enterprise',
+        max_evaluators: null,
+        max_participants: null,
+        max_appointments_per_month: null,
+        status: 'active',
+        start_date: '2025-09-01',
+        end_date: '2026-06-30',
       registration_schema: null,
       tenant_css: `:root {
   --radius: 0.85rem;
@@ -87,10 +133,11 @@ export async function up(queryInterface) {
   filter: none !important;
 }
 `,
-      created_at: new Date(),
-      updated_at: new Date()
-    }
-  ]);
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    ]);
+  }
 
   const [[tenant]] = await queryInterface.sequelize.query(
     "SELECT id FROM tenants WHERE slug = 'uic' LIMIT 1"
@@ -230,8 +277,17 @@ export async function up(queryInterface) {
     adminRole.id
   );
 
+  // Crear fechas válidas para el evento
   const eventStart = new Date('2025-11-01T00:00:00.000Z');
   const eventEnd = new Date('2026-04-16T23:59:59.000Z');
+  
+  // Validar que las fechas sean válidas
+  if (Number.isNaN(eventStart.getTime())) {
+    throw new Error('Fecha de inicio del evento inválida');
+  }
+  if (Number.isNaN(eventEnd.getTime())) {
+    throw new Error('Fecha de fin del evento inválida');
+  }
 
   const phaseIntroStyles = `
 <style>
@@ -469,13 +525,32 @@ export async function up(queryInterface) {
   </div>
 </section>`;
 
+  // Preparar valores según el tipo de columna
+  const eventName = isEventsNameJSON
+    ? JSON.stringify({ es: 'SPP 2026', ca: 'SPP 2026', en: 'SPP 2026' })
+    : 'SPP 2026';
+  const eventDescription = isEventsDescriptionJSON
+    ? JSON.stringify({
+        es: 'Bienvenid@ al Startup Pioneer Program (SPP)',
+        ca: 'Benvingut/da al Startup Pioneer Program (SPP)',
+        en: 'Welcome to the Startup Pioneer Program (SPP)'
+      })
+    : 'Bienvenid@ al Startup Pioneer Program (SPP)';
+  const eventDescriptionHtmlValue = toJSONField(eventDescriptionHtml, isEventsDescriptionHtmlJSON);
+
+  // Crear y validar fecha de publicación
+  const publishStartAt = new Date('2025-07-01T00:00:00.000Z');
+  if (Number.isNaN(publishStartAt.getTime())) {
+    throw new Error('Fecha de inicio de publicación inválida');
+  }
+
   await queryInterface.bulkInsert('events', [
     {
       tenant_id: tenant.id,
       created_by: adminUserId,
-      name: 'SPP 2026',
-      description: 'Bienvenid@ al Startup Pioneer Program (SPP)',
-      description_html: eventDescriptionHtml,
+      name: eventName,
+      description: eventDescription,
+      description_html: eventDescriptionHtmlValue,
       start_date: eventStart,
       end_date: eventEnd,
       min_team_size: 2,
@@ -484,7 +559,7 @@ export async function up(queryInterface) {
       video_url: 'https://youtu.be/lVJ8-tPSNzA',
       is_public: true,
       allow_open_registration: true,
-      publish_start_at: new Date('2025-07-01T00:00:00.000Z'),
+      publish_start_at: publishStartAt,
       publish_end_at: eventEnd,
       registration_schema: null,
       created_at: new Date(),
@@ -492,9 +567,12 @@ export async function up(queryInterface) {
     }
   ]);
 
-  const [[event]] = await queryInterface.sequelize.query(
-    `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`
-  );
+  // Buscar el evento según el tipo de columna
+  const eventQuery = isEventsNameJSON
+    ? `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'SPP 2026' LIMIT 1`
+    : `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`;
+  
+  const [[event]] = await queryInterface.sequelize.query(eventQuery);
 
   if (!event) {
     throw new Error('No se pudo recuperar el evento SPP 2026 del tenant UIC.');
@@ -502,1337 +580,974 @@ export async function up(queryInterface) {
 
   const phaseNow = new Date();
 
-  const eventStartDate = event.start_date ? new Date(event.start_date) : eventStart;
-  const eventEndDate = event.end_date ? new Date(event.end_date) : eventEnd;
-
-  const wrapPhaseIntro = (content) => `${phaseIntroStyles}${content}`;
-
-  const phaseIntroHtml = {
-    'Fase 0': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 0: Crea o únete a un proyecto</h2>
-    <p class="phase-lead">El punto de partida de tu viaje emprendedor. Define tu idea, forma tu equipo y prepárate para transformar tu visión en realidad.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>Esta fase inicial es fundamental para establecer las bases de tu proyecto. Aquí definirás tu idea de negocio, identificarás a tus compañeros de equipo y prepararás la documentación necesaria para comenzar el programa SPP.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Inscripción y descripción de la idea:</strong> Presenta tu concepto de negocio, define tu mercado objetivo y describe tu modelo de negocio inicial. Esta actividad es obligatoria y constituye el primer paso formal del programa.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Qué necesitas hacer?</strong>
-    <ul>
-      <li>Si tienes una idea: descríbela brevemente en el formulario online. Puede ser un negocio o una iniciativa social.</li>
-      <li>Si no tienes idea o grupo: no hay problema, puedes unirte a un proyecto ya creado por otros participantes.</li>
-      <li>Forma tu equipo: mínimo 3 miembros, máximo 5. Asegúrate de tener perfiles complementarios.</li>
-    </ul>
-  </div>
-
-  <p>Una vez completada esta fase, estarás listo para comenzar el análisis estratégico de tu proyecto en las siguientes fases del programa.</p>
-</section>`),
-    'Fase 1': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 1: Análisis de mercado y fuerzas de Porter</h2>
-    <p class="phase-lead">Sumérgete en el ecosistema competitivo de tu proyecto. Comprende el mercado, identifica oportunidades y anticipa desafíos con herramientas estratégicas probadas.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>En esta fase desarrollarás una comprensión profunda del entorno en el que operará tu proyecto. A través de análisis estructurados, identificarás las fuerzas que moldean tu industria, los factores externos que pueden impactar tu negocio y las fortalezas y debilidades de tu propuesta.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Análisis de mercado y fuerzas de Porter:</strong> Explora el ecosistema competitivo para anticipar riesgos y encontrar oportunidades. Analiza las cinco fuerzas que determinan la rentabilidad de tu sector.</li>
-    <li><strong>PESTEL:</strong> Evalúa el contexto externo (político, económico, sociocultural, tecnológico, ecológico y legal) para anticipar factores que pueden acelerar o frenar tu crecimiento.</li>
-    <li><strong>Análisis DAFO:</strong> Identifica tus fortalezas, debilidades, oportunidades y amenazas para desarrollar estrategias efectivas.</li>
-  </ul>
-
-  <h3>Actividades opcionales</h3>
-  <ul>
-    <li><strong>El mercado y el cliente:</strong> Profundiza en el conocimiento de tu mercado objetivo y las necesidades de tus clientes potenciales.</li>
-    <li><strong>Análisis de competidores:</strong> Estudia a fondo a tus competidores directos e indirectos para identificar ventajas competitivas.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Por qué son importantes estas actividades?</strong>
-    <p>Un análisis riguroso del mercado y del entorno competitivo te permitirá tomar decisiones estratégicas fundamentadas, identificar oportunidades de diferenciación y anticipar posibles amenazas antes de invertir recursos significativos en tu proyecto.</p>
-  </div>
-
-  <p>Al finalizar esta fase, tendrás una visión clara y documentada del entorno en el que competirá tu proyecto, lo que te preparará para las siguientes fases de cuantificación y propuesta de valor.</p>
-</section>`),
-    'Fase 2': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 2: Cuantificación del mercado y ventana de oportunidad</h2>
-    <p class="phase-lead">Transforma tu comprensión cualitativa del mercado en datos concretos. Cuantifica el tamaño de tu oportunidad y valida el momento adecuado para lanzar tu proyecto.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>En esta fase pasarás del análisis cualitativo a la cuantificación. Aprenderás a medir el tamaño real de tu mercado, a estimar el potencial de ingresos y a identificar si existe una ventana de oportunidad temporal que favorezca el lanzamiento de tu proyecto.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Cuantificación del mercado:</strong> Mide el tamaño total del mercado (TAM), el mercado accesible (SAM) y tu mercado objetivo real (SOM). Estima el potencial de ingresos y valida la viabilidad económica de tu proyecto.</li>
-  </ul>
-
-  <h3>Actividades opcionales</h3>
-  <ul>
-    <li><strong>Ventana de oportunidad:</strong> Analiza si existe un momento óptimo para lanzar tu proyecto. Identifica factores temporales que pueden favorecer o dificultar tu entrada al mercado.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Qué aprenderás?</strong>
-    <ul>
-      <li>A calcular métricas clave de mercado (TAM, SAM, SOM).</li>
-      <li>A estimar el potencial de ingresos de tu proyecto.</li>
-      <li>A identificar si existe una ventana de oportunidad temporal.</li>
-      <li>A validar la viabilidad económica de tu idea de negocio.</li>
-    </ul>
-  </div>
-
-  <p>Los datos que recopiles en esta fase serán fundamentales para construir tu modelo de negocio y para presentar tu proyecto a inversores o stakeholders en fases posteriores.</p>
-</section>`),
-    'Fase 3': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 3: Propuesta de valor y curva de valor</h2>
-    <p class="phase-lead">Define qué hace único a tu proyecto. Articula claramente el valor que ofreces a tus clientes y cómo te diferencias de la competencia.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>Esta fase se centra en la diferenciación y el posicionamiento. Aprenderás a comunicar claramente el valor único que ofrece tu proyecto, a identificar los atributos que más importan a tus clientes y a diseñar una propuesta que resuene con tu mercado objetivo.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Propuesta de valor:</strong> Define claramente qué problema resuelves, para quién y cómo. Articula los beneficios únicos que ofrece tu proyecto y por qué los clientes deberían elegirte sobre la competencia.</li>
-  </ul>
-
-  <h3>Actividades opcionales</h3>
-  <ul>
-    <li><strong>Curva de valor (Océanos azules):</strong> Identifica factores que la industria da por sentados y que podrías eliminar o reducir, así como factores que podrías crear o aumentar para abrir nuevos espacios de mercado no disputados.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Por qué es crucial esta fase?</strong>
-    <p>Una propuesta de valor clara y diferenciada es el corazón de cualquier negocio exitoso. Sin ella, será difícil atraer clientes, inversores o partners. Esta fase te ayudará a comunicar de manera efectiva qué hace especial a tu proyecto.</p>
-  </div>
-
-  <p>Al completar esta fase, tendrás una propuesta de valor sólida que servirá como base para construir tu modelo de negocio y para desarrollar tu estrategia de marketing y ventas.</p>
-</section>`),
-    'Fase 4': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 4: Modelo de negocio y ventaja competitiva</h2>
-    <p class="phase-lead">Construye el modelo económico de tu proyecto. Define cómo generarás ingresos, cómo te relacionarás con tus clientes y qué te dará una ventaja sostenible en el mercado.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>En esta fase desarrollarás el modelo de negocio completo de tu proyecto. Aprenderás a diseñar un modelo económico viable, a identificar tus ventajas competitivas sostenibles y a estructurar las operaciones necesarias para entregar valor a tus clientes.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Modelo de negocio:</strong> Utiliza el Business Model Canvas para diseñar tu modelo económico completo. Define segmentos de clientes, propuesta de valor, canales, relaciones, flujos de ingresos, recursos clave, actividades clave, alianzas y estructura de costes.</li>
-  </ul>
-
-  <h3>Actividades opcionales</h3>
-  <ul>
-    <li><strong>Analizando la ventaja competitiva:</strong> Identifica qué te hace único y cómo sostenerlo en el tiempo. Analiza ventajas internas (costes, procesos, tecnología) y externas (percepción del cliente, servicio, reputación).</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Qué lograrás en esta fase?</strong>
-    <ul>
-      <li>Un modelo de negocio completo y estructurado.</li>
-      <li>Una comprensión clara de cómo generarás ingresos.</li>
-      <li>Identificación de tus ventajas competitivas sostenibles.</li>
-      <li>Una visión integrada de todas las piezas de tu negocio.</li>
-    </ul>
-  </div>
-
-  <p>El modelo de negocio que desarrolles en esta fase será la base para tu presentación final y para la planificación operativa de tu proyecto.</p>
-</section>`),
-    'Fase 5': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 5: Presenta tu proyecto</h2>
-    <p class="phase-lead">Llega el momento de contar tu historia. Desarrolla un pitch convincente que comunique la esencia de tu proyecto y conquiste a tu audiencia.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>Esta fase se centra en la comunicación efectiva de tu proyecto. Aprenderás a estructurar y presentar tu idea de manera convincente, a crear una narrativa memorable y a prepararte para responder preguntas desafiantes sobre tu negocio.</p>
-  </div>
-
-  <h3>Actividades principales</h3>
-  <ul>
-    <li><strong>Presenta tu proyecto:</strong> Desarrolla un pitch de 3-5 minutos que conecte el problema, el cliente y la solución en una narrativa memorable. Prepara tanto la presentación visual como el vídeo de tu pitch.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>Consejos para un pitch exitoso</strong>
-    <ul>
-      <li>Máximo seis palabras por diapositiva.</li>
-      <li>Diez diapositivas, veinte minutos, tipografía mínima de 30 pt.</li>
-      <li>Usa imágenes potentes y una historia con principio, nudo y cierre.</li>
-      <li>Ensaya hasta ganar fluidez y naturalidad.</li>
-      <li>Prepara respuestas para preguntas frecuentes sobre finanzas, DAFO y roadmap.</li>
-    </ul>
-  </div>
-
-  <p>Tu pitch será la primera impresión que muchos tendrán de tu proyecto. Asegúrate de que comunique claramente tu visión, tu propuesta de valor y tu potencial de impacto.</p>
-</section>`),
-    'Fase 6': wrapPhaseIntro(`<section class="uic-phase">
-  <header>
-    <h2>Fase 6: Validación, MVP y roadmap</h2>
-    <p class="phase-lead">Da el salto de la teoría a la práctica. Valida tu modelo de negocio con clientes reales, construye un MVP y planifica el futuro de tu proyecto.</p>
-  </header>
-
-  <div class="phase-note">
-    <strong>Objetivo de la fase</strong>
-    <p>Esta fase final se enfoca en la ejecución y la planificación. Aprenderás a validar tus hipótesis de negocio con clientes reales, a construir un producto mínimo viable (MVP) y a crear un roadmap que guíe el desarrollo futuro de tu proyecto.</p>
-  </div>
-
-  <h3>Actividades opcionales</h3>
-  <ul>
-    <li><strong>Validación de modelo de negocio:</strong> Confirma con evidencia que tus hipótesis son sólidas antes de escalar. Realiza encuestas y entrevistas con clientes potenciales para validar problema, solución y modelo de ingresos.</li>
-    <li><strong>Construye tu MVP:</strong> Diseña el experimento mínimo para validar tu solución con clientes reales. Evita invertir en funcionalidades innecesarias y prioriza el aprendizaje rápido.</li>
-    <li><strong>Diagrama de Gantt:</strong> Planifica tareas, dependencias y responsables de tu proyecto con una visual clara. Controla plazos, identifica cuellos de botella y comunica avances al equipo.</li>
-  </ul>
-
-  <div class="phase-tasks">
-    <strong>¿Por qué son importantes estas actividades?</strong>
-    <p>La validación temprana con clientes reales puede ahorrarte meses de desarrollo en la dirección equivocada. Un MVP te permite aprender rápido y ajustar tu estrategia. Un roadmap claro te ayuda a mantener el foco y a comunicar tu visión a stakeholders.</p>
-  </div>
-
-  <p>Al completar esta fase, tendrás un proyecto validado, un plan de ejecución claro y las herramientas necesarias para llevar tu idea del concepto a la realidad.</p>
-</section>`)
+  // Helper para convertir fechas a string 'YYYY-MM-DD' para campos DATEONLY
+  const toDateOnlyString = (dateValue) => {
+    if (!dateValue) return null;
+    
+    // Si ya es un string en formato 'YYYY-MM-DD', devolverlo
+    if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+      return dateValue;
+    }
+    
+    // Si es un string con formato MySQL datetime, extraer solo la fecha
+    if (typeof dateValue === 'string') {
+      const mysqlDateTimeMatch = dateValue.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (mysqlDateTimeMatch) {
+        return mysqlDateTimeMatch[1];
+      }
+      
+      // Intentar parsear como fecha
+      const date = new Date(dateValue);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10);
+      }
+    }
+    
+    // Si es un objeto Date, convertirlo a string
+    if (dateValue instanceof Date) {
+      if (Number.isNaN(dateValue.getTime())) {
+        return null;
+      }
+      return dateValue.toISOString().slice(0, 10);
+    }
+    
+    return null;
+  };
+  
+  // Helper para validar y crear fechas válidas como objetos Date para campos DATETIME
+  const createValidDate = (dateValue, fallback = null) => {
+    if (!dateValue) {
+      if (fallback instanceof Date && !Number.isNaN(fallback.getTime())) {
+        return fallback;
+      }
+      return fallback;
+    }
+    
+    // Normalizar el formato de fecha: convertir "YYYY-MM-DD HH:MM:SS" a formato ISO
+    let normalizedValue = dateValue;
+    if (typeof dateValue === 'string') {
+      const mysqlDateTimeMatch = dateValue.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})$/);
+      if (mysqlDateTimeMatch) {
+        normalizedValue = `${mysqlDateTimeMatch[1]}T${mysqlDateTimeMatch[2]}Z`;
+      }
+    }
+    
+    const date = new Date(normalizedValue);
+    
+    if (Number.isNaN(date.getTime())) {
+      if (fallback instanceof Date && !Number.isNaN(fallback.getTime())) {
+        return fallback;
+      }
+      return fallback;
+    }
+    
+    return date;
   };
 
-  const phaseDefinitions = [
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 0',
-      description: 'Crea o únete a un proyecto',
-      intro_html: phaseIntroHtml['Fase 0'],
-      order_index: 0,
-      is_elimination: false,
-      start_date: new Date('2025-11-24T00:00:00.000Z'),
-      end_date: new Date('2025-12-12T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 1',
-      description: 'Análisis de mercado y fuerzas de Porter',
-      intro_html: phaseIntroHtml['Fase 1'],
-      order_index: 2,
-      is_elimination: false,
-      start_date: new Date('2026-02-02T00:00:00.000Z'),
-      end_date: new Date('2026-02-06T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 2',
-      description: 'Cuantificación del mercado y ventana de oportunidad',
-      intro_html: phaseIntroHtml['Fase 2'],
-      order_index: 3,
-      is_elimination: false,
-      start_date: new Date('2026-02-09T00:00:00.000Z'),
-      end_date: new Date('2026-02-20T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 3',
-      description: 'Propuesta de valor y curva de valor',
-      intro_html: phaseIntroHtml['Fase 3'],
-      order_index: 4,
-      is_elimination: false,
-      start_date: new Date('2026-03-02T00:00:00.000Z'),
-      end_date: new Date('2026-03-20T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 4',
-      description: 'Modelo de negocio y ventaja competitiva',
-      intro_html: phaseIntroHtml['Fase 4'],
-      order_index: 5,
-      is_elimination: false,
-      start_date: new Date('2026-03-02T00:00:00.000Z'),
-      end_date: new Date('2026-03-20T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 5',
-      description: 'Presenta tu proyecto',
-      intro_html: phaseIntroHtml['Fase 5'],
-      order_index: 6,
-      is_elimination: false,
-      start_date: new Date('2026-03-23T00:00:00.000Z'),
-      end_date: new Date('2026-03-23T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
-    },
-    {
-      tenant_id: tenant.id,
-      event_id: event.id,
-      name: 'Fase 6',
-      description: 'Validación, MVP y roadmap',
-      intro_html: phaseIntroHtml['Fase 6'],
-      order_index: 7,
-      is_elimination: false,
-      start_date: new Date('2026-03-02T00:00:00.000Z'),
-      end_date: new Date('2026-03-20T23:59:59.000Z'),
-      view_start_date: eventStartDate,
-      view_end_date: eventEndDate,
-      created_at: phaseNow,
-      updated_at: phaseNow
+  const eventStartDate = event.start_date ? createValidDate(event.start_date, eventStart) : eventStart;
+  const eventEndDate = event.end_date ? createValidDate(event.end_date, eventEnd) : eventEnd;
+  
+  // Asegurar que las fechas del evento sean válidas
+  if (!eventStartDate || !(eventStartDate instanceof Date) || Number.isNaN(eventStartDate.getTime())) {
+    throw new Error(`Fecha de inicio del evento inválida: ${event.start_date}`);
+  }
+  if (!eventEndDate || !(eventEndDate instanceof Date) || Number.isNaN(eventEndDate.getTime())) {
+    throw new Error(`Fecha de fin del evento inválida: ${event.end_date}`);
+  }
+
+  // Cargar datos del JSON exportado
+  // El archivo está en la misma carpeta que este seeder
+  const jsonPath = path.join(__dirname, 'uic-phases-tasks-export-2025-11-23T12-30-13.json');
+  let exportedData;
+  try {
+    const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+    exportedData = JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error(`Error al cargar el archivo JSON de fases y tareas: ${error.message}. Asegúrate de que el archivo existe en: ${jsonPath}`);
+  }
+
+  // Mapear fases del JSON exportado
+  const phaseDefinitions = exportedData.phases.map((phase) => {
+    // Convertir fechas DATETIME a objetos Date (todas las fechas de phases son DATETIME)
+    const startDate = createValidDate(phase.start_date, null);
+    const endDate = createValidDate(phase.end_date, null);
+    const viewStartDate = createValidDate(phase.view_start_date, eventStartDate);
+    const viewEndDate = createValidDate(phase.view_end_date, eventEndDate);
+    
+    // Validar que las fechas requeridas sean válidas
+    if (!startDate || !(startDate instanceof Date) || Number.isNaN(startDate.getTime())) {
+      throw new Error(`Fecha de inicio inválida para fase "${phase.name || phase.id}": ${phase.start_date}`);
     }
-  ];
+    if (!endDate || !(endDate instanceof Date) || Number.isNaN(endDate.getTime())) {
+      throw new Error(`Fecha de fin inválida para fase "${phase.name || phase.id}": ${phase.end_date}`);
+    }
+
+    return {
+      tenant_id: tenant.id,
+      event_id: event.id,
+      name: toJSONField(phase.name, isPhasesNameJSON),
+      description: toJSONField(phase.description, isPhasesDescriptionJSON),
+      intro_html: toJSONField(phase.intro_html || null, isPhasesIntroHtmlJSON),
+      order_index: phase.order_index,
+      is_elimination: phase.is_elimination || false,
+      start_date: startDate,
+      end_date: endDate,
+      view_start_date: viewStartDate,
+      view_end_date: viewEndDate,
+      created_at: phaseNow,
+      updated_at: phaseNow
+    };
+  });
+
+  // phaseIntroHtml ya no se usa, se carga desde el JSON
 
   await queryInterface.bulkInsert('phases', phaseDefinitions);
 
-  const [phaseRows] = await queryInterface.sequelize.query(
-    `SELECT id, name, end_date FROM phases WHERE tenant_id = ${tenant.id} AND event_id = ${event.id}`
-  );
+  // Buscar fases según el tipo de columna
+  const phaseQuery = isPhasesNameJSON
+    ? `SELECT id, JSON_EXTRACT(name, '$.es') as name, end_date, order_index FROM phases WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} ORDER BY order_index`
+    : `SELECT id, name, end_date, order_index FROM phases WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} ORDER BY order_index`;
+  
+  const [phaseRows] = await queryInterface.sequelize.query(phaseQuery);
 
-  const phasesByName = new Map(
-    phaseRows.map((phase) => [phase.name, { id: phase.id, endDate: phase.end_date ? new Date(phase.end_date) : null }])
+  // Mapa de fases por order_index para relacionar con las tareas del JSON
+  const phasesByOrderIndex = new Map(
+    phaseRows.map((phase) => {
+      return [phase.order_index, { id: phase.id, endDate: phase.end_date ? new Date(phase.end_date) : null }];
+    })
   );
 
   const taskNow = new Date();
 
-  const taskIntroStyles = `
-<style>
-  .uic-task {
-    background: linear-gradient(135deg, rgba(0, 65, 107, 0.07), rgba(0, 123, 255, 0.04));
-    border: 1px solid rgba(0, 65, 107, 0.12);
-    border-radius: 18px;
-    padding: 1.75rem;
-    margin: 0;
-    box-shadow: 0 18px 36px -20px rgba(0, 65, 107, 0.45);
-  }
-
-  .uic-task header {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .uic-task h2 {
-    margin: 0;
-    font-size: 1.2rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #00416b;
-  }
-
-  .uic-task .task-lead {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: #002c45;
-    margin: 0.35rem 0 0.75rem;
-  }
-
-  .uic-task h3 {
-    margin-top: 1.35rem;
-    margin-bottom: 0.65rem;
-    font-size: 1rem;
-    font-weight: 700;
-    color: #005a99;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .uic-task h3::before {
-    content: '✷';
-    font-size: 0.85rem;
-    color: #00a3ff;
-  }
-
-  .uic-task p {
-    margin: 0.5rem 0;
-    line-height: 1.65;
-  }
-
-  .uic-task ul,
-  .uic-task ol {
-    list-style: none;
-    padding: 0;
-    margin: 0.85rem 0 0.3rem;
-    display: grid;
-    gap: 0.5rem;
-  }
-
-  .uic-task li {
-    position: relative;
-    padding-left: 1.75rem;
-    border-left: 2px solid rgba(0, 65, 107, 0.12);
-    padding-top: 0.35rem;
-    padding-bottom: 0.35rem;
-  }
-
-  .uic-task ul li::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    left: -6px;
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #007bff, #00c2ff);
-  }
-
-  .uic-task ol {
-    counter-reset: uic-counter;
-  }
-
-  .uic-task ol li {
-    counter-increment: uic-counter;
-    padding-left: 2.1rem;
-  }
-
-  .uic-task ol li::before {
-    content: counter(uic-counter) '.';
-    position: absolute;
-    left: -0.35rem;
-    top: 0.25rem;
-    font-weight: 700;
-    color: #00416b;
-  }
-
-  .uic-task a {
-    color: #00416b;
-    font-weight: 600;
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-    transition: color 0.24s ease, text-decoration-color 0.24s ease;
-  }
-
-  .uic-task a:hover {
-    color: #002c45;
-    text-decoration-color: #00c2ff;
-  }
-
-  .uic-task .task-note {
-    background: rgba(0, 65, 107, 0.06);
-    border-left: 4px solid rgba(0, 65, 107, 0.45);
-    border-radius: 14px;
-    padding: 1rem 1.25rem;
-    margin-top: 0.85rem;
-  }
-
-  .uic-task .task-callout {
-    background: rgba(0, 123, 255, 0.08);
-    border: 1px solid rgba(0, 65, 107, 0.16);
-    border-radius: 14px;
-    padding: 1rem 1.25rem;
-    margin-top: 1.1rem;
-  }
-
-  .uic-task .task-callout strong {
-    display: block;
-    font-size: 0.95rem;
-    margin-bottom: 0.45rem;
-    color: #00416b;
-  }
-</style>
-`;
-
-  const wrapIntro = (content) => `${taskIntroStyles}${content}`;
-  const taskIntroHtml = Object.freeze({
-    'Inscripción y descripción de la idea': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Inscripción y descripción de la idea</h2>
-    <p class="task-lead">Presenta tu idea de negocio y forma tu equipo para comenzar el programa SPP.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>En qué consiste</strong>
-    <p>En esta fase inicial, los interesados presentan sus ideas de negocio y equipos. Deben proporcionar detalles sobre el concepto de su empresa, el mercado objetivo y el modelo de negocio.</p>
-  </div>
-
-  <h3>Proceso de inscripción</h3>
-  <ul>
-    <li><strong>Inscripción:</strong> Los interesados presentan sus ideas de negocio y equipos. Deben proporcionar detalles sobre el concepto de su empresa, el mercado objetivo y el modelo de negocio.</li>
-    <li><strong>Evaluación Inicial:</strong> El profesorado responsable de cada asignatura revisa las propuestas para garantizar la calidad de las mismas, según criterios de innovación, viabilidad, impacto social/económico y presentación.</li>
-    <li><strong>Feedback:</strong> Los equipos reciben comentarios constructivos para mejorar sus propuestas.</li>
-  </ul>
-
-  <h3>Requisitos de la inscripción</h3>
-  <ul>
-    <li>Presenta detalles sobre el concepto de tu empresa.</li>
-    <li>Define el mercado objetivo.</li>
-    <li>Describe el modelo de negocio inicial.</li>
-    <li>Forma tu equipo (mínimo 3 miembros, máximo 5).</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Importante</strong>
-    <ul>
-      <li>¿Tienes una idea? Descríbela brevemente en el formulario online. Puede ser un negocio o una iniciativa social.</li>
-      <li>¿No tienes idea o grupo? No hay problema, apúntate a un proyecto ya creado.</li>
-    </ul>
-  </div>
-</section>`),
-    'Análisis de mercado y fuerzas de Porter': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Análisis de mercado y fuerzas de Porter</h2>
-    <p class="task-lead">Explora el ecosistema competitivo para anticipar riesgos y encontrar oportunidades con una visión integral.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>En qué consiste</strong>
-    <p>Un <strong>análisis de mercado</strong> riguroso mide cambios globales y ayuda a comprender el entorno en el que opera tu proyecto. Sumado al análisis sectorial y a las cinco fuerzas de Porter, refuerza la toma de decisiones estratégicas.</p>
-  </div>
-
-  <h3>Cómo se complementan los enfoques</h3>
-  <ul>
-    <li><strong>Análisis del mercado:</strong> dimensiona el tamaño, la estructura y los hábitos del cliente objetivo.</li>
-    <li><strong>Análisis del sector:</strong> identifica competidores directos e indirectos y su impacto potencial.</li>
-    <li><strong>Cinco fuerzas de Porter:</strong> estudia poder de clientes y proveedores, amenaza de sustitutivos y nuevos entrantes, y rivalidad actual.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recurso recomendado</strong>
-    <ul>
-      <li>{{asset:10-pasos-para-hacer-un-analisis-de-sector.pdf}}</li>
-    </ul>
-  </div>
-
-  <h3>Analiza las cinco fuerzas</h3>
-  <ol>
-    <li><strong>Poder de negociación de los clientes:</strong> influencia en precio y condiciones.</li>
-    <li><strong>Poder de negociación de los proveedores:</strong> capacidad para condicionar costes.</li>
-    <li><strong>Amenaza de sustitutivos:</strong> alternativas que resuelven la misma necesidad.</li>
-    <li><strong>Nuevos competidores:</strong> facilidad para entrar en el mercado.</li>
-    <li><strong>Rivalidad existente:</strong> intensidad competitiva actual.</li>
-  </ol>
-
-  <p>La lectura conjunta revela oportunidades, debilidades y tácticas para reforzar tu diferenciación.</p>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Plantilla-de-las-5-Fuerzas-de-Porter.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=1cQ7Ebj6Gxs&feature=youtu.be" target="_blank" rel="noopener">Porter’s Five Forces: A Practical Example</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Comparte tu análisis documentado de Porter.</li>
-      <li>Formato editable PPT o PDF.</li>
-      <li>Peso máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    PESTEL: wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>PESTEL</h2>
-    <p class="task-lead">Evalúa el contexto externo de tu proyecto para anticipar factores que pueden acelerar o frenar su crecimiento.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Por qué hacerlo</strong>
-    <p>El análisis PESTEL revisa factores <strong>políticos, económicos, socioculturales, tecnológicos, ecológicos y legales</strong>. Te ayuda a detectar amenazas tempranas y a reforzar tu estrategia con datos reales.</p>
-  </div>
-
-  <h3>Cómo aprovecharlo</h3>
-  <ul>
-    <li>Identifica variables externas relevantes para tu sector.</li>
-    <li>Valora el impacto potencial de cada factor en tu proyecto.</li>
-    <li>Define acciones preventivas u oportunidades emergentes.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recurso recomendado</strong>
-    <ul>
-      <li>{{asset:Como-hacer-un-analisis-pestel.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Analisis-Pestel.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=EVw3RjG2wag" target="_blank" rel="noopener">PESTEL: herramienta de planificación estratégica</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Sube tu análisis PESTEL completo.</li>
-      <li>Formato editable PPT o PDF.</li>
-      <li>Peso máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Análisis DAFO': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Análisis DAFO</h2>
-    <p class="task-lead">Cruza la mirada interna y externa de tu proyecto para diseñar estrategias accionables.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Elementos clave</strong>
-    <ul>
-      <li><strong>Debilidades:</strong> aspectos internos que limitan tu propuesta.</li>
-      <li><strong>Amenazas:</strong> factores externos con impacto negativo potencial.</li>
-      <li><strong>Fortalezas:</strong> ventajas que te diferencian.</li>
-      <li><strong>Oportunidades:</strong> tendencias o cambios que puedes aprovechar.</li>
-    </ul>
-  </div>
-
-  <h3>Cómo trabajarlo</h3>
-  <ul>
-    <li>Recoge datos objetivos antes de completar cada cuadrante.</li>
-    <li>Prioriza los hallazgos que influyen directamente en tu modelo de negocio.</li>
-    <li>Define acciones para potenciar fortalezas y reducir riesgos.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Plantillas-para-realizar-un-analisis-FODA.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=Vlyh-2H6syg" target="_blank" rel="noopener">Vídeo explicativo sobre análisis DAFO</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Elige la plantilla que prefieras y completa los cuatro cuadrantes.</li>
-      <li>Incluye conclusiones sobre amenazas y oportunidades clave.</li>
-      <li>Peso máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 1: El mercado y el cliente': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>El mercado y el cliente</h2>
-    <p class="task-lead">Define a quién sirves y cómo generar valor real para cada segmento.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Conceptos esenciales</strong>
-    <ul>
-      <li><strong>Mercado:</strong> conjunto de personas u organizaciones con necesidad y capacidad de compra.</li>
-      <li><strong>Cliente:</strong> quien adquiere y usa tu solución; su experiencia sostiene la propuesta.</li>
-      <li><strong>Relevancia:</strong> la ventaja competitiva nace de poner al cliente en el centro.</li>
-    </ul>
-  </div>
-
-  <h3>Beneficios de segmentar bien</h3>
-  <ul>
-    <li>Optimiza recursos de marketing y ventas.</li>
-    <li>Permite mensajes y productos más personalizados.</li>
-    <li>Favorece la generación de ideas y mejoras continuas.</li>
-    <li>Aterriza proyecciones de demanda con datos realistas.</li>
-  </ul>
-
-  <p>Identifica personas usuarias, toma notas de sus motivaciones y practica la empatía para construir historias de uso.</p>
-
-  <div class="task-callout">
-    <strong>Recursos recomendados</strong>
-    <ul>
-      <li>{{asset:Guia-practica-para-entender-el-mercado-los-clientes-y-consumidores.pdf}}</li>
-      <li>{{asset:investigacion-de-mercado-para-Pymes.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Plantillas y toolbox</strong>
-    <ul>
-      <li>{{asset:Plantilla-de-tipos-de-cliente-1.pptx}}</li>
-      <li><a href="https://www.youtube.com/watch?v=j2_BDsaKfEs&feature=youtu.be" target="_blank" rel="noopener">Vídeo: Qué valora el cliente</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Comparte tu análisis del segmento de clientes.</li>
-      <li>Incluye insights clave y mapa de empatía si aplican.</li>
-      <li>Formato PPT o PDF. Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 2: Análisis de competidores': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Análisis de competidores</h2>
-    <p class="task-lead">Anticipa los movimientos del mercado y fortalece tu propuesta antes que el resto.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Qué lograrás</strong>
-    <p>Identificar diferenciadores, obstáculos para crecer y oportunidades para reorientar tu estrategia comercial o de producto.</p>
-  </div>
-
-  <h3>Recomendaciones clave</h3>
-  <ul>
-    <li>Haz un seguimiento periódico de tus competidores directos e indirectos.</li>
-    <li>Contrasta tus hipótesis con datos recientes: el contexto cambia rápido.</li>
-    <li>Evalúa precios, canales, narrativa y experiencia de usuario.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recursos</strong>
-    <ul>
-      <li><a href="https://alternativeto.net/" target="_blank" rel="noopener">AlternativeTo: buscador de competidores</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:competitive-analysis-file-pdf.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=QtGvRYjjTms" target="_blank" rel="noopener">Crear Océanos Azules con las curvas de valor</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Documenta hallazgos por competidor y tu estrategia de respuesta.</li>
-      <li>Formato PPT o PDF (puedes añadir vídeo opcional &lt; 25 MB).</li>
-    </ul>
-  </div>
-</section>`),
-    'Cuantificación del mercado': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Cuantificación de mercado: PAM, TAM, SAM, SOM</h2>
-    <p class="task-lead">Dimensiona el tamaño real de tu oportunidad y prioriza dónde enfocarte primero.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Definiciones clave</strong>
-    <ul>
-      <li><strong>PAM (Potential Available Market):</strong> consumo global sin restricciones.</li>
-      <li><strong>TAM (Total Available Market):</strong> mercado total accesible dentro de tus límites actuales.</li>
-      <li><strong>SAM (Serviceable Available Market):</strong> segmento que puedes atender con tu propuesta actual.</li>
-      <li><strong>SOM (Serviceable Obtainable Market):</strong> participación que puedes captar a corto plazo.</li>
-    </ul>
-  </div>
-
-  <h3>Cómo interpretarlo</h3>
-  <ul>
-    <li>Analiza barreras legales, tecnológicas o culturales que reducen tu TAM.</li>
-    <li>Utiliza datos públicos y privados para estimar volumen, crecimiento y tickets medios.</li>
-    <li>Contrasta tus supuestos con entrevistas o pruebas piloto.</li>
-  </ul>
-
-  <p>Recuerda que un mercado puede permanecer en el PAM, pero quedar fuera del TAM por limitaciones normativas (ej. requisitos locales en China o Qatar).</p>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:PLANTILLA-TAM-SAM-SOM-1.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?si=xcwoRyFWzsR5EUux&v=z-VF1mCMfvg&feature=youtu.be" target="_blank" rel="noopener">¿Cómo calcular el mercado potencial de tu startup?</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Documenta los cálculos y fuentes utilizadas.</li>
-      <li>Formato PPT o PDF (puedes adjuntar hoja de cálculo).</li>
-      <li>Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 3: Ventana de oportunidad': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Ventana de oportunidad</h2>
-    <p class="task-lead">Detecta segmentos que valoran tu propuesta ahora mismo y conviértelos en aliados tempranos.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Segmentación inteligente</strong>
-    <p>Definir grupos con necesidades y comportamientos similares evita campañas genéricas y te permite lanzar mensajes con mayor precisión.</p>
-  </div>
-
-  <h3>Pasos sugeridos</h3>
-  <ul>
-    <li>Clasifica tus clientes potenciales según problema, motivación y capacidad de pago.</li>
-    <li>Evalúa qué segmentos están listos para adoptar tu solución en el corto plazo.</li>
-    <li>Alinea canales y propuesta de valor para cada ventana detectada.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recursos recomendados</strong>
-    <ul>
-      <li>{{asset:Como-realizar-un-analisis-de-mercado-para-su-producto.pdf}}</li>
-      <li>{{asset:Segmentacion-de-mercado-Que-es-y-como-segmentarlo-paso-a-paso.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Plantilla-para-hacer-segmentacion-de-mercado-1.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=83ckliHw2kg" target="_blank" rel="noopener">Segmentación de mercado (introducción)</a></li>
-      <li><a href="https://www.youtube.com/watch?v=voALLoCOeRI" target="_blank" rel="noopener">Ejemplo práctico de segmentación</a></li>
-    </ul>
-  </div>
-</section>`),
-    'Propuesta de valor': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Propuesta de valor</h2>
-    <p class="task-lead">Explica cómo tu solución transforma la vida de tu cliente mejor que cualquier alternativa.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Canvas: segmento vs. propuesta</strong>
-    <ul>
-      <li><strong>Segmento de clientes:</strong> qué tareas desean completar, qué les entusiasma y qué les frustra.</li>
-      <li><strong>Propuesta de valor:</strong> cómo alivias sus dolores, generas alegrías y qué ofreces de forma tangible.</li>
-    </ul>
-  </div>
-
-  <h3>Claves para construirla</h3>
-  <ul>
-    <li>Parte de insights reales obtenidos en entrevistas o encuestas.</li>
-    <li>Describe beneficios funcionales, emocionales y sociales.</li>
-    <li>Conecta con misión, visión y valores de tu proyecto.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recursos recomendados</strong>
-    <ul>
-      <li>{{asset:Como-formular-la-propuesta-de-valor-de-una-empresa.pdf}}</li>
-      <li>{{asset:La-propuesta-de-valor-modelos-de-negocio-a-fondo.pdf}}</li>
-      <li>{{asset:Como-definir-la-mision-vision-y-valores-de-una-empresa-ejemplos.pdf}}</li>
-      <li>{{asset:Valores-corporativos-que-son-y-10-ejemplos.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:plantilla-propuesta-de-valor.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=C8tWbb41Q9M" target="_blank" rel="noopener">¿Qué es una propuesta de valor?</a></li>
-      <li><a href="https://www.youtube.com/watch?v=xUl3r0FnfsU" target="_blank" rel="noopener">Value Proposition (How to Build a Startup)</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Incluye propuesta de valor, público objetivo y aportes sociales.</li>
-      <li>Formato PPT o PDF. Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 4: Curva de valor (Océanos azules)': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Curva de valor (Océanos Azules)</h2>
-    <p class="task-lead">Visualiza cómo te diferencias de la competencia y descubre espacios de valor inexplorados.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Qué obtienes</strong>
-    <ul>
-      <li>Comprensión comparativa del sector.</li>
-      <li>Evaluación crítica de tu propuesta actual.</li>
-      <li>Hallazgo de atributos que puedes potenciar o reducir.</li>
-    </ul>
-  </div>
-
-  <h3>Consejos para construirla</h3>
-  <ul>
-    <li>Selecciona factores de valor que importen a tu cliente (precio, personalización, soporte, etc.).</li>
-    <li>Asigna puntuaciones consistentes para tu proyecto y tus competidores.</li>
-    <li>Detecta dónde puedes innovar o simplificar para abrir un océano azul.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Plantilla-para-implementar-la-estrategia-oceanos-azules.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=QtGvRYjjTms" target="_blank" rel="noopener">Crear Océanos Azules con las curvas de valor</a></li>
-    </ul>
-  </div>
-</section>`),
-    'Modelo de negocio': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Business Model Canvas</h2>
-    <p class="task-lead">Resume cómo generas, entregas y capturas valor en una sola página.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Dos bloques clave</strong>
-    <ul>
-      <li><strong>Mercado y clientes:</strong> segmentos, propuesta de valor, canales, relación y flujos de ingreso.</li>
-      <li><strong>Operaciones y recursos:</strong> actividades clave, alianzas, recursos y estructura de costes.</li>
-    </ul>
-  </div>
-
-  <h3>Recomendaciones</h3>
-  <ul>
-    <li>Rellena primero la propuesta de valor y el segmento de cliente.</li>
-    <li>Valida supuestos con datos y feedback de usuarios.</li>
-    <li>Refresca el canvas en cada iteración importante del proyecto.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Modelo-Canvas.doc}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=f7-3mhABFxg" target="_blank" rel="noopener">The Business Model Canvas (9 Steps)</a></li>
-      <li><a href="https://www.youtube.com/watch?v=xUl3r0FnfsU" target="_blank" rel="noopener">Value Proposition - How to Build a Startup</a></li>
-      <li><a href="https://www.youtube.com/watch?v=E6YUVhYkc0A" target="_blank" rel="noopener">Business Model Canvas (Steve Blank)</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Comparte tu canvas completo y conclusiones principales.</li>
-      <li>Formato editable PPT o PDF. Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 5: Analizando la ventaja competitiva': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Analizando la ventaja competitiva</h2>
-    <p class="task-lead">Identifica qué te hace único y cómo sostenerlo en el tiempo.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Dos miradas complementarias</strong>
-    <ul>
-      <li><strong>Interna:</strong> costes, procesos, tecnología, propiedad intelectual.</li>
-      <li><strong>Externa:</strong> percepción del cliente, servicio, comunidad, reputación.</li>
-    </ul>
-  </div>
-
-  <h3>Cómo validarla</h3>
-  <ul>
-    <li>Contrasta supuestos con clientes reales o potenciales.</li>
-    <li>Analiza sostenibilidad y facilidad de réplica por parte de la competencia.</li>
-    <li>Conecta la ventaja con tu propuesta de valor y narrativa comercial.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Plantilla descargable</strong>
-    <ul>
-      <li>{{asset:Plantilla-de-ventaja-comparativa-1.pptx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=_XPEAvIfL00" target="_blank" rel="noopener">Estrategia y ventaja competitiva</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Resume tus ventajas clave y cómo las validarás.</li>
-      <li>Formato PPT o PDF. Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Presenta tu proyecto': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Pitch</h2>
-    <p class="task-lead">Cuenta la historia de tu proyecto en 3-5 minutos y conquista a tu audiencia.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Preparación</strong>
-    <p>A estas alturas ya dominas el problema, al cliente y la solución. Tu pitch conecta esos elementos en una narrativa memorable.</p>
-  </div>
-
-  <h3>Herramientas recomendadas</h3>
-  <ul>
-    <li><a href="https://www.chatsimple.ai/es/tools/ai-elevator-pitch-generator" target="_blank" rel="noopener">ChatSimple Pitch Generator</a></li>
-    <li><a href="https://writerbuddy.ai/writing-tools/elevator-pitch-generator" target="_blank" rel="noopener">WriterBuddy AI</a></li>
-    <li><a href="https://app.heygen.com/" target="_blank" rel="noopener">HeyGen (vídeos con avatares)</a></li>
-  </ul>
-
-  <h3>Consejos para tu presentación</h3>
-  <ul>
-    <li>Máximo seis palabras por diapositiva.</li>
-    <li>Diez diapositivas, veinte minutos, tipografía mínima de 30 pt.</li>
-    <li>Usa imágenes potentes y una historia con principio, nudo y cierre.</li>
-    <li>Ensaya hasta ganar fluidez.</li>
-    <li>Prepara respuestas para preguntas frecuentes (finanzas, DAFO, roadmap).</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recursos</strong>
-    <ul>
-      <li>{{asset:Pitch-deck.pptx}}</li>
-      <li><a href="https://www.youtube.com/watch?v=WOvhpKwxeKc" target="_blank" rel="noopener">Vídeo: rol play elevator pitch</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Sube dos archivos: vídeo del pitch y la presentación.</li>
-      <li>Presentación en PPT o PDF; cada archivo &lt; 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 6: Validación de modelo de negocio': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Validación de modelo de negocio</h2>
-    <p class="task-lead">Confirma con evidencia que tus hipótesis son sólidas antes de escalar.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Qué implica</strong>
-    <p>Hacer las preguntas correctas, contrastarlas con clientes tempranos y ajustar tu estrategia a partir de los resultados.</p>
-  </div>
-
-  <h3>Puntos de validación</h3>
-  <ul>
-    <li>Problema y solución: ¿el cliente reconoce la necesidad y valora tu propuesta?</li>
-    <li>Modelo de ingresos: ¿aceptan el precio o están dispuestos a pagar?</li>
-    <li>Canales y relación: ¿cómo prefieren ser contactados y atendidos?</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Recursos</strong>
-    <ul>
-      <li>{{asset:Encuestas-de-investigacion-de-mercado-1.pdf}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=hKMX-uQ0NYY" target="_blank" rel="noopener">Validación del modelo de negocio</a></li>
-      <li><a href="https://www.youtube.com/watch?v=WqutVXJ_VY8" target="_blank" rel="noopener">Producto mínimo viable y validación</a></li>
-      <li><a href="https://www.youtube.com/watch?v=d9F2zz__Veg" target="_blank" rel="noopener">Descubrimiento de clientes: entrevistas de validación</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Resume hallazgos de encuestas o entrevistas y decisiones tomadas.</li>
-      <li>Formato PPT o PDF. Máximo 25 MB.</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 7: Construye tu MVP': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Construye tu MVP</h2>
-    <p class="task-lead">Diseña el experimento mínimo para validar tu solución con clientes reales.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Propósito</strong>
-    <p>Conversar con usuarios tempranos, comprobar que resuelves su problema y confirmar su disposición a pagar.</p>
-  </div>
-
-  <h3>Beneficios</h3>
-  <ul>
-    <li>Evita invertir en funcionalidades que nadie necesita.</li>
-    <li>Prioriza hipótesis críticas y aprende rápido.</li>
-    <li>Sienta bases sólidas para escalar el negocio.</li>
-  </ul>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=cSXsPCgWOHU" target="_blank" rel="noopener">Las fases del lanzamiento de un producto</a></li>
-      <li><a href="https://www.youtube.com/watch?v=WqutVXJ_VY8" target="_blank" rel="noopener">Cómo crear un producto mínimo viable</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Describe tu MVP, métricas objetivo y aprendizajes esperados.</li>
-      <li>Formato flexible (PPT, PDF o vídeo &lt; 25 MB).</li>
-    </ul>
-  </div>
-</section>`),
-    'Opcional 8: Diagrama de Gantt': wrapIntro(`<section class="uic-task">
-  <header>
-    <h2>Diagrama de Gantt</h2>
-    <p class="task-lead">Planifica tareas, dependencias y responsables de tu proyecto con una visual clara.</p>
-  </header>
-
-  <div class="task-note">
-    <strong>Por qué usarlo</strong>
-    <p>Te ayuda a ordenar fases, controlar plazos, identificar cuellos de botella y comunicar avances al equipo.</p>
-  </div>
-
-  <h3>Cómo construirlo</h3>
-  <ol>
-    <li>Define alcance y fechas clave.</li>
-    <li>Lista actividades e hitos principales.</li>
-    <li>Estima duración y dependencias de cada tarea.</li>
-    <li>Asigna responsables y recursos.</li>
-    <li>Revisa periódicamente y ajusta según el progreso.</li>
-  </ol>
-
-  <div class="task-callout">
-    <strong>Recursos</strong>
-    <ul>
-      <li>{{asset:Que-es-y-para-que-sirve-un-diagrama-de-Gantt_.pdf}}</li>
-      <li>{{asset:Crea-una-plantilla-para-tus-cronogramas-con-Excel.pdf}}</li>
-      <li>{{asset:Crea-un-diagrama-de-Gantt-con-Canva.pdf}}</li>
-      <li>{{asset:Plantilla-de-Diagrama-de-Gantt.xlsx}}</li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Toolbox</strong>
-    <ul>
-      <li><a href="https://www.youtube.com/watch?v=5rhMbbasqNQ" target="_blank" rel="noopener">Cómo hacer un Gantt</a></li>
-      <li><a href="https://www.youtube.com/watch?v=uH2xz39n2bY" target="_blank" rel="noopener">Crear un Gantt con Google Calendar</a></li>
-    </ul>
-  </div>
-
-  <div class="task-callout">
-    <strong>Entrega</strong>
-    <ul>
-      <li>Incluye ruta crítica, duración estimada y responsables.</li>
-      <li>Formatos admitidos: PPT, PDF o Excel (máx. 25 MB).</li>
-    </ul>
-  </div>
-</section>`)
+  // Mapear tareas del JSON exportado
+  // Primero necesitamos crear un mapa de phase_id del JSON a order_index de las fases
+  const phaseIdToOrderIndex = new Map();
+  exportedData.phases.forEach((phase) => {
+    phaseIdToOrderIndex.set(phase.id, phase.order_index);
   });
-  const taskDefinitions = [
-    {
-      phaseName: 'Fase 0',
-      title: 'Inscripción y descripción de la idea',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 1',
-      title: 'Análisis de mercado y fuerzas de Porter',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 1',
-      title: 'PESTEL',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 1',
-      title: 'Análisis DAFO',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 1',
-      title: 'Opcional 1: El mercado y el cliente',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 1',
-      title: 'Opcional 2: Análisis de competidores',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 2',
-      title: 'Cuantificación del mercado',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 2',
-      title: 'Opcional 3: Ventana de oportunidad',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 3',
-      title: 'Propuesta de valor',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 3',
-      title: 'Opcional 4: Curva de valor (Océanos azules)',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 4',
-      title: 'Modelo de negocio',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 4',
-      title: 'Opcional 5: Analizando la ventaja competitiva',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 5',
-      title: 'Presenta tu proyecto',
-      isRequired: true
-    },
-    {
-      phaseName: 'Fase 6',
-      title: 'Opcional 6: Validación de modelo de negocio',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 6',
-      title: 'Opcional 7: Construye tu MVP',
-      isRequired: false
-    },
-    {
-      phaseName: 'Fase 6',
-      title: 'Opcional 8: Diagrama de Gantt',
-      isRequired: false
+
+  const tasksToInsert = exportedData.tasks.map((task) => {
+    // Obtener el order_index de la fase desde el JSON
+    const phaseOrderIndex = phaseIdToOrderIndex.get(task.phase_id);
+    if (!phaseOrderIndex) {
+      throw new Error(`No se encontró la fase con id ${task.phase_id} en los datos exportados`);
     }
-  ];
 
-  // Agrupar tareas por fase y asignar order_index secuencial
-  const tasksByPhase = new Map();
-  taskDefinitions.forEach((task) => {
-    if (!tasksByPhase.has(task.phaseName)) {
-      tasksByPhase.set(task.phaseName, []);
-    }
-    tasksByPhase.get(task.phaseName).push(task);
-  });
-
-  // Ordenar tareas dentro de cada fase: primero las requeridas, luego las opcionales
-  tasksByPhase.forEach((tasks, phaseName) => {
-    tasks.sort((a, b) => {
-      // Primero las requeridas (isRequired: true), luego las opcionales (false)
-      if (a.isRequired !== b.isRequired) {
-        return b.isRequired ? 1 : -1;
-      }
-      // Si ambas son del mismo tipo, mantener el orden original
-      return 0;
-    });
-  });
-
-  const tasksToInsert = [];
-  tasksByPhase.forEach((tasks, phaseName) => {
-    const phaseMeta = phasesByName.get(phaseName);
-
+    // Obtener la fase insertada usando el order_index
+    const phaseMeta = phasesByOrderIndex.get(phaseOrderIndex);
     if (!phaseMeta) {
-      throw new Error(`No se encontró la fase ${phaseName} para crear las tareas`);
+      throw new Error(`No se encontró la fase con order_index ${phaseOrderIndex} después de insertarla`);
     }
 
-    tasks.forEach((task, index) => {
-      // La tarea "Inscripción y descripción de la idea" es de tipo "Sin entrega"
-      const isRegistrationTask = task.title === 'Inscripción y descripción de la idea';
-      tasksToInsert.push({
-        tenant_id: tenant.id,
-        event_id: event.id,
-        phase_id: phaseMeta.id,
-        title: task.title,
-        description: null,
-        intro_html: taskIntroHtml[task.title] ?? null,
-        delivery_type: isRegistrationTask ? 'none' : 'file',
-        is_required: isRegistrationTask ? false : task.isRequired,
-        due_date: phaseMeta.endDate,
-        status: 'active',
-        phase_rubric_id: null,
-        max_files: 1,
-        max_file_size_mb: null,
-        allowed_mime_types: null,
-        order_index: index + 1, // order_index secuencial empezando en 1
-        created_at: taskNow,
-        updated_at: taskNow
-      });
-    });
+    // Convertir fechas con validación
+    const dueDate = createValidDate(task.due_date, phaseMeta.endDate);
+
+    return {
+      tenant_id: tenant.id,
+      event_id: event.id,
+      phase_id: phaseMeta.id,
+      title: toJSONField(task.title, isTasksTitleJSON),
+      description: toJSONField(task.description || null, isTasksDescriptionJSON),
+      intro_html: toJSONField(task.intro_html || null, isTasksIntroHtmlJSON),
+      delivery_type: task.delivery_type || 'file',
+      is_required: task.is_required || false,
+      due_date: dueDate,
+      status: task.status || 'active',
+      phase_rubric_id: null,
+      max_files: task.max_files || 1,
+      max_file_size_mb: task.max_file_size_mb || null,
+      allowed_mime_types: task.allowed_mime_types || null,
+      order_index: task.order_index || 1,
+      created_at: taskNow,
+      updated_at: taskNow
+    };
   });
+
+  // taskIntroHtml ya no se usa, se carga desde el JSON
 
   await queryInterface.bulkInsert('tasks', tasksToInsert);
+
+  // ============================================================================
+  // CONSOLIDACIÓN DE SEEDERS 0005-0014
+  // ============================================================================
+
+  // 1. Actualizar tenant con registration_schema, logo_url con ID, y enlaces sociales
+  // (Consolidado de 0008, 0009, 0011)
+  const registrationSchema = {
+    grade: {
+      label: {
+        es: 'Grado',
+        ca: 'Grau',
+        en: 'Degree'
+      },
+      required: true,
+      options: [
+        {
+          value: 'ade',
+          label: {
+            es: 'Grado en Administración y Dirección de Empresas',
+            ca: "Grau en Administració i Direcció d'Empreses",
+            en: 'Degree in Business Administration and Management'
+          }
+        },
+        {
+          value: 'arquitectura',
+          label: {
+            es: 'Grado en Arquitectura',
+            ca: 'Grau en Arquitectura',
+            en: 'Degree in Architecture'
+          }
+        },
+        {
+          value: 'bioenginyeria',
+          label: {
+            es: 'Grado en Bioingeniería',
+            ca: 'Grau en Bioenginyeria',
+            en: 'Degree in Bioengineering'
+          }
+        },
+        {
+          value: 'ciencies_biomediques',
+          label: {
+            es: 'Grado en Ciencias Biomédicas',
+            ca: 'Grau en Ciències Biomèdiques',
+            en: 'Degree in Biomedical Sciences'
+          }
+        },
+        {
+          value: 'dret',
+          label: {
+            es: 'Grado en Derecho',
+            ca: 'Grau en Dret',
+            en: 'Degree in Law'
+          }
+        },
+        {
+          value: 'fisioterapia',
+          label: {
+            es: 'Grado en Fisioterapia',
+            ca: 'Grau en Fisioteràpia',
+            en: 'Degree in Physiotherapy'
+          }
+        },
+        {
+          value: 'humanitats',
+          label: {
+            es: 'Grado en Humanidades y Estudios Culturales',
+            ca: 'Grau en Humanitats i Estudis Culturals',
+            en: 'Degree in Humanities and Cultural Studies'
+          }
+        },
+        {
+          value: 'medicina',
+          label: {
+            es: 'Grado en Medicina',
+            ca: 'Grau en Medicina',
+            en: 'Degree in Medicine'
+          }
+        },
+        {
+          value: 'odontologia',
+          label: {
+            es: 'Grado en Odontología',
+            ca: 'Grau en Odontologia',
+            en: 'Degree in Dentistry'
+          }
+        },
+        {
+          value: 'publicitat',
+          label: {
+            es: 'Grado en Publicidad y Relaciones Públicas',
+            ca: 'Grau en Publicitat i Relacions Públiques',
+            en: 'Degree in Advertising and Public Relations'
+          }
+        }
+      ]
+    },
+    additionalFields: []
+  };
+
+  // Actualizar logo_url para usar ID del tenant en lugar de slug
+  const [[tenantForUpdate]] = await queryInterface.sequelize.query(
+    "SELECT id, slug, logo_url FROM tenants WHERE slug = 'uic' LIMIT 1"
+  );
+
+  if (tenantForUpdate && tenantForUpdate.logo_url) {
+    const urlWithTenantId = `/tenants/${tenantForUpdate.id}/branding/`;
+    if (!tenantForUpdate.logo_url.includes(urlWithTenantId)) {
+      const logoFileName = tenantForUpdate.logo_url.split('/').pop();
+      const baseUrl = tenantForUpdate.logo_url.substring(0, tenantForUpdate.logo_url.indexOf('/tenants/'));
+      const updatedLogoUrl = `${baseUrl}/tenants/${tenantForUpdate.id}/branding/${logoFileName}`;
+
+      await queryInterface.sequelize.query(
+        `UPDATE tenants SET 
+          registration_schema = :schema,
+          logo_url = :logoUrl,
+          website_url = :websiteUrl,
+          linkedin_url = :linkedinUrl,
+          twitter_url = :twitterUrl,
+          facebook_url = :facebookUrl,
+          instagram_url = :instagramUrl,
+          updated_at = NOW() 
+        WHERE id = :tenantId`,
+        {
+          replacements: {
+            schema: JSON.stringify(registrationSchema),
+            logoUrl: updatedLogoUrl,
+            websiteUrl: 'https://www.uic.es/',
+            linkedinUrl: 'https://www.linkedin.com/school/universitat-internacional-de-catalunya-uic/',
+            twitterUrl: 'https://twitter.com/uicbarcelona?lang=es',
+            facebookUrl: 'https://es-la.facebook.com/UICbarcelona/',
+            instagramUrl: 'https://www.instagram.com/uicbarcelona/?hl=es',
+            tenantId: tenantForUpdate.id
+          }
+        }
+      );
+    } else {
+      // Solo actualizar registration_schema y enlaces sociales si logo_url ya está correcto
+      await queryInterface.sequelize.query(
+        `UPDATE tenants SET 
+          registration_schema = :schema,
+          website_url = :websiteUrl,
+          linkedin_url = :linkedinUrl,
+          twitter_url = :twitterUrl,
+          facebook_url = :facebookUrl,
+          instagram_url = :instagramUrl,
+          updated_at = NOW() 
+        WHERE id = :tenantId`,
+        {
+          replacements: {
+            schema: JSON.stringify(registrationSchema),
+            websiteUrl: 'https://www.uic.es/',
+            linkedinUrl: 'https://www.linkedin.com/school/universitat-internacional-de-catalunya-uic/',
+            twitterUrl: 'https://twitter.com/uicbarcelona?lang=es',
+            facebookUrl: 'https://es-la.facebook.com/UICbarcelona/',
+            instagramUrl: 'https://www.instagram.com/uicbarcelona/?hl=es',
+            tenantId: tenantForUpdate.id
+          }
+        }
+      );
+    }
+  }
+
+  // Configurar prompt de IA y parámetros OpenAI (Consolidado de 0013)
+  const tableDescription = await queryInterface.describeTable('events').catch(() => ({}));
+  const hasAIPrompt = tableDescription.ai_evaluation_prompt !== undefined;
+  const hasOpenAIColumns = tableDescription.ai_evaluation_model !== undefined;
+
+  if (hasAIPrompt) {
+    const defaultPrompt = `Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación.
+
+Tu tarea es **evaluar proyectos entregados por el alumnado** siguiendo EXCLUSIVAMENTE la rúbrica proporcionada.
+
+INSTRUCCIONES DE EVALUACIÓN
+---------------------------
+
+1. Lee atentamente la información del proyecto que te proporcione el usuario. Puede incluir:
+   - Descripción general del proyecto.
+   - Modelo de negocio.
+   - Impacto social.
+   - Documentación entregada (memoria, presentaciones, etc.).
+   - Información sobre el equipo.
+
+2. Recorre TODOS los criterios definidos en la rúbrica. Para cada criterio:
+   - Ten en cuenta su descripción para entender qué aspecto del proyecto evalúa.
+   - Compara el contenido del proyecto con los niveles posibles de ese criterio.
+   - Selecciona un score dentro del rango permitido (según scaleMin, scaleMax o maxScore del criterio), eligiendo el nivel que mejor se ajuste al proyecto.
+   - Identifica, de forma breve:
+       - 1–3 fortalezas relacionadas con ese criterio (si las hay).
+       - 1–3 aspectos de mejora concretos (si procede).
+
+3. Cálculo de la nota global:
+   - La nota global se calcula como la **media ponderada** de los criterios:
+       - \`nota_global = SUMATORIO(score_criterio * peso_porcentaje/100)\`.
+   - Las puntuaciones deben respetar el rango definido por la rúbrica (scaleMin, scaleMax o maxScore por criterio si está presente).
+   - No redondees hasta el final. Al mostrar las notas, puedes usar 2 decimales.
+
+4. Manejo de información insuficiente:
+   - Si para algún criterio la información del proyecto es claramente insuficiente:
+       - Asigna el nivel que mejor se ajuste, pero deja claro en la justificación que la información es limitada.
+       - Si realmente no puedes evaluar, indica \`score: null\` y explícalo en la justificación.
+   - Nunca inventes datos que el proyecto no proporcione.
+
+5. Tono y estilo:
+   - Usa un tono **pedagógico, claro y constructivo**.
+   - Dirígete al profesorado, no al alumnado directamente (por ejemplo: "El proyecto presenta…", "Se observa que…").
+   - Sé concreto: evita frases vacías tipo "podría mejorar en algunos aspectos" sin decir cuáles.
+
+FORMATO DE RESPUESTA
+--------------------
+
+Responde SIEMPRE **solo** con un JSON válido (sin texto adicional fuera del JSON), con esta estructura:
+
+{
+  "resumen": {
+    "nombre_rubrica": "<texto>",
+    "nota_global": <número>,
+    "comentario_global": "<comentario general de máximo 8-10 líneas, resumiendo puntos fuertes y principales áreas de mejora del proyecto>"
+  },
+  "criterios": [
+    {
+      "criterionId": <número, id del criterio>,
+      "nombre": "<nombre legible del criterio>",
+      "peso_porcentaje": <número>,
+      "score": <número dentro del rango permitido o null si no se puede evaluar>,
+      "justificacion": "<explicación breve de por qué has asignado ese nivel, máximo 4-6 líneas>",
+      "fortalezas": [
+        "<fortaleza 1 relacionada con este criterio>",
+        "<fortaleza 2 (opcional)>",
+        "<fortaleza 3 (opcional)>"
+      ],
+      "mejoras": [
+        "<mejora concreta 1 relacionada con este criterio>",
+        "<mejora concreta 2 (opcional)>",
+        "<mejora concreta 3 (opcional)>"
+      ]
+    }
+    // ... repetir un objeto por cada criterio de la rúbrica en el mismo orden en el que aparecen
+  ]
+}
+
+REGLAS IMPORTANTES
+------------------
+
+- Usa SIEMPRE los criterios, pesos y niveles del archivo de rúbrica proporcionado.
+- No modifiques ni inventes nuevos criterios o pesos.
+- No des consejos genéricos que no estén vinculados al contenido concreto del proyecto.
+- No salgas nunca del formato JSON especificado.
+- Si el usuario no proporciona ningún contenido de proyecto, responde con \`nota_global = null\` y justifica en cada criterio que no hay información suficiente para evaluar.
+- Idioma requerido para la respuesta: español.`;
+
+    const [events] = await queryInterface.sequelize.query(
+      `SELECT id, name FROM events WHERE tenant_id = ${tenant.id}`
+    );
+
+    for (const eventItem of events) {
+      const [existing] = await queryInterface.sequelize.query(
+        `SELECT ai_evaluation_prompt FROM events WHERE id = ${eventItem.id} LIMIT 1`
+      );
+
+      const hasPrompt = existing && existing[0] && existing[0].ai_evaluation_prompt && 
+                        existing[0].ai_evaluation_prompt.trim().length > 0;
+
+      if (!hasPrompt) {
+        const updateFields = ['ai_evaluation_prompt = :prompt'];
+        const replacements = { prompt: defaultPrompt, eventId: eventItem.id };
+
+        if (hasOpenAIColumns) {
+          updateFields.push('ai_evaluation_model = :model');
+          updateFields.push('ai_evaluation_temperature = :temperature');
+          updateFields.push('ai_evaluation_max_tokens = :maxTokens');
+          updateFields.push('ai_evaluation_top_p = :topP');
+          updateFields.push('ai_evaluation_frequency_penalty = :frequencyPenalty');
+          updateFields.push('ai_evaluation_presence_penalty = :presencePenalty');
+          replacements.model = 'gpt-4o-mini';
+          replacements.temperature = 0.2;
+          replacements.maxTokens = 1200;
+          replacements.topP = 1;
+          replacements.frequencyPenalty = 0;
+          replacements.presencePenalty = 0;
+        }
+
+        await queryInterface.sequelize.query(
+          `UPDATE events SET ${updateFields.join(', ')}, updated_at = NOW() WHERE id = :eventId`,
+          { replacements }
+        );
+      }
+    }
+  }
+
+  // Crear assets desde S3 (Consolidado de 0005)
+  const [[adminUserForAssets]] = await queryInterface.sequelize.query(
+    "SELECT id FROM users WHERE email = 'admin@uic.es' LIMIT 1"
+  );
+
+  if (adminUserForAssets && event) {
+    try {
+      const s3Objects = await listEventAssetsFromS3(tenant.id, event.id);
+
+      if (s3Objects.length > 0) {
+        const mappedAssets = s3Objects.map(s3Object => {
+          const normalizedName = normalizeFileName(s3Object.fileName);
+          return {
+            ...s3Object,
+            assetName: normalizedName,
+            originalFileName: normalizedName
+          };
+        });
+
+        for (const asset of mappedAssets) {
+          const [existingAssets] = await queryInterface.sequelize.query(
+            `SELECT id FROM event_assets WHERE tenant_id = :tenantId AND event_id = :eventId AND name = :assetName LIMIT 1`,
+            {
+              replacements: {
+                tenantId: tenant.id,
+                eventId: event.id,
+                assetName: asset.assetName
+              }
+            }
+          );
+
+          if (existingAssets.length === 0) {
+            const s3Url = buildPublicUrl(asset.s3Key);
+            if (s3Url) {
+              const mimeType = getMimeTypeFromFileName(asset.originalFileName);
+              const now = asset.lastModified || new Date();
+
+              // Generar descripción basada en el nombre del archivo (Consolidado de 0012)
+              let description = asset.originalFileName || asset.assetName || asset.fileName || '';
+              if (!description) {
+                description = 'Asset sin nombre';
+              }
+              const lastDotIndex = description.lastIndexOf('.');
+              if (lastDotIndex > 0) {
+                description = description.substring(0, lastDotIndex);
+              }
+              description = description.replace(/[_-]/g, ' ');
+              description = description
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ')
+                .trim();
+              if (description.length > 500) {
+                description = description.substring(0, 497) + '...';
+              }
+
+              await queryInterface.bulkInsert(
+                'event_assets',
+                [
+                  {
+                    tenant_id: tenant.id,
+                    event_id: event.id,
+                    name: asset.assetName,
+                    original_filename: asset.originalFileName,
+                    s3_key: asset.s3Key,
+                    url: s3Url,
+                    mime_type: mimeType,
+                    file_size: asset.fileSize,
+                    description: description,
+                    uploaded_by: adminUserForAssets.id,
+                    created_at: now,
+                    updated_at: now
+                  }
+                ]
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log(`⚠ No se pudieron cargar assets desde S3: ${error.message}`);
+    }
+  }
+
+  // 5. Crear rúbricas de fase (Consolidado de 0006)
+  const [phasesForRubrics] = await queryInterface.sequelize.query(
+    `SELECT id, name FROM phases WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} ORDER BY order_index`
+  );
+
+  const rubricsByPhase = {
+    'Fase 0': {
+      name: 'Rúbrica de evaluación - Fase 0: Inscripción y descripción de la idea',
+      description: 'Criterios de evaluación para la fase inicial de inscripción y descripción del proyecto.',
+      criteria: [
+        {
+          title: 'Claridad y definición de la idea',
+          description: 'La idea de negocio está claramente definida y es comprensible. Se describe de manera concisa el concepto, el problema que resuelve y la solución propuesta.',
+          weight: 1,
+          max_score: 25,
+          order_index: 1
+        },
+        {
+          title: 'Identificación del mercado objetivo',
+          description: 'Se identifica claramente el mercado objetivo, incluyendo segmentación de clientes y necesidades específicas que se pretenden satisfacer.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Modelo de negocio inicial',
+          description: 'Se presenta un modelo de negocio inicial coherente, aunque sea básico, que explique cómo se generará valor y se capturará ingresos.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Composición y complementariedad del equipo',
+          description: 'El equipo está formado correctamente (mínimo 3 miembros, máximo 5) y muestra complementariedad de perfiles y habilidades necesarias para el proyecto.',
+          weight: 1,
+          max_score: 25,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 1': {
+      name: 'Rúbrica de evaluación - Fase 1: Análisis de mercado y fuerzas de Porter',
+      description: 'Criterios de evaluación para el análisis de mercado, fuerzas de Porter, PESTEL y DAFO.',
+      criteria: [
+        {
+          title: 'Análisis de mercado y fuerzas de Porter',
+          description: 'Análisis completo y riguroso de las cinco fuerzas de Porter (poder de clientes, proveedores, amenaza de sustitutivos, nuevos competidores y rivalidad). Identificación clara de oportunidades y amenazas competitivas.',
+          weight: 1,
+          max_score: 30,
+          order_index: 1
+        },
+        {
+          title: 'Análisis PESTEL',
+          description: 'Evaluación exhaustiva de factores políticos, económicos, socioculturales, tecnológicos, ecológicos y legales relevantes para el proyecto. Identificación de impactos potenciales y acciones preventivas.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Análisis DAFO',
+          description: 'Identificación precisa de fortalezas, debilidades, oportunidades y amenazas. Priorización de hallazgos relevantes y definición de estrategias accionables basadas en el análisis.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Integración y coherencia del análisis',
+          description: 'Los diferentes análisis (Porter, PESTEL, DAFO) están integrados y muestran coherencia. Se identifican conexiones entre los diferentes elementos y se derivan conclusiones estratégicas claras.',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 2': {
+      name: 'Rúbrica de evaluación - Fase 2: Cuantificación del mercado',
+      description: 'Criterios de evaluación para la cuantificación del mercado (TAM, SAM, SOM).',
+      criteria: [
+        {
+          title: 'Cálculo de TAM (Total Available Market)',
+          description: 'Estimación precisa del mercado total disponible, con fuentes de datos confiables y metodología clara. Incluye análisis de barreras que limitan el acceso al mercado.',
+          weight: 1,
+          max_score: 30,
+          order_index: 1
+        },
+        {
+          title: 'Cálculo de SAM (Serviceable Available Market)',
+          description: 'Identificación correcta del segmento de mercado que puede ser atendido con la propuesta actual. Justificación clara de las limitaciones que definen el SAM.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Cálculo de SOM (Serviceable Obtainable Market)',
+          description: 'Estimación realista de la participación de mercado alcanzable a corto plazo. Incluye análisis de capacidad operativa, recursos disponibles y estrategia de entrada.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Metodología y fuentes de datos',
+          description: 'Uso de metodologías apropiadas para la cuantificación. Fuentes de datos confiables y actualizadas. Documentación clara de los cálculos y supuestos utilizados.',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 3': {
+      name: 'Rúbrica de evaluación - Fase 3: Propuesta de valor',
+      description: 'Criterios de evaluación para la propuesta de valor y diferenciación competitiva.',
+      criteria: [
+        {
+          title: 'Definición de la propuesta de valor',
+          description: 'La propuesta de valor está claramente articulada, conectando el problema del cliente con la solución ofrecida. Se identifican beneficios funcionales, emocionales y sociales.',
+          weight: 1,
+          max_score: 30,
+          order_index: 1
+        },
+        {
+          title: 'Diferenciación competitiva',
+          description: 'Se identifica claramente qué hace único al proyecto y cómo se diferencia de la competencia. La propuesta de valor es distintiva y difícil de replicar.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Alineación con segmento de clientes',
+          description: 'La propuesta de valor está perfectamente alineada con las necesidades, motivaciones y frustraciones del segmento de clientes identificado. Evidencia de investigación de mercado.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Comunicación y claridad',
+          description: 'La propuesta de valor se comunica de manera clara, concisa y memorable. Está conectada con la misión, visión y valores del proyecto.',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 4': {
+      name: 'Rúbrica de evaluación - Fase 4: Modelo de negocio',
+      description: 'Criterios de evaluación para el Business Model Canvas y la ventaja competitiva.',
+      criteria: [
+        {
+          title: 'Completitud del Business Model Canvas',
+          description: 'Todos los bloques del canvas están completados de manera coherente: segmentos de clientes, propuesta de valor, canales, relaciones, flujos de ingresos, recursos clave, actividades clave, alianzas y estructura de costes.',
+          weight: 1,
+          max_score: 35,
+          order_index: 1
+        },
+        {
+          title: 'Modelo de ingresos',
+          description: 'Los flujos de ingresos están claramente definidos y son viables. Se explica cómo se captura valor y se generan ingresos de manera sostenible.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Recursos y actividades clave',
+          description: 'Identificación precisa de los recursos y actividades necesarios para entregar la propuesta de valor. Análisis de viabilidad operativa y de recursos disponibles.',
+          weight: 1,
+          max_score: 20,
+          order_index: 3
+        },
+        {
+          title: 'Ventaja competitiva sostenible',
+          description: 'Identificación de ventajas competitivas internas y externas. Análisis de sostenibilidad y dificultad de réplica por parte de la competencia.',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 5': {
+      name: 'Rúbrica de evaluación - Fase 5: Presenta tu proyecto',
+      description: 'Criterios de evaluación para el pitch y presentación del proyecto.',
+      criteria: [
+        {
+          title: 'Estructura y narrativa del pitch',
+          description: 'El pitch tiene una estructura clara con principio, nudo y cierre. La narrativa es coherente, memorable y conecta problema, cliente y solución de manera efectiva.',
+          weight: 1,
+          max_score: 30,
+          order_index: 1
+        },
+        {
+          title: 'Comunicación visual y diseño',
+          description: 'La presentación visual es profesional, con diseño claro y atractivo. Cumple con las mejores prácticas (máximo 6 palabras por diapositiva, tipografía legible, imágenes potentes).',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Contenido y argumentación',
+          description: 'El contenido del pitch cubre los aspectos clave: problema, solución, mercado, modelo de negocio y propuesta de valor. Los argumentos están respaldados por los análisis previos.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Calidad del vídeo y presentación',
+          description: 'El vídeo del pitch es de calidad profesional, con buena producción audiovisual. La presentación es fluida, natural y demuestra dominio del proyecto. Duración adecuada (3-5 minutos).',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    },
+    'Fase 6': {
+      name: 'Rúbrica de evaluación - Fase 6: Validación, MVP y roadmap',
+      description: 'Criterios de evaluación para la validación del modelo de negocio, MVP y planificación.',
+      criteria: [
+        {
+          title: 'Validación del modelo de negocio',
+          description: 'Evidencia de validación con clientes reales o potenciales. Incluye resultados de encuestas, entrevistas o pruebas piloto que confirmen problema, solución y modelo de ingresos.',
+          weight: 1,
+          max_score: 30,
+          order_index: 1
+        },
+        {
+          title: 'Diseño y planificación del MVP',
+          description: 'Definición clara del producto mínimo viable, con identificación de funcionalidades esenciales. Planificación de experimentos para validar hipótesis críticas con recursos mínimos.',
+          weight: 1,
+          max_score: 25,
+          order_index: 2
+        },
+        {
+          title: 'Roadmap y planificación (Diagrama de Gantt)',
+          description: 'Planificación detallada con diagrama de Gantt que incluye tareas, dependencias, responsables y fechas. Identificación de ruta crítica y gestión de recursos.',
+          weight: 1,
+          max_score: 25,
+          order_index: 3
+        },
+        {
+          title: 'Viabilidad y ejecución',
+          description: 'El plan de validación y desarrollo del MVP es realista y ejecutable. Se identifican recursos necesarios, riesgos potenciales y estrategias de mitigación.',
+          weight: 1,
+          max_score: 20,
+          order_index: 4
+        }
+      ]
+    }
+  };
+
+  // Helper para obtener nombre de fase (puede ser JSON o string)
+  const getPhaseName = (phase) => {
+    if (isPhasesNameJSON) {
+      try {
+        const nameObj = typeof phase.name === 'string' ? JSON.parse(phase.name) : phase.name;
+        return nameObj?.es || nameObj?.ca || nameObj?.en || phase.name;
+      } catch {
+        return phase.name;
+      }
+    }
+    return phase.name;
+  };
+
+  for (const phase of phasesForRubrics) {
+    const phaseName = getPhaseName(phase);
+    const rubricDef = rubricsByPhase[phaseName];
+
+    if (!rubricDef) {
+      continue;
+    }
+
+    const [[existingRubric]] = await queryInterface.sequelize.query(
+      `SELECT id FROM phase_rubrics WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} AND phase_id = ${phase.id} LIMIT 1`
+    );
+
+    if (!existingRubric) {
+      await queryInterface.bulkInsert('phase_rubrics', [
+        {
+          tenant_id: tenant.id,
+          event_id: event.id,
+          phase_id: phase.id,
+          rubric_scope: 'phase',
+          name: rubricDef.name,
+          description: rubricDef.description,
+          scale_min: 0,
+          scale_max: 100,
+          model_preference: null,
+          created_by: adminUserId,
+          updated_by: adminUserId,
+          created_at: now,
+          updated_at: now
+        }
+      ]);
+
+      const [[rubric]] = await queryInterface.sequelize.query(
+        `SELECT id FROM phase_rubrics WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} AND phase_id = ${phase.id} ORDER BY created_at DESC LIMIT 1`
+      );
+
+      if (rubric) {
+        const criteriaToInsert = rubricDef.criteria.map((criterion) => ({
+          tenant_id: tenant.id,
+          rubric_id: rubric.id,
+          title: criterion.title,
+          description: criterion.description,
+          weight: criterion.weight,
+          max_score: criterion.max_score,
+          order_index: criterion.order_index,
+          created_at: now,
+          updated_at: now
+        }));
+
+        await queryInterface.bulkInsert('phase_rubric_criteria', criteriaToInsert);
+      }
+    }
+  }
+
+  // 6. Crear rúbrica final del proyecto (Consolidado de 0007)
+  const [[existingFinalRubric]] = await queryInterface.sequelize.query(
+    `SELECT id FROM phase_rubrics WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} AND rubric_scope = 'project' LIMIT 1`
+  );
+
+  if (!existingFinalRubric) {
+    const finalRubric = {
+      name: 'Rúbrica de evaluación de proyectos de emprendeduría',
+      description: 'Rúbrica final para evaluar el proyecto completo y todas sus entregas. Escala de 1-5 puntos por criterio.',
+      scale_min: 1,
+      scale_max: 5,
+      criteria: [
+        {
+          title: 'Impacto social',
+          description: 'Evalúa en qué medida el proyecto responde a una necesidad real y la capacidad de generar beneficios sociales tangibles, sostenibles y de alcance significativo, así como su grado de relación y coherencia con el tema de la edición y la adaptación del proyecto a dicho enfoque.',
+          weight: 20,
+          max_score: 5,
+          order_index: 1
+        },
+        {
+          title: 'Originalidad de la idea',
+          description: 'Valora el grado de innovación, creatividad y diferenciación de la propuesta respecto a lo existente en el mercado o en su ámbito de actuación. Analiza si la idea aporta una perspectiva nueva, una solución creativa o un enfoque alternativo frente a las opciones actuales, así como la capacidad del equipo para aprovechar tendencias, tecnologías o combinaciones originales de recursos que generen valor añadido.',
+          weight: 15,
+          max_score: 5,
+          order_index: 2
+        },
+        {
+          title: 'Potencial/Viabilidad / Factibilidad',
+          description: 'Mide la viabilidad del modelo de negocio, su sostenibilidad económica y operativa, y las posibilidades de crecimiento o escalabilidad del proyecto. Evalúa la claridad del modelo de ingresos, la coherencia entre los recursos y los objetivos, y la capacidad del equipo para implementar el proyecto en el tiempo y contexto previstos.',
+          weight: 25,
+          max_score: 5,
+          order_index: 3
+        },
+        {
+          title: 'Calidad de los entregables',
+          description: 'Examina la completitud, claridad, organización y presentación profesional de los materiales entregados (documentos, presentaciones, informes u otros). Evalúa tanto la forma (estructuración, formato, lenguaje y diseño) como el fondo (coherencia, rigor y capacidad de síntesis), reflejando el nivel de preparación y cuidado en la ejecución del trabajo.',
+          weight: 10,
+          max_score: 5,
+          order_index: 4
+        },
+        {
+          title: 'Presentación',
+          description: 'Considera la preparación, claridad, estructura, lenguaje corporal y capacidad de comunicación para transmitir el proyecto de manera convincente y conectar con la audiencia. Evalúa la capacidad del equipo para sintetizar, argumentar y responder preguntas con seguridad y coherencia, así como el uso de recursos visuales o narrativos para reforzar el mensaje.',
+          weight: 10,
+          max_score: 5,
+          order_index: 5
+        },
+        {
+          title: 'Equipo emprendedor',
+          description: 'Evalúa la organización, cohesión, motivación y complementariedad del equipo, así como la existencia de liderazgo, visión compartida y compromiso para llevar adelante el proyecto. Considera la distribución de roles, la colaboración efectiva y la capacidad de aprendizaje y adaptación del grupo.',
+          weight: 20,
+          max_score: 5,
+          order_index: 6
+        }
+      ]
+    };
+
+    await queryInterface.bulkInsert('phase_rubrics', [
+      {
+        tenant_id: tenant.id,
+        event_id: event.id,
+        phase_id: null,
+        rubric_scope: 'project',
+        name: finalRubric.name,
+        description: finalRubric.description,
+        scale_min: finalRubric.scale_min,
+        scale_max: finalRubric.scale_max,
+        model_preference: null,
+        created_by: adminUserId,
+        updated_by: adminUserId,
+        created_at: now,
+        updated_at: now
+      }
+    ]);
+
+    const [[rubric]] = await queryInterface.sequelize.query(
+      `SELECT id FROM phase_rubrics WHERE tenant_id = ${tenant.id} AND event_id = ${event.id} AND rubric_scope = 'project' ORDER BY created_at DESC LIMIT 1`
+    );
+
+    if (rubric) {
+      const criteriaToInsert = finalRubric.criteria.map((criterion) => ({
+        tenant_id: tenant.id,
+        rubric_id: rubric.id,
+        title: criterion.title,
+        description: criterion.description,
+        weight: criterion.weight,
+        max_score: criterion.max_score,
+        order_index: criterion.order_index,
+        created_at: now,
+        updated_at: now
+      }));
+
+      await queryInterface.bulkInsert('phase_rubric_criteria', criteriaToInsert);
+    }
+  }
 }
 
 export async function down(queryInterface) {
@@ -1844,11 +1559,41 @@ export async function down(queryInterface) {
     return;
   }
 
-  const [[event]] = await queryInterface.sequelize.query(
-    `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`
-  );
+  // Verificar si la columna name es JSON (multiidioma) o STRING
+  const eventsTableDesc = await queryInterface.describeTable('events').catch(() => ({}));
+  const isEventsNameJSON = eventsTableDesc.name && (eventsTableDesc.name.type === 'json' || eventsTableDesc.name.type?.includes('json') || eventsTableDesc.name.type === 'JSON');
+
+  // Buscar el evento según el tipo de columna
+  const eventQuery = isEventsNameJSON
+    ? `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'SPP 2026' LIMIT 1`
+    : `SELECT id FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`;
+  
+  const [[event]] = await queryInterface.sequelize.query(eventQuery);
 
   if (event) {
+    // Eliminar rúbricas y sus criterios
+    const [rubrics] = await queryInterface.sequelize.query(
+      `SELECT id FROM phase_rubrics WHERE tenant_id = ${tenant.id} AND event_id = ${event.id}`
+    );
+
+    if (rubrics && rubrics.length > 0) {
+      const rubricIds = rubrics.map((r) => r.id).join(',');
+      await queryInterface.sequelize.query(
+        `DELETE FROM phase_rubric_criteria WHERE rubric_id IN (${rubricIds})`
+      );
+      await queryInterface.bulkDelete('phase_rubrics', {
+        tenant_id: tenant.id,
+        event_id: event.id
+      });
+    }
+
+    // Eliminar assets
+    await queryInterface.bulkDelete('event_assets', {
+      tenant_id: tenant.id,
+      event_id: event.id
+    });
+
+    // Eliminar tareas, fases y evento
     await queryInterface.bulkDelete('tasks', { tenant_id: tenant.id, event_id: event.id });
     await queryInterface.bulkDelete('phases', { tenant_id: tenant.id, event_id: event.id });
     await queryInterface.bulkDelete('events', { tenant_id: tenant.id, id: event.id });
@@ -1871,7 +1616,25 @@ export async function down(queryInterface) {
 
   await queryInterface.bulkDelete('users', { email: 'admin@uic.es' });
   await queryInterface.bulkDelete('roles', { tenant_id: tenant.id, scope: 'tenant_admin' });
+
+  // Revertir cambios del tenant (registration_schema, logo_url, enlaces sociales)
+  await queryInterface.sequelize.query(
+    `UPDATE tenants SET 
+      registration_schema = NULL,
+      logo_url = NULL,
+      website_url = NULL,
+      linkedin_url = NULL,
+      twitter_url = NULL,
+      facebook_url = NULL,
+      instagram_url = NULL,
+      updated_at = NOW() 
+    WHERE id = :tenantId`,
+    {
+      replacements: {
+        tenantId: tenant.id
+      }
+    }
+  );
+
   await queryInterface.bulkDelete('tenants', { id: tenant.id });
 }
-
-

@@ -9,6 +9,7 @@ import { submissionsRouter } from './v1/submissions.routes.js';
 import { evaluationsRouter } from './v1/evaluations.routes.js';
 import { notificationsRouter } from './v1/notifications.routes.js';
 import { rubricsRouter } from './v1/rubrics.routes.js';
+import { translationRouter } from './v1/translation.routes.js';
 
 export const router = Router();
 
@@ -30,4 +31,5 @@ router.use('/', submissionsRouter);
 router.use('/', evaluationsRouter);
 router.use('/', rubricsRouter);
 router.use('/notifications', notificationsRouter);
+router.use('/translation', translationRouter);
 

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SuperAdminToolbar } from '@/components/superadmin';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 type FilterCardProps = {
   title: string;
@@ -26,8 +27,8 @@ export function FilterCard({
 }: FilterCardProps) {
   const { t } = useTranslation();
 
-  const defaultApplyLabel = applyLabel ?? t('common.applyFilters', { defaultValue: 'Aplicar filtros' });
-  const defaultResetLabel = resetLabel ?? t('common.resetFilters', { defaultValue: 'Resetear filtros' });
+  const defaultApplyLabel = applyLabel ?? safeTranslate(t, 'common.applyFilters', { defaultValue: 'Aplicar filtros' });
+  const defaultResetLabel = resetLabel ?? safeTranslate(t, 'common.resetFilters', { defaultValue: 'Resetear filtros' });
 
   return (
     <Card className={className}>

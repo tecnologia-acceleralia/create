@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next';
 import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
 import { Button } from '@/components/ui/button';
-import { formatDateRange, parseDate } from '@/utils/date';
+import { formatDateRange, formatDateValue, parseDate } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import {
   getEventDetail,
   type Phase,
@@ -21,7 +23,8 @@ type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 function PhaseDetailParticipantPage() {
   const { eventId } = useParams();
   const numericId = Number(eventId);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const tenantPath = useTenantPath();
   const [searchParams] = useSearchParams();
 
@@ -45,13 +48,14 @@ function PhaseDetailParticipantPage() {
   
   const isPhaseZero = useMemo(() => {
     if (!activePhase) return false;
-    const normalizedName = activePhase.name?.toLowerCase() ?? '';
+    const phaseName = getMultilingualText(activePhase.name, currentLang);
+    const normalizedName = phaseName.toLowerCase();
     return (
       activePhase.order_index === 0 ||
       normalizedName.includes('fase 0') ||
       normalizedName.includes('phase 0')
     );
-  }, [activePhase]);
+  }, [activePhase, currentLang]);
 
   if (isNaN(numericId) || isLoading) {
     return <Spinner fullHeight />;
@@ -59,11 +63,11 @@ function PhaseDetailParticipantPage() {
 
   if (!eventDetail) {
     return (
-      <DashboardLayout title={t('events.title')} subtitle={t('common.error')}>
+      <DashboardLayout title={safeTranslate(t, 'events.title')} subtitle={safeTranslate(t, 'common.error')}>
         <div className="rounded-2xl border border-border/70 bg-card/80 p-6 text-sm">
-          <p className="text-destructive">{t('common.error')}</p>
+          <p className="text-destructive">{safeTranslate(t, 'common.error')}</p>
           <Button asChild variant="outline" className="mt-4">
-            <Link to={tenantPath('dashboard')}>{t('navigation.dashboard')}</Link>
+            <Link to={tenantPath('dashboard')}>{safeTranslate(t, 'navigation.dashboard')}</Link>
           </Button>
         </div>
       </DashboardLayout>
@@ -76,6 +80,7 @@ function PhaseDetailParticipantPage() {
 function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const tenantPath = useTenantPath();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, activeMembership } = useAuth();
@@ -97,8 +102,8 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
   
   const hasTeam = eventDetail?.has_team ?? false;
 
-  const notAvailableLabel = t('common.notAvailable', { defaultValue: 'N/A' });
-  const formatDateWithFallback = (value?: string | null) => formatDateValue(value) ?? notAvailableLabel;
+  const notAvailableLabel = safeTranslate(t, 'common.notAvailable', { defaultValue: 'N/A' });
+  const formatDateWithFallback = (value?: string | null) => formatDateValue(value, locale) ?? notAvailableLabel;
 
   useEffect(() => {
     if (!phases.length) {
@@ -119,13 +124,14 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
 
   const isPhaseZero = useMemo(() => {
     if (!activePhase) return false;
-    const normalizedName = activePhase.name?.toLowerCase() ?? '';
+    const phaseName = getMultilingualText(activePhase.name, currentLang);
+    const normalizedName = phaseName.toLowerCase();
     return (
       activePhase.order_index === 0 ||
       normalizedName.includes('fase 0') ||
       normalizedName.includes('phase 0')
     );
-  }, [activePhase]);
+  }, [activePhase, currentLang]);
 
   const tasksByPhase = useMemo(() => {
     const grouped = new Map<number, Task[]>();
@@ -158,11 +164,14 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
         if (createdDiff !== 0) {
           return createdDiff;
         }
-        return a.title.localeCompare(b.title);
+        // Manejar casos donde title puede ser null o undefined
+        const titleA = a.title ? (typeof a.title === 'string' ? a.title : getMultilingualText(a.title, currentLang)) : '';
+        const titleB = b.title ? (typeof b.title === 'string' ? b.title : getMultilingualText(b.title, currentLang)) : '';
+        return titleA.localeCompare(titleB);
       });
     });
     return grouped;
-  }, [tasks]);
+  }, [tasks, currentLang]);
 
   const activeTasks = activePhase ? tasksByPhase.get(activePhase.id) ?? [] : [];
 
@@ -228,8 +237,11 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
     setExpandedTasks(newExpandedSet);
   }, [activeTasks]); // Cuando cambian las tareas activas
 
+  const eventName = getMultilingualText(eventDetail.name, currentLang);
+  const eventDescription = eventDetail.description ? getMultilingualText(eventDetail.description, currentLang) : '';
+
   return (
-    <DashboardLayout title={eventDetail.name} subtitle={eventDetail.description ?? ''}>
+    <DashboardLayout title={eventName} subtitle={eventDescription}>
       <div className="space-y-6">
         {activePhase ? (
           <PhaseContextCard phase={activePhase} locale={locale} defaultExpanded={isPhaseContextExpanded} eventId={eventDetail.id} />
@@ -255,7 +267,7 @@ function PhaseParticipantView({ eventDetail }: { eventDetail: EventDetailData })
             );
           })}
           {!activeTasks.length && phases.length ? (
-            <p className="text-sm text-muted-foreground">{t('events.noTasks')}</p>
+            <p className="text-sm text-muted-foreground">{safeTranslate(t, 'events.noTasks')}</p>
           ) : null}
         </div>
       </div>

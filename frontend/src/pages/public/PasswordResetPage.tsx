@@ -10,10 +10,11 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
+import { ErrorDisplay, PasswordField } from '@/components/common';
+import { AuthCard } from '@/components/common/AuthCard';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { requestPasswordResetCode, verifyPasswordResetCode, confirmPasswordReset } from '@/services/auth';
-import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
 import { useAuth } from '@/context/AuthContext';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -93,12 +94,12 @@ const RequestStepForm = ({ form, serverError, onSubmit }: RequestStepFormProps) 
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium" htmlFor="email">
-          {t('auth.email')}
+          {safeTranslate(t, 'auth.email')}
         </label>
         <Input id="email" type="email" autoComplete="email" {...register('email')} />
         {errors.email ? (
           <p className="text-xs text-destructive">
-            {t(errors.email.message ?? 'auth.passwordReset.emailInvalid')}
+            {safeTranslate(t, errors.email.message ?? 'auth.passwordReset.emailInvalid')}
           </p>
         ) : null}
       </div>
@@ -106,7 +107,7 @@ const RequestStepForm = ({ form, serverError, onSubmit }: RequestStepFormProps) 
       <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? t('common.loading') : t('auth.submit')}
+        {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'auth.submit')}
       </Button>
     </form>
   );
@@ -140,7 +141,7 @@ const VerifyStepForm = ({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium" htmlFor="code">
-          {t('auth.passwordReset.code')}
+          {safeTranslate(t, 'auth.passwordReset.code')}
         </label>
         <Input
           id="code"
@@ -149,10 +150,10 @@ const VerifyStepForm = ({
           maxLength={6}
           {...register('code')}
         />
-        <p className="text-xs text-muted-foreground">{t('auth.passwordReset.codeHelp')}</p>
+        <p className="text-xs text-muted-foreground">{safeTranslate(t, 'auth.passwordReset.codeHelp')}</p>
         {errors.code ? (
           <p className="text-xs text-destructive">
-            {t(errors.code.message ?? 'auth.passwordReset.codeInvalid')}
+            {safeTranslate(t, errors.code.message ?? 'auth.passwordReset.codeInvalid')}
           </p>
         ) : null}
       </div>
@@ -160,12 +161,12 @@ const VerifyStepForm = ({
       <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? t('common.loading') : t('auth.passwordReset.submitCode')}
+        {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'auth.passwordReset.submitCode')}
       </Button>
 
       {showResend ? (
         <div className="text-center text-sm text-muted-foreground">
-          <p>{t('auth.passwordReset.resendHint')}</p>
+          <p>{safeTranslate(t, 'auth.passwordReset.resendHint')}</p>
           <Button
             type="button"
             variant="ghost"
@@ -173,7 +174,7 @@ const VerifyStepForm = ({
             onClick={onResend}
             disabled={isSubmitting || isResending}
           >
-            {isResending ? t('common.loading') : t('auth.passwordReset.resendCode')}
+            {isResending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'auth.passwordReset.resendCode')}
           </Button>
         </div>
       ) : null}
@@ -199,42 +200,38 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium" htmlFor="password">
-          {t('auth.passwordReset.newPassword')}
+          {safeTranslate(t, 'auth.passwordReset.newPassword')}
         </label>
-        <div className="flex gap-2">
-          <PasswordInput
-            id="password"
-            autoComplete="new-password"
-            className="flex-1"
-            {...register('password')}
-          />
-          <PasswordGeneratorButton
-            onGenerate={password => {
-              form.setValue('password', password, { shouldValidate: true });
-              form.setValue('confirmPassword', password, { shouldValidate: true });
-            }}
-            aria-label={t('auth.passwordReset.generatePassword')}
-          />
-        </div>
+        <PasswordField
+          id="password"
+          autoComplete="new-password"
+          showGenerator
+          onPasswordGenerated={password => {
+            form.setValue('password', password, { shouldValidate: true });
+            form.setValue('confirmPassword', password, { shouldValidate: true });
+          }}
+          generatorAriaLabel={safeTranslate(t, 'auth.passwordReset.generatePassword')}
+          {...register('password')}
+        />
         {errors.password ? (
           <p className="text-xs text-destructive">
-            {t(errors.password.message ?? 'auth.passwordReset.passwordTooShort')}
+            {safeTranslate(t, errors.password.message ?? 'auth.passwordReset.passwordTooShort')}
           </p>
         ) : null}
       </div>
 
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium" htmlFor="confirmPassword">
-          {t('auth.passwordReset.confirmPassword')}
+          {safeTranslate(t, 'auth.passwordReset.confirmPassword')}
         </label>
-        <PasswordInput
+        <PasswordField
           id="confirmPassword"
           autoComplete="new-password"
           {...register('confirmPassword')}
         />
         {errors.confirmPassword ? (
           <p className="text-xs text-destructive">
-            {t(errors.confirmPassword.message ?? 'auth.passwordReset.passwordMismatch')}
+            {safeTranslate(t, errors.confirmPassword.message ?? 'auth.passwordReset.passwordMismatch')}
           </p>
         ) : null}
       </div>
@@ -242,7 +239,7 @@ const ConfirmStepForm = ({ form, serverError, onSubmit }: ConfirmStepFormProps) 
       <ErrorDisplay error={serverError} />
 
       <Button type="submit" className="w-full" disabled={isSubmitting}>
-        {isSubmitting ? t('common.loading') : t('auth.passwordReset.submitPassword')}
+        {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'auth.passwordReset.submitPassword')}
       </Button>
     </form>
   );
@@ -287,10 +284,10 @@ function PasswordResetPage() {
       const normalizedEmail = values.email.trim().toLowerCase();
       await requestPasswordResetCode({ email: normalizedEmail });
       setEmail(normalizedEmail);
-      toast.success(t('auth.passwordReset.emailSent'));
+      toast.success(safeTranslate(t, 'auth.passwordReset.emailSent'));
       setStep('verify');
     } catch (error) {
-      setServerError(resolveAxiosMessage(error, t('common.error')));
+      setServerError(resolveAxiosMessage(error, safeTranslate(t, 'common.error')));
     }
   };
 
@@ -299,13 +296,13 @@ function PasswordResetPage() {
     try {
       await verifyPasswordResetCode({ email, code: values.code.trim() });
       setCode(values.code.trim());
-      toast.success(t('auth.passwordReset.codeValidated'));
+      toast.success(safeTranslate(t, 'auth.passwordReset.codeValidated'));
       setStep('confirm');
     } catch (error) {
       setServerError(
-        resolveAxiosMessage(error, t('common.error'), {
-          code_invalid: t('auth.passwordReset.codeInvalid'),
-          code_expired: t('auth.passwordReset.codeExpired')
+        resolveAxiosMessage(error, safeTranslate(t, 'common.error'), {
+          code_invalid: safeTranslate(t, 'auth.passwordReset.codeInvalid'),
+          code_expired: safeTranslate(t, 'auth.passwordReset.codeExpired')
         })
       );
     }
@@ -320,13 +317,13 @@ function PasswordResetPage() {
         password: values.password
       });
       hydrateSession(response.data.data);
-      toast.success(t('auth.passwordReset.success'));
+      toast.success(safeTranslate(t, 'auth.passwordReset.success'));
       navigate(tenantPath('dashboard'));
     } catch (error) {
       setServerError(
-        resolveAxiosMessage(error, t('common.error'), {
-          code_invalid: t('auth.passwordReset.codeInvalid'),
-          code_expired: t('auth.passwordReset.codeExpired')
+        resolveAxiosMessage(error, safeTranslate(t, 'common.error'), {
+          code_invalid: safeTranslate(t, 'auth.passwordReset.codeInvalid'),
+          code_expired: safeTranslate(t, 'auth.passwordReset.codeExpired')
         })
       );
     }
@@ -339,9 +336,9 @@ function PasswordResetPage() {
     try {
       setIsResending(true);
       await requestPasswordResetCode({ email });
-      toast.success(t('auth.passwordReset.emailSent'));
+      toast.success(safeTranslate(t, 'auth.passwordReset.emailSent'));
     } catch (error) {
-      setServerError(resolveAxiosMessage(error, t('common.error')));
+      setServerError(resolveAxiosMessage(error, safeTranslate(t, 'common.error')));
     } finally {
       setIsResending(false);
     }
@@ -350,15 +347,15 @@ function PasswordResetPage() {
   const stepContent = useMemo(
     () => ({
       request: {
-        title: t('auth.passwordReset.requestTitle'),
-        description: t('auth.passwordReset.requestDescription')
+        title: safeTranslate(t, 'auth.passwordReset.requestTitle'),
+        description: safeTranslate(t, 'auth.passwordReset.requestDescription')
       },
       verify: {
-        title: t('auth.passwordReset.verifyTitle'),
-        description: t('auth.passwordReset.verifyDescription')
+        title: safeTranslate(t, 'auth.passwordReset.verifyTitle'),
+        description: safeTranslate(t, 'auth.passwordReset.verifyDescription')
       },
       confirm: {
-        title: t('auth.passwordReset.confirmTitle'),
+        title: safeTranslate(t, 'auth.passwordReset.confirmTitle'),
         description: null
       }
     }),
@@ -388,7 +385,7 @@ function PasswordResetPage() {
       footer={
         <>
           <Link to={tenantPath('login')} className="text-sm text-primary underline underline-offset-4">
-            {t('auth.backToLogin')}
+            {safeTranslate(t, 'auth.backToLogin')}
           </Link>
           {step !== 'request' ? (
             <button
@@ -396,7 +393,7 @@ function PasswordResetPage() {
               className="text-sm text-muted-foreground underline underline-offset-4"
               onClick={resetState}
             >
-              {t('auth.passwordReset.cancel')}
+              {safeTranslate(t, 'auth.passwordReset.cancel')}
             </button>
           ) : null}
         </>

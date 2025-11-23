@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Filter, Plus, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Key } from 'lucide-react';
 import {
   createSuperAdminUser,
   deleteSuperAdminUser,
@@ -28,10 +28,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog';
-import { UserModal } from '@/components/superadmin/modals';
+import { UserModal, ChangePasswordModal } from '@/components/superadmin/modals';
 import { FormField } from '@/components/form';
 import { Badge } from '@/components/ui/badge';
 import { formatDateValue } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { FilterCard, DataTable, type Column } from '@/components/common';
 
 const USER_STATUS = ['active', 'inactive', 'invited'] as const;
@@ -84,6 +85,7 @@ function SuperAdminUsersPage() {
     user: null
   });
   const [pendingDelete, setPendingDelete] = useState<SuperAdminUser | null>(null);
+  const [passwordChangeUser, setPasswordChangeUser] = useState<SuperAdminUser | null>(null);
 
   useEffect(() => {
     if (initialTenantId) {
@@ -125,34 +127,44 @@ function SuperAdminUsersPage() {
     onSuccess: data => {
       toast.success(
         data.provisionalPassword
-          ? t('superadmin.users.createSuccessWithPassword', { password: data.provisionalPassword })
-          : t('superadmin.users.createSuccess')
+          ? safeTranslate(t, 'superadmin.users.createSuccessWithPassword', { password: data.provisionalPassword })
+          : safeTranslate(t, 'superadmin.users.createSuccess')
       );
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'users'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const updateUserMutation = useMutation({
     mutationFn: (variables: { userId: number; body: Parameters<typeof updateSuperAdminUser>[1] }) =>
       updateSuperAdminUser(variables.userId, variables.body),
     onSuccess: () => {
-      toast.success(t('superadmin.users.updateSuccess'));
+      toast.success(safeTranslate(t, 'superadmin.users.updateSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'users'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
+  });
+
+  const changePasswordMutation = useMutation({
+    mutationFn: (variables: { userId: number; password: string }) =>
+      updateSuperAdminUser(variables.userId, { password: variables.password }),
+    onSuccess: () => {
+      toast.success(safeTranslate(t, 'superadmin.users.passwordChangedSuccess'));
+      void queryClient.invalidateQueries({ queryKey: ['superadmin', 'users'] });
+    },
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const deleteUserMutation = useMutation({
     mutationFn: deleteSuperAdminUser,
     onSuccess: () => {
-      toast.success(t('superadmin.users.deleteSuccess'));
+      toast.success(safeTranslate(t, 'superadmin.users.deleteSuccess'));
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'users'] });
       void queryClient.invalidateQueries({ queryKey: ['superadmin', 'overview'] });
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const usersData: UsersListResponse | undefined = usersQuery.data;
@@ -210,22 +222,22 @@ function SuperAdminUsersPage() {
   const columns: Column<SuperAdminUser>[] = [
     {
       key: 'name',
-      header: t('superadmin.users.table.name'),
+      header: safeTranslate(t, 'superadmin.users.table.name'),
       render: user => <span className="font-medium">{user.first_name} {user.last_name}</span>
     },
     {
       key: 'email',
-      header: t('superadmin.users.table.email'),
+      header: safeTranslate(t, 'superadmin.users.table.email'),
       render: user => user.email
     },
     {
       key: 'status',
-      header: t('superadmin.users.table.status'),
-      render: user => <Badge variant="secondary">{t(`superadmin.userStatus.${user.status}`)}</Badge>
+      header: safeTranslate(t, 'superadmin.users.table.status'),
+      render: user => <Badge variant="secondary">{safeTranslate(t, `superadmin.userStatus.${user.status}`, { defaultValue: user.status })}</Badge>
     },
     {
       key: 'scope',
-      header: t('superadmin.users.table.scope'),
+      header: safeTranslate(t, 'superadmin.users.table.scope'),
       render: user => {
         const isSuperAdminUser = Boolean(
           user.is_super_admin ?? (user as unknown as { isSuperAdmin?: boolean }).isSuperAdmin
@@ -233,18 +245,18 @@ function SuperAdminUsersPage() {
         return (
           <Badge variant={isSuperAdminUser ? 'success' : 'outline'}>
             {isSuperAdminUser
-              ? t('superadmin.users.superAdminBadge')
-              : t('superadmin.users.standardBadge')}
+              ? safeTranslate(t, 'superadmin.users.superAdminBadge')
+              : safeTranslate(t, 'superadmin.users.standardBadge')}
           </Badge>
         );
       }
     },
     {
       key: 'tenants',
-      header: t('superadmin.users.table.tenants'),
+      header: safeTranslate(t, 'superadmin.users.table.tenants'),
       render: user =>
         user.tenantMemberships.length === 0 ? (
-          <span className="text-xs text-muted-foreground">{t('superadmin.users.noTenants')}</span>
+          <span className="text-xs text-muted-foreground">{safeTranslate(t, 'superadmin.users.noTenants')}</span>
         ) : (
           <div className="space-y-2">
             {user.tenantMemberships.map(membership => {
@@ -262,7 +274,7 @@ function SuperAdminUsersPage() {
                     <div className="mt-1 flex flex-wrap gap-1">
                       {roles.map(role => (
                         <Badge key={`${membership.id}-${role.id}`} variant="outline">
-                          {t(`superadmin.users.roleLabels.${role.scope}`, {
+                          {safeTranslate(t, `superadmin.users.roleLabels.${role.scope}`, {
                             defaultValue: role.name ?? role.scope
                           })}
                         </Badge>
@@ -270,7 +282,7 @@ function SuperAdminUsersPage() {
                     </div>
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {t('superadmin.users.roles.empty')}
+                      {safeTranslate(t, 'superadmin.users.roles.empty')}
                     </p>
                   )}
                 </div>
@@ -281,23 +293,23 @@ function SuperAdminUsersPage() {
     },
     {
       key: 'created',
-      header: t('superadmin.users.table.created'),
-      render: user => formatDateValue(user.created_at ?? user.createdAt) ?? t('common.notAvailable')
+      header: safeTranslate(t, 'superadmin.users.table.created'),
+      render: user => formatDateValue(user.created_at ?? user.createdAt) ?? safeTranslate(t, 'common.notAvailable')
     },
     {
       key: 'lastLogin',
-      header: t('superadmin.users.table.lastLogin'),
+      header: safeTranslate(t, 'superadmin.users.table.lastLogin'),
       render: user => {
         const lastLogin = user.last_login_at;
         if (!lastLogin) {
-          return <span className="text-muted-foreground">{t('superadmin.users.neverLoggedIn')}</span>;
+          return <span className="text-muted-foreground">{safeTranslate(t, 'superadmin.users.neverLoggedIn')}</span>;
         }
-        return formatDateValue(lastLogin) ?? t('common.notAvailable');
+        return formatDateValue(lastLogin) ?? safeTranslate(t, 'common.notAvailable');
       }
     },
     {
       key: 'actions',
-      header: t('superadmin.users.table.actions'),
+      header: safeTranslate(t, 'superadmin.users.table.actions'),
       className: 'text-right',
       render: user => (
         <div className="flex items-center justify-end gap-2">
@@ -305,10 +317,19 @@ function SuperAdminUsersPage() {
             type="button"
             variant="outline"
             size="icon"
-            aria-label={t('common.edit')}
+            aria-label={safeTranslate(t, 'common.edit')}
             onClick={() => openEditModal(user)}
           >
             <Pencil className="h-4 w-4" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            aria-label={safeTranslate(t, 'superadmin.users.changePassword')}
+            onClick={() => setPasswordChangeUser(user)}
+          >
+            <Key className="h-4 w-4" aria-hidden />
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -316,7 +337,7 @@ function SuperAdminUsersPage() {
                 type="button"
                 variant="destructive"
                 size="icon"
-                aria-label={t('common.remove')}
+                aria-label={safeTranslate(t, 'common.remove')}
                 onClick={() => setPendingDelete(user)}
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
@@ -324,14 +345,14 @@ function SuperAdminUsersPage() {
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t('superadmin.users.deleteTitle')}</AlertDialogTitle>
+                <AlertDialogTitle>{safeTranslate(t, 'superadmin.users.deleteTitle')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {t('superadmin.users.deleteDescription', { email: pendingDelete?.email ?? '' })}
+                  {safeTranslate(t, 'superadmin.users.deleteDescription', { email: pendingDelete?.email ?? '' })}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel onClick={() => setPendingDelete(null)}>
-                  {t('common.cancel')}
+                  {safeTranslate(t, 'common.cancel')}
                 </AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
@@ -342,7 +363,7 @@ function SuperAdminUsersPage() {
                   }}
                   disabled={deleteUserMutation.isPending}
                 >
-                  {deleteUserMutation.isPending ? t('common.loading') : t('common.confirm')}
+                  {deleteUserMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'common.confirm')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -355,39 +376,39 @@ function SuperAdminUsersPage() {
   return (
     <div className="space-y-6">
       <FilterCard
-        title={t('superadmin.users.filtersTitle')}
+        title={safeTranslate(t, 'superadmin.users.filtersTitle')}
         onSubmit={handleFiltersSubmit}
         onReset={handleResetFilters}
-        applyLabel={t('superadmin.users.applyFilters')}
-        resetLabel={t('superadmin.users.resetFilters')}
+        applyLabel={safeTranslate(t, 'superadmin.users.applyFilters')}
+        resetLabel={safeTranslate(t, 'superadmin.users.resetFilters')}
       >
-        <FormField label={t('common.search')}>
+        <FormField label={safeTranslate(t, 'common.search')}>
           <Input
             name="search"
-            placeholder={t('superadmin.users.searchPlaceholder')}
+            placeholder={safeTranslate(t, 'superadmin.users.searchPlaceholder')}
             defaultValue={filters.search}
           />
         </FormField>
-        <FormField label={t('superadmin.users.filterStatus')}>
+        <FormField label={safeTranslate(t, 'superadmin.users.filterStatus')}>
           <Select name="status" defaultValue={filters.status}>
-            <option value="">{t('superadmin.users.allStatuses')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.users.allStatuses')}</option>
             {USER_STATUS.map(status => (
               <option key={status} value={status}>
-                {t(`superadmin.userStatus.${status}`)}
+                {safeTranslate(t, `superadmin.userStatus.${status}`, { defaultValue: status })}
               </option>
             ))}
           </Select>
         </FormField>
-        <FormField label={t('superadmin.users.filterIsSuperAdmin')}>
+        <FormField label={safeTranslate(t, 'superadmin.users.filterIsSuperAdmin')}>
           <Select name="isSuperAdmin" defaultValue={filters.isSuperAdmin}>
-            <option value="">{t('superadmin.users.allScopes')}</option>
-            <option value="true">{t('superadmin.users.superAdmins')}</option>
-            <option value="false">{t('superadmin.users.nonSuperAdmins')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.users.allScopes')}</option>
+            <option value="true">{safeTranslate(t, 'superadmin.users.superAdmins')}</option>
+            <option value="false">{safeTranslate(t, 'superadmin.users.nonSuperAdmins')}</option>
           </Select>
         </FormField>
-        <FormField label={t('superadmin.users.filterTenant')}>
+        <FormField label={safeTranslate(t, 'superadmin.users.filterTenant')}>
           <Select name="tenantId" defaultValue={filters.tenantId?.toString() ?? ''}>
-            <option value="">{t('superadmin.users.allTenants')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.users.allTenants')}</option>
             {tenantsOptions.map(tenant => (
               <option key={tenant.id} value={tenant.id}>
                 {tenant.name}
@@ -395,13 +416,13 @@ function SuperAdminUsersPage() {
             ))}
           </Select>
         </FormField>
-        <FormField label={t('superadmin.users.filterLastLogin')}>
+        <FormField label={safeTranslate(t, 'superadmin.users.filterLastLogin')}>
           <Select name="lastLoginFilter" defaultValue={filters.lastLoginFilter}>
-            <option value="">{t('superadmin.users.allLastLogins')}</option>
-            <option value="never">{t('superadmin.users.neverLoggedIn')}</option>
-            <option value="last7days">{t('superadmin.users.last7days')}</option>
-            <option value="last30days">{t('superadmin.users.last30days')}</option>
-            <option value="last90days">{t('superadmin.users.last90days')}</option>
+            <option value="">{safeTranslate(t, 'superadmin.users.allLastLogins')}</option>
+            <option value="never">{safeTranslate(t, 'superadmin.users.neverLoggedIn')}</option>
+            <option value="last7days">{safeTranslate(t, 'superadmin.users.last7days')}</option>
+            <option value="last30days">{safeTranslate(t, 'superadmin.users.last30days')}</option>
+            <option value="last90days">{safeTranslate(t, 'superadmin.users.last90days')}</option>
           </Select>
         </FormField>
       </FilterCard>
@@ -409,16 +430,16 @@ function SuperAdminUsersPage() {
       <div className="flex justify-end">
         <Button onClick={openCreateModal}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
-          {t('superadmin.users.create')}
+          {safeTranslate(t, 'superadmin.users.create')}
         </Button>
       </div>
 
       <DataTable
-        title={t('superadmin.users.listTitle')}
+        title={safeTranslate(t, 'superadmin.users.listTitle')}
         columns={columns}
         data={usersData?.items ?? []}
         isLoading={usersQuery.isLoading}
-        emptyMessage={t('superadmin.users.empty')}
+        emptyMessage={safeTranslate(t, 'superadmin.users.empty')}
         pagination={
           usersData
             ? {
@@ -430,9 +451,9 @@ function SuperAdminUsersPage() {
                 },
                 onPageChange: page => setFilters(prev => ({ ...prev, page })),
                 paginationLabel: (from, to, total) =>
-                  t('superadmin.users.pagination', { from, to, total }),
-                prevLabel: t('superadmin.users.prevPage'),
-                nextLabel: t('superadmin.users.nextPage')
+                  safeTranslate(t, 'superadmin.users.pagination', { from, to, total }),
+                prevLabel: safeTranslate(t, 'superadmin.users.prevPage'),
+                nextLabel: safeTranslate(t, 'superadmin.users.nextPage')
               }
             : undefined
         }
@@ -446,6 +467,17 @@ function SuperAdminUsersPage() {
         onSubmit={handleModalSubmit}
         isSubmitting={createUserMutation.isPending || updateUserMutation.isPending}
         tenants={tenantsOptions}
+        selectedTenantId={filters.tenantId}
+      />
+
+      <ChangePasswordModal
+        user={passwordChangeUser}
+        open={passwordChangeUser !== null}
+        onClose={() => setPasswordChangeUser(null)}
+        onSubmit={async (userId, password) => {
+          await changePasswordMutation.mutateAsync({ userId, password });
+        }}
+        isSubmitting={changePasswordMutation.isPending}
       />
     </div>
   );

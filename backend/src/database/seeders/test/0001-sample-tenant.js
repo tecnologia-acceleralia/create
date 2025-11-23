@@ -33,6 +33,27 @@ const demoTestUsersData = [
 ];
 
 export async function up(queryInterface) {
+  // Verificar tipos de columnas para manejar formato JSON o STRING
+  const eventsTableDesc = await queryInterface.describeTable('events').catch(() => ({}));
+  const phasesTableDesc = await queryInterface.describeTable('phases').catch(() => ({}));
+  const tasksTableDesc = await queryInterface.describeTable('tasks').catch(() => ({}));
+
+  const isEventsNameJSON = eventsTableDesc.name && (eventsTableDesc.name.type === 'json' || eventsTableDesc.name.type?.includes('json') || eventsTableDesc.name.type === 'JSON');
+  const isEventsDescriptionJSON = eventsTableDesc.description && (eventsTableDesc.description.type === 'text' || eventsTableDesc.description.type?.includes('text'));
+  
+  const isPhasesNameJSON = phasesTableDesc.name && (phasesTableDesc.name.type === 'json' || phasesTableDesc.name.type?.includes('json') || phasesTableDesc.name.type === 'JSON');
+  const isPhasesDescriptionJSON = phasesTableDesc.description && (phasesTableDesc.description.type === 'text' || phasesTableDesc.description.type?.includes('text'));
+  
+  const isTasksTitleJSON = tasksTableDesc.title && (tasksTableDesc.title.type === 'json' || tasksTableDesc.title.type?.includes('json') || tasksTableDesc.title.type === 'JSON');
+  const isTasksDescriptionJSON = tasksTableDesc.description && (tasksTableDesc.description.type === 'text' || tasksTableDesc.description.type?.includes('text'));
+
+  // Helper para convertir valores a JSON si es necesario
+  const toJSONField = (value, isJSON) => {
+    if (!isJSON) return value;
+    if (value === null || value === undefined) return null;
+    return JSON.stringify({ es: value, ca: value, en: value });
+  };
+
   const passwordAdmin = await bcrypt.hash(ADMIN_PASSWORD, 10);
   const passwordCaptain = await bcrypt.hash(CAPTAIN_PASSWORD, 10);
   const passwordParticipant = await bcrypt.hash(PARTICIPANT_PASSWORD, 10);
@@ -263,8 +284,8 @@ export async function up(queryInterface) {
     {
       tenant_id: tenant.id,
       created_by: adminUser.id,
-      name: 'Demo Event',
-      description: 'Evento de demostración',
+      name: toJSONField('Demo Event', isEventsNameJSON),
+      description: toJSONField('Evento de demostración', isEventsDescriptionJSON),
       start_date: eventStart,
       end_date: eventEnd,
       min_team_size: 2,
@@ -278,8 +299,8 @@ export async function up(queryInterface) {
     {
       tenant_id: tenant.id,
       created_by: adminUser.id,
-      name: 'Demo Public Launch',
-      description: 'Evento público de lanzamiento para experimentar CREATE.',
+      name: toJSONField('Demo Public Launch', isEventsNameJSON),
+      description: toJSONField('Evento público de lanzamiento para experimentar CREATE.', isEventsDescriptionJSON),
       start_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
       end_date: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
       min_team_size: 1,
@@ -294,9 +315,19 @@ export async function up(queryInterface) {
     }
   ]);
 
-  const [[eventRecord]] = await queryInterface.sequelize.query(
-    `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'Demo Event' LIMIT 1`
-  );
+  // Buscar el evento según el tipo de columna (JSON o STRING)
+  let eventRecord;
+  if (isEventsNameJSON) {
+    const [results] = await queryInterface.sequelize.query(
+      `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'Demo Event' LIMIT 1`
+    );
+    eventRecord = results[0];
+  } else {
+    const [results] = await queryInterface.sequelize.query(
+      `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'Demo Event' LIMIT 1`
+    );
+    eventRecord = results[0];
+  }
 
   const eventStartDate = eventRecord?.start_date ? new Date(eventRecord.start_date) : eventStart;
   const eventEndDate = eventRecord?.end_date ? new Date(eventRecord.end_date) : eventEnd;
@@ -471,8 +502,8 @@ export async function up(queryInterface) {
     {
       tenant_id: tenant.id,
       event_id: eventRecord.id,
-      name: 'Ideación',
-      description: 'Fase inicial',
+      name: toJSONField('Ideación', isPhasesNameJSON),
+      description: toJSONField('Fase inicial', isPhasesDescriptionJSON),
       intro_html: demoPhaseIntroHtml,
       order_index: 1,
       is_elimination: false,
@@ -494,8 +525,8 @@ export async function up(queryInterface) {
       tenant_id: tenant.id,
       event_id: eventRecord.id,
       phase_id: phase.id,
-      title: 'Presentación preliminar',
-      description: 'Sube una presentación de tu idea',
+      title: toJSONField('Presentación preliminar', isTasksTitleJSON),
+      description: toJSONField('Sube una presentación de tu idea', isTasksDescriptionJSON),
       delivery_type: 'file',
       is_required: true,
       due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),

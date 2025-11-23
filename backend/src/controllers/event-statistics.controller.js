@@ -36,7 +36,7 @@ export class EventStatisticsController {
               {
                 model: User,
                 as: 'user',
-                attributes: ['id', 'first_name', 'last_name', 'email', 'grade']
+                attributes: ['id', 'first_name', 'last_name', 'email', 'registration_answers']
               }
             ]
           },
@@ -61,7 +61,7 @@ export class EventStatisticsController {
           {
             model: User,
             as: 'user',
-            attributes: ['id', 'first_name', 'last_name', 'email', 'last_login_at', 'grade']
+            attributes: ['id', 'first_name', 'last_name', 'email', 'last_login_at', 'registration_answers']
           }
         ],
         order: [[{ model: User, as: 'user' }, 'last_name', 'ASC']]
@@ -118,7 +118,7 @@ export class EventStatisticsController {
             lastName: member.user?.last_name,
             email: member.user?.email,
             role: member.role,
-            grade: member.user?.grade
+            grade: member.user?.registration_answers?.grade || null
           })) ?? [];
 
         // Contar miembros totales (incluyendo capitán)
@@ -159,7 +159,7 @@ export class EventStatisticsController {
           firstName: user?.first_name ?? null,
           lastName: user?.last_name ?? null,
           email: user?.email ?? null,
-          grade: registration.grade ?? user?.grade ?? null,
+          grade: registration.grade ?? (user?.registration_answers?.grade || null),
           lastLoginAt: user?.last_login_at ?? null,
           team: teamInfo
             ? {

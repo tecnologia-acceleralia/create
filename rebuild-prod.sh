@@ -2,6 +2,12 @@
 
 # Script de rebuild seguro
 # Hace git pull y reconstruye contenedores sin pérdida de datos
+#
+# Uso:
+#   ./rebuild-prod.sh [--resetdb]
+#
+# Parámetros:
+#   --resetdb    Borra la base de datos después del backup (antes de migraciones)
 
 # No usar set -e para permitir manejo manual de errores en casos no críticos
 
@@ -29,6 +35,53 @@ error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+request_data_loss_confirmation() {
+    local action_description="$1"
+    local confirmation_text="${2:-ELIMINAR-DATOS}"
+    
+    echo ""
+    echo "=================================================="
+    echo -e "${RED}⚠️  ADVERTENCIA: PÉRDIDA DE DATOS${NC}"
+    echo "=================================================="
+    echo ""
+    echo -e "${YELLOW}La siguiente acción causará pérdida de datos:${NC}"
+    echo -e "${YELLOW}  $action_description${NC}"
+    echo ""
+    echo -e "${YELLOW}Para confirmar esta acción destructiva, escribe exactamente:${NC}"
+    echo -e "${BLUE}  $confirmation_text${NC}"
+    echo ""
+    read -r user_input
+    
+    if [[ "$user_input" != "$confirmation_text" ]]; then
+        echo ""
+        error "Operación cancelada. El texto de confirmación no coincide."
+        echo ""
+        exit 1
+    fi
+    
+    echo ""
+    success "Confirmación recibida. Procediendo con la operación..."
+    echo ""
+}
+
+# Variable para controlar si se debe resetear la BD
+RESET_DB=false
+
+# Parsear argumentos
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --resetdb|-resetdb)
+            RESET_DB=true
+            shift
+            ;;
+        *)
+            error "Parámetro desconocido: $1"
+            echo "Uso: $0 [--resetdb]"
+            exit 1
+            ;;
+    esac
+done
+
 # Verificar que estamos en el directorio correcto
 if [ ! -f "docker-compose.yml" ]; then
     error "No se encontró docker-compose.yml. Ejecuta este script desde la raíz del proyecto."
@@ -36,6 +89,9 @@ if [ ! -f "docker-compose.yml" ]; then
 fi
 
 log "🚀 Iniciando rebuild seguro..."
+if [ "$RESET_DB" = true ]; then
+    warning "⚠️  Modo --resetdb activado: la base de datos será borrada después del backup"
+fi
 
 # 1. Verificar estado de git
 log "📋 Verificando estado de git..."
@@ -116,6 +172,76 @@ log "⏹️  Parando servicios..."
 if ! docker-compose --profile prod down; then
     error "Error al parar servicios"
     exit 1
+fi
+
+# 4.1. Resetear base de datos si se solicitó (después de parar contenedores)
+if [ "$RESET_DB" = true ]; then
+    request_data_loss_confirmation "Se reseteará la base de datos (todos los datos se perderán permanentemente)"
+    log "🗑️  Reseteando base de datos (modo --resetdb activado)..."
+    
+    # Asegurar que las variables de entorno estén cargadas
+    if [ -f ".env" ]; then
+        export $(grep -v '^#' .env | grep -E '^(MYSQL_|DB_)' | xargs)
+    fi
+    
+    DB_NAME="${MYSQL_DATABASE:-${DB_NAME:-create}}"
+    DB_USER="${MYSQL_USER:-${DB_USER:-root}}"
+    DB_PASSWORD="${MYSQL_PASSWORD:-${DB_PASSWORD:-root}}"
+    MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-${DB_PASSWORD}}"
+    
+    # Levantar solo MySQL para poder resetear la BD
+    log "🚀 Levantando MySQL temporalmente para resetear la BD..."
+    if ! docker-compose --profile prod up -d database; then
+        error "Error al levantar MySQL"
+        exit 1
+    fi
+    
+    # Esperar a que MySQL esté listo
+    log "⏳ Esperando a que MySQL esté listo..."
+    for i in {1..30}; do
+        if docker-compose --profile prod exec -T database mysqladmin ping -h localhost --silent > /dev/null 2>&1; then
+            success "MySQL está listo"
+            break
+        fi
+        if [ $i -eq 30 ]; then
+            error "Timeout esperando MySQL"
+            exit 1
+        fi
+        sleep 2
+    done
+    
+    # Borrar la base de datos
+    log "🗑️  Eliminando base de datos '$DB_NAME'..."
+    DROP_SQL="DROP DATABASE IF EXISTS \`$DB_NAME\`;"
+    if MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker-compose --profile prod exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" database mysql -uroot -e "$DROP_SQL" 2>/dev/null; then
+        success "Base de datos '$DB_NAME' eliminada correctamente"
+    else
+        error "Error al eliminar la base de datos '$DB_NAME'"
+        exit 1
+    fi
+    
+    # Recrear la base de datos vacía
+    log "🆕 Creando base de datos '$DB_NAME'..."
+    CREATE_SQL="CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    if MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker-compose --profile prod exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" database mysql -uroot -e "$CREATE_SQL" 2>/dev/null; then
+        success "Base de datos '$DB_NAME' creada correctamente"
+    else
+        error "Error al crear la base de datos '$DB_NAME'"
+        exit 1
+    fi
+    
+    # Otorgar permisos al usuario si no es root
+    if [ "$DB_USER" != "root" ]; then
+        log "🔐 Otorgando permisos al usuario '$DB_USER'..."
+        GRANT_SQL="GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'%'; FLUSH PRIVILEGES;"
+        if MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker-compose --profile prod exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" database mysql -uroot -e "$GRANT_SQL" 2>/dev/null; then
+            success "Permisos otorgados correctamente"
+        else
+            warning "No se pudieron otorgar permisos al usuario '$DB_USER' (puede ser normal si ya existen)"
+        fi
+    fi
+    
+    log "ℹ️  Base de datos reseteada. Las migraciones recrearán todas las tablas al ejecutarse."
 fi
 
 # Rebuild sin cache de frontend y backend
@@ -369,6 +495,9 @@ echo "📋 Resumen:"
 echo "  - Git pull: ✅"
 echo "  - Backup de archivos .env: ✅"
 echo "  - Backup de BD MySQL: ✅"
+if [ "$RESET_DB" = true ]; then
+    echo "  - Reset de base de datos: ✅ (BD borrada y recreada)"
+fi
 echo "  - Rebuild contenedores: ✅"
 echo "  - Migraciones Sequelize: ✅"
 echo "  - Seeders master: ✅"

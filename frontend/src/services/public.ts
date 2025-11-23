@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { MultilingualText } from './events';
 
 const PUBLIC_BASE_URL = import.meta.env.VITE_API_URL?.replace('/api', '/api/public') ?? 'http://localhost:5100/api/public';
 
@@ -27,9 +28,9 @@ export type RegistrationSchema = Record<string, unknown> & {
 
 export type PublicEventSummary = {
   id: number;
-  name: string;
-  description: string;
-  description_html?: string | null;
+  name: string | MultilingualText;
+  description: string | MultilingualText | null;
+  description_html?: MultilingualText | string | null;
   start_date: string;
   end_date: string;
   status: string;

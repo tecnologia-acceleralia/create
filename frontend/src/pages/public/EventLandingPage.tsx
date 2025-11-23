@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
 
 import { PageContainer, Spinner } from '@/components/common';
 import { Button } from '@/components/ui/button';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getPublicEvents } from '@/services/public';
 import { PublicHero } from '@/components/public';
 import { useAuth } from '@/context/AuthContext';
@@ -159,6 +160,12 @@ function EventLandingPage() {
 
   const locale = i18n.language ?? 'es';
 
+  // Obtener el idioma actual del usuario (debe estar antes de cualquier return)
+  const currentLang = useMemo(() => {
+    const lang = i18n.language?.split('-')[0] || 'es';
+    return (lang === 'es' || lang === 'ca' || lang === 'en' ? lang : 'es') as 'es' | 'ca' | 'en';
+  }, [i18n.language]);
+
   const formattedDates = useMemo(() => {
     if (!eventDetail) {
       return null;
@@ -173,6 +180,34 @@ function EventLandingPage() {
     );
   }, [eventDetail, locale]);
 
+  // Asegurar que todos los valores multilingües sean siempre strings válidos (debe estar antes de cualquier return)
+  const eventName = useMemo(() => {
+    if (!eventDetail) return '';
+    const raw = getMultilingualText(eventDetail.name, currentLang);
+    return typeof raw === 'string' ? raw : String(raw || '');
+  }, [eventDetail, currentLang]);
+  
+  const eventDescription = useMemo(() => {
+    if (!eventDetail?.description) return undefined;
+    const raw = getMultilingualText(eventDetail.description, currentLang);
+    return typeof raw === 'string' ? raw : raw ? String(raw) : undefined;
+  }, [eventDetail, currentLang]);
+  
+  // Extraer el HTML en el idioma del usuario (debe estar antes de cualquier return)
+  const eventDescriptionHtml = useMemo(() => {
+    if (!eventDetail?.description_html) return undefined;
+    const raw = getMultilingualText(eventDetail.description_html, currentLang);
+    return typeof raw === 'string' && raw.trim() ? raw : undefined;
+  }, [eventDetail, currentLang]);
+
+  const embedUrl = useMemo(() => {
+    return eventDetail ? getEmbedUrl(eventDetail.video_url) : null;
+  }, [eventDetail]);
+
+  const isRegistrationOpen = useMemo(() => {
+    return eventDetail?.allow_open_registration !== false;
+  }, [eventDetail]);
+
   if (!effectiveTenantSlug) {
     return <Navigate to="/" replace />;
   }
@@ -184,10 +219,10 @@ function EventLandingPage() {
   if (error) {
     return (
       <PageContainer className="flex flex-col items-center gap-4 text-center">
-        <p className="text-sm text-destructive">{t('eventLanding.error')}</p>
+        <p className="text-sm text-destructive">{safeTranslate(t, 'eventLanding.error')}</p>
         <Button asChild variant="outline">
           <Link to={tenantSlug ? tenantPath('') : tenantSlugFromParams ? `/${tenantSlugFromParams}` : '/'}>
-            {t('eventLanding.backToHome')}
+            {safeTranslate(t, 'eventLanding.backToHome')}
           </Link>
         </Button>
       </PageContainer>
@@ -197,18 +232,15 @@ function EventLandingPage() {
   if (!eventDetail) {
     return (
       <PageContainer className="flex flex-col items-center gap-4 text-center">
-        <p className="text-sm text-muted-foreground">{t('eventLanding.notFound')}</p>
+        <p className="text-sm text-muted-foreground">{safeTranslate(t, 'eventLanding.notFound')}</p>
         <Button asChild variant="outline">
           <Link to={tenantSlug ? tenantPath('') : tenantSlugFromParams ? `/${tenantSlugFromParams}` : '/'}>
-            {t('eventLanding.backToHome')}
+            {safeTranslate(t, 'eventLanding.backToHome')}
           </Link>
         </Button>
       </PageContainer>
     );
   }
-
-  const embedUrl = getEmbedUrl(eventDetail.video_url);
-  const isRegistrationOpen = eventDetail.allow_open_registration !== false;
 
   return (
     <PageContainer className="space-y-10">
@@ -222,14 +254,14 @@ function EventLandingPage() {
       <PublicHero
         withBackground={false}
         align="center"
-        title={eventDetail.name}
-        subtitle={eventDetail.description}
+        title={eventName}
+        subtitle={eventDescription}
         actions={
           isRegistrationOpen ? (
             authLoading ? null : canAccessTenant ? (
               <Button size="lg" asChild>
                 <Link to={getEventAccessPath}>
-                  {t('landing.accessCta')}
+                  {safeTranslate(t, 'landing.accessCta')}
                 </Link>
               </Button>
             ) : user ? (
@@ -248,7 +280,7 @@ function EventLandingPage() {
                       search: `?eventId=${eventDetail.id}`
                     }}
                   >
-                    {t('eventLanding.registerCta')}
+                    {safeTranslate(t, 'eventLanding.registerCta')}
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" asChild>
@@ -262,14 +294,14 @@ function EventLandingPage() {
                     }
                     state={{ intent: 'login', eventId: eventDetail.id }}
                   >
-                    {t('eventLanding.loginCta')}
+                    {safeTranslate(t, 'eventLanding.loginCta')}
                   </Link>
                 </Button>
               </>
             )
           ) : (
             <p className="rounded-full border border-border/70 bg-card/60 px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('eventLanding.registrationClosed')}
+              {safeTranslate(t, 'eventLanding.registrationClosed')}
             </p>
           )
         }
@@ -279,7 +311,7 @@ function EventLandingPage() {
       {embedUrl ? (
         <div className="mx-auto aspect-video w-full max-w-4xl overflow-hidden rounded-2xl border border-border/60 shadow-lg">
           <iframe
-            title={eventDetail.name}
+            title={eventName}
             src={embedUrl}
             className="h-full w-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -288,10 +320,10 @@ function EventLandingPage() {
         </div>
       ) : null}
 
-      {eventDetail?.description_html ? (
+      {eventDescriptionHtml ? (
         <div className="mx-auto w-full max-w-4xl">
           <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
-            <div dangerouslySetInnerHTML={{ __html: eventDetail.description_html }} />
+            <div dangerouslySetInnerHTML={{ __html: eventDescriptionHtml }} />
           </div>
         </div>
       ) : null}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ export function SuperAdminLoginCard() {
     event.preventDefault();
 
     if (!credentials.email || !credentials.password) {
-      setErrorMessage(t('superadmin.loginIncomplete'));
+      setErrorMessage(safeTranslate(t, 'superadmin.loginIncomplete'));
       return;
     }
 
@@ -32,7 +33,7 @@ export function SuperAdminLoginCard() {
       setErrorMessage(null);
       await login(credentials);
     } catch (error: any) {
-      const message = error?.response?.data?.message ?? t('common.error');
+      const message = error?.response?.data?.message ?? safeTranslate(t, 'common.error');
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -42,12 +43,12 @@ export function SuperAdminLoginCard() {
   return (
     <Card className="mx-auto w-full max-w-md border-border/70 shadow-lg shadow-[color:var(--tenant-primary)]/10">
       <CardHeader className="text-center">
-        <CardTitle>{t('superadmin.title')}</CardTitle>
+        <CardTitle>{safeTranslate(t, 'superadmin.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <FormGrid>
-            <FormField label={t('auth.email')} htmlFor="superadmin-email" required>
+            <FormField label={safeTranslate(t, 'auth.email')} htmlFor="superadmin-email" required>
               <Input
                 id="superadmin-email"
                 type="email"
@@ -57,7 +58,7 @@ export function SuperAdminLoginCard() {
                 onChange={event => setCredentials(prev => ({ ...prev, email: event.target.value }))}
               />
             </FormField>
-            <FormField label={t('auth.password')} htmlFor="superadmin-password" required>
+            <FormField label={safeTranslate(t, 'auth.password')} htmlFor="superadmin-password" required>
               <PasswordInput
                 id="superadmin-password"
                 autoComplete="current-password"
@@ -69,7 +70,7 @@ export function SuperAdminLoginCard() {
           </FormGrid>
           {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? t('common.loading') : t('auth.submit')}
+            {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'auth.submit')}
           </Button>
         </form>
       </CardContent>

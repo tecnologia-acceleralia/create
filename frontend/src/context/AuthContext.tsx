@@ -1,10 +1,10 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient, setAuthToken, clearSession, registerUnauthorizedHandler } from '@/services/api';
 import { useTenant } from './TenantContext';
 import { buildAvatarUrl } from '@/utils/avatar';
-import { ensureSuperAdminMembership } from '@/services/auth';
+import { ensureSuperAdminMembership, refreshSession } from '@/services/auth';
 import i18n from '@/i18n/config';
 
 type MembershipRole = {
@@ -179,6 +179,7 @@ export function AuthProvider({ children }: Props) {
   const [ensuringMembership, setEnsuringMembership] = useState(false);
   const { tenantSlug } = useTenant();
   const queryClient = useQueryClient();
+  const attemptedAutoLoginRef = useRef<Set<string>>(new Set());
   
   // Detectar evento actual desde la URL cuando cambia la ruta
   useEffect(() => {
@@ -231,7 +232,7 @@ export function AuthProvider({ children }: Props) {
       const allSessionKeys = getAllSessionKeys();
       if (allSessionKeys.length > 0) {
         // Cargar la primera sesión encontrada (preferiblemente la más reciente)
-        // Esto permite que superadmins mantengan su sesión al navegar
+        // Esto permite que usuarios con múltiples tenants mantengan su sesión al navegar
         const firstSessionKey = allSessionKeys[0];
         const firstStored = localStorage.getItem(firstSessionKey);
         if (firstStored) {
@@ -239,34 +240,114 @@ export function AuthProvider({ children }: Props) {
             const parsed: StoredAuth = JSON.parse(firstStored);
             // Solo usar esta sesión si el usuario es superadmin o si tiene membresía para el tenant actual
             const isStoredSuperAdmin = Boolean(parsed.isSuperAdmin);
-            if (isStoredSuperAdmin || (tenantSlug && findActiveMembership(parsed.memberships ?? [], tenantSlug, null))) {
-              // Cargar la sesión y guardarla también en el tenant actual para mantener configuración separada
-              const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
-              setAuthToken(parsed.tokens.token);
-              setTokens(parsed.tokens);
-              setMemberships(parsed.memberships ?? []);
-              setIsSuperAdmin(isStoredSuperAdmin);
-              setActiveMembership(active);
-              const roleScopes = active?.roles?.map(role => role.scope) ?? parsed.user.roleScopes ?? [];
-              setUser(mapUser(parsed.user, roleScopes));
-              
-              // Guardar la sesión en el tenant actual con su configuración específica
-              const sessionForCurrentTenant: StoredAuth = {
-                tenantSlug,
-                user: parsed.user,
-                tokens: parsed.tokens,
-                memberships: parsed.memberships ?? [],
-                activeMembership: active,
-                isSuperAdmin: isStoredSuperAdmin,
-                currentEventId: parsed.currentEventId ?? null,
-                eventSessions: parsed.eventSessions ?? {}
-              };
-              localStorage.setItem(storageKey, JSON.stringify(sessionForCurrentTenant));
-              setEventSessions(parsed.eventSessions ?? {});
-              setCurrentEventId(parsed.currentEventId ?? null);
-              
-              setLoading(false);
-              return;
+            const hasMembershipForCurrentTenant = tenantSlug && findActiveMembership(parsed.memberships ?? [], tenantSlug, null);
+            
+            if (isStoredSuperAdmin || hasMembershipForCurrentTenant) {
+              // Si tiene membresía en el tenant actual pero el token es de otro tenant,
+              // necesitamos refrescar la sesión para obtener un token válido para este tenant
+              if (hasMembershipForCurrentTenant && parsed.tokens?.token) {
+                // Configurar el token temporalmente para poder hacer la llamada
+                setAuthToken(parsed.tokens.token);
+                setTokens(parsed.tokens);
+                
+                // Intentar refrescar la sesión para obtener un token válido para este tenant
+                setEnsuringMembership(true);
+                refreshSession().then(response => {
+                  if (response.success && response.data) {
+                    const { tokens: newTokens, user: userData, memberships: responseMemberships, activeMembership: responseActiveMembership } = response.data;
+                    
+                    // Actualizar tokens
+                    setAuthToken(newTokens.token);
+                    setTokens(newTokens);
+                    
+                    // Actualizar membresías
+                    setMemberships(responseMemberships);
+                    setActiveMembership(responseActiveMembership);
+                    
+                    // Actualizar usuario
+                    const roleScopes = responseActiveMembership?.roles?.map(role => role.scope) ?? userData.roleScopes ?? [];
+                    const mappedUser = mapUser(userData, roleScopes);
+                    setUser(mappedUser);
+                    setIsSuperAdmin(Boolean(userData.is_super_admin));
+                    
+                    // Guardar en localStorage
+                    const sessionForCurrentTenant: StoredAuth = {
+                      tenantSlug,
+                      user: userData,
+                      tokens: newTokens,
+                      memberships: responseMemberships,
+                      activeMembership: responseActiveMembership,
+                      isSuperAdmin: Boolean(userData.is_super_admin),
+                      currentEventId: null,
+                      eventSessions: {}
+                    };
+                    localStorage.setItem(storageKey, JSON.stringify(sessionForCurrentTenant));
+                    setEventSessions({});
+                    setCurrentEventId(null);
+                  }
+                }).catch(error => {
+                  // Si falla el refresh, usar la sesión existente (funcionará para superadmin)
+                  if (isStoredSuperAdmin) {
+                    const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
+                    setAuthToken(parsed.tokens.token);
+                    setTokens(parsed.tokens);
+                    setMemberships(parsed.memberships ?? []);
+                    setIsSuperAdmin(isStoredSuperAdmin);
+                    setActiveMembership(active);
+                    const roleScopes = active?.roles?.map(role => role.scope) ?? parsed.user.roleScopes ?? [];
+                    setUser(mapUser(parsed.user, roleScopes));
+                    
+                    const sessionForCurrentTenant: StoredAuth = {
+                      tenantSlug,
+                      user: parsed.user,
+                      tokens: parsed.tokens,
+                      memberships: parsed.memberships ?? [],
+                      activeMembership: active,
+                      isSuperAdmin: isStoredSuperAdmin,
+                      currentEventId: parsed.currentEventId ?? null,
+                      eventSessions: parsed.eventSessions ?? {}
+                    };
+                    localStorage.setItem(storageKey, JSON.stringify(sessionForCurrentTenant));
+                    setEventSessions(parsed.eventSessions ?? {});
+                    setCurrentEventId(parsed.currentEventId ?? null);
+                  }
+                  if (import.meta.env.DEV) {
+                    console.warn('Error al refrescar sesión al cambiar de tenant:', error);
+                  }
+                }).finally(() => {
+                  setEnsuringMembership(false);
+                  setLoading(false);
+                });
+                return;
+              } else {
+                // Superadmin puede usar el token directamente
+                const active = findActiveMembership(parsed.memberships ?? [], tenantSlug, parsed.activeMembership ?? null);
+                setAuthToken(parsed.tokens.token);
+                setTokens(parsed.tokens);
+                setMemberships(parsed.memberships ?? []);
+                setIsSuperAdmin(isStoredSuperAdmin);
+                setActiveMembership(active);
+                const roleScopes = active?.roles?.map(role => role.scope) ?? parsed.user.roleScopes ?? [];
+                setUser(mapUser(parsed.user, roleScopes));
+                
+                // Guardar la sesión en el tenant actual con su configuración específica
+                const sessionForCurrentTenant: StoredAuth = {
+                  tenantSlug,
+                  user: parsed.user,
+                  tokens: parsed.tokens,
+                  memberships: parsed.memberships ?? [],
+                  activeMembership: active,
+                  isSuperAdmin: isStoredSuperAdmin,
+                  currentEventId: parsed.currentEventId ?? null,
+                  eventSessions: parsed.eventSessions ?? {}
+                };
+                localStorage.setItem(storageKey, JSON.stringify(sessionForCurrentTenant));
+                setEventSessions(parsed.eventSessions ?? {});
+                setCurrentEventId(parsed.currentEventId ?? null);
+                
+                setLoading(false);
+                return;
+              }
             }
           } catch {
             // Ignorar errores de parsing
@@ -372,60 +453,156 @@ export function AuthProvider({ children }: Props) {
     }
   }, [tenantSlug, memberships]);
 
-  // Efecto para asegurar membresía automáticamente cuando superadmin accede a un tenant diferente
+  // Efecto para asegurar membresía automáticamente cuando superadmin accede a un tenant
+  // Esto permite que superadmin navegue desde /superadmin a /{tenantSlug} y haga login automático
   useEffect(() => {
-    if (!tenantSlug || !user || !isSuperAdmin || loading || ensuringMembership) {
+    // No ejecutar si:
+    // - No hay tenantSlug
+    // - Está cargando
+    // - Ya está asegurando membresía
+    // - Estamos en una página pública (login, register) donde no debe hacer login automático
+    if (!tenantSlug || loading || ensuringMembership) {
       return;
     }
 
-    // Verificar si el superadmin tiene membresía activa para el tenant actual
-    const hasActiveMembership = activeMembership?.tenant?.slug === tenantSlug && activeMembership.status === 'active';
+    // Verificar si estamos en una página pública donde NO debe hacer login automático
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      const isPublicPage = pathname.includes('/login') || pathname.includes('/register') || pathname.includes('/password-reset');
+      if (isPublicPage) {
+        return;
+      }
+    }
+
+    // Verificar si hay sesión de superadmin activa válida (desde SuperAdminContext)
+    const superAdminAuthKey = 'create.superadmin.auth';
+    let hasSuperAdminSession = false;
+    let superAdminToken: string | null = null;
     
-    // Si no tiene membresía activa, crear/activar automáticamente
-    if (!hasActiveMembership && tokens?.token) {
-      setEnsuringMembership(true);
-      ensureSuperAdminMembership()
-        .then(response => {
-          if (response.success && response.data) {
-            const { tokens: newTokens, user: userData, memberships: responseMemberships, activeMembership: responseActiveMembership } = response.data;
-            
-            // Actualizar tokens
-            setAuthToken(newTokens.token);
-            setTokens(newTokens);
-            
-            // Actualizar membresías
-            setMemberships(responseMemberships);
-            setActiveMembership(responseActiveMembership);
-            
-            // Actualizar usuario
-            const roleScopes = responseActiveMembership?.roles?.map(role => role.scope) ?? userData.roleScopes ?? [];
-            const mappedUser = mapUser(userData, roleScopes);
-            setUser(mappedUser);
-            
-            // Guardar en localStorage
-            const storageKey = getStorageKey(tenantSlug);
-            const stored: StoredAuth = {
-              tenantSlug,
-              user: userData,
-              tokens: newTokens,
-              memberships: responseMemberships,
-              activeMembership: responseActiveMembership,
-              isSuperAdmin: true,
-              currentEventId: currentEventId,
-              eventSessions: eventSessions
-            };
-            localStorage.setItem(storageKey, JSON.stringify(stored));
+    if (typeof window !== 'undefined') {
+      const superAdminStored = window.localStorage.getItem(superAdminAuthKey);
+      if (superAdminStored) {
+        try {
+          const parsed = JSON.parse(superAdminStored);
+          if (parsed?.tokens?.token) {
+            hasSuperAdminSession = true;
+            superAdminToken = parsed.tokens.token;
           }
-        })
-        .catch(error => {
-          // Log error pero no bloquear el acceso
-          if (import.meta.env.DEV) {
-            console.warn('Error al asegurar membresía de superadmin:', error);
-          }
-        })
-        .finally(() => {
-          setEnsuringMembership(false);
-        });
+        } catch {
+          // Ignorar errores de parsing
+        }
+      }
+    }
+
+    // Si hay sesión de superadmin pero no hay sesión de tenant para este tenant específico
+    if (hasSuperAdminSession && !tokens?.token) {
+      // Verificar si hay sesión almacenada para este tenant
+      const storageKey = getStorageKey(tenantSlug);
+      const stored = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null;
+      
+      // Si no hay sesión para este tenant, hacer login automático usando token de superadmin
+      // Solo intentar una vez por tenant para evitar loops infinitos
+      if (!stored && superAdminToken && !attemptedAutoLoginRef.current.has(tenantSlug)) {
+        attemptedAutoLoginRef.current.add(tenantSlug);
+        setEnsuringMembership(true);
+        ensureSuperAdminMembership(superAdminToken)
+          .then(response => {
+            if (response.success && response.data) {
+              const { tokens: newTokens, user: userData, memberships: responseMemberships, activeMembership: responseActiveMembership } = response.data;
+              
+              // Actualizar tokens
+              setAuthToken(newTokens.token);
+              setTokens(newTokens);
+              
+              // Actualizar membresías
+              setMemberships(responseMemberships);
+              setActiveMembership(responseActiveMembership);
+              
+              // Actualizar usuario
+              const roleScopes = responseActiveMembership?.roles?.map(role => role.scope) ?? userData.roleScopes ?? [];
+              const mappedUser = mapUser(userData, roleScopes);
+              setUser(mappedUser);
+              setIsSuperAdmin(true);
+              
+              // Guardar en localStorage
+              const storageKey = getStorageKey(tenantSlug);
+              const stored: StoredAuth = {
+                tenantSlug,
+                user: userData,
+                tokens: newTokens,
+                memberships: responseMemberships,
+                activeMembership: responseActiveMembership,
+                isSuperAdmin: true,
+                currentEventId: null,
+                eventSessions: {}
+              };
+              localStorage.setItem(storageKey, JSON.stringify(stored));
+            }
+          })
+          .catch(error => {
+            // Log error pero no bloquear el acceso
+            // Si es 401, significa que el token de superadmin no es válido o expiró
+            if (import.meta.env.DEV) {
+              console.warn('Error al asegurar membresía de superadmin:', error);
+            }
+          })
+          .finally(() => {
+            setEnsuringMembership(false);
+          });
+        return;
+      }
+    }
+
+    // Si ya hay usuario y es superadmin, verificar membresía activa
+    if (user && isSuperAdmin && tokens?.token) {
+      const hasActiveMembership = activeMembership?.tenant?.slug === tenantSlug && activeMembership.status === 'active';
+      
+      // Si no tiene membresía activa para este tenant, crear/activar automáticamente
+      if (!hasActiveMembership) {
+        setEnsuringMembership(true);
+        ensureSuperAdminMembership()
+          .then(response => {
+            if (response.success && response.data) {
+              const { tokens: newTokens, user: userData, memberships: responseMemberships, activeMembership: responseActiveMembership } = response.data;
+              
+              // Actualizar tokens
+              setAuthToken(newTokens.token);
+              setTokens(newTokens);
+              
+              // Actualizar membresías
+              setMemberships(responseMemberships);
+              setActiveMembership(responseActiveMembership);
+              
+              // Actualizar usuario
+              const roleScopes = responseActiveMembership?.roles?.map(role => role.scope) ?? userData.roleScopes ?? [];
+              const mappedUser = mapUser(userData, roleScopes);
+              setUser(mappedUser);
+              
+              // Guardar en localStorage
+              const storageKey = getStorageKey(tenantSlug);
+              const stored: StoredAuth = {
+                tenantSlug,
+                user: userData,
+                tokens: newTokens,
+                memberships: responseMemberships,
+                activeMembership: responseActiveMembership,
+                isSuperAdmin: true,
+                currentEventId: currentEventId,
+                eventSessions: eventSessions
+              };
+              localStorage.setItem(storageKey, JSON.stringify(stored));
+            }
+          })
+          .catch(error => {
+            // Log error pero no bloquear el acceso
+            if (import.meta.env.DEV) {
+              console.warn('Error al asegurar membresía de superadmin:', error);
+            }
+          })
+          .finally(() => {
+            setEnsuringMembership(false);
+          });
+      }
     }
   }, [tenantSlug, user, isSuperAdmin, activeMembership, tokens, loading, ensuringMembership, currentEventId, eventSessions]);
   
@@ -552,9 +729,26 @@ export function AuthProvider({ children }: Props) {
     }
   }, [tenantSlug]);
 
-  const login = useCallback(async ({ email, password }: { email: string; password: string }) => {
-    const response = await apiClient.post('/auth/login', { email, password });
-    applyAuthPayload(response.data.data);
+  const login = useCallback(async ({ email, password, event_id }: { email: string; password: string; event_id?: number }) => {
+    const response = await apiClient.post('/auth/login', { email, password, event_id });
+    const payload = response.data.data;
+    
+    // Si hay campos faltantes, configurar el token para que el modal pueda hacer peticiones autenticadas
+    if (payload.missingFields && (payload.missingFields.tenant || payload.missingFields.event)) {
+      // Configurar el token en apiClient para que completeRegistration pueda funcionar
+      if (payload.tokens?.token) {
+        setAuthToken(payload.tokens.token);
+      }
+      return {
+        success: true,
+        hasMissingFields: true,
+        missingFields: payload.missingFields,
+        authData: payload
+      };
+    }
+    
+    applyAuthPayload(payload);
+    return { success: true, hasMissingFields: false };
   }, [applyAuthPayload]);
 
   const logout = useCallback((shouldNavigate: boolean = false) => {

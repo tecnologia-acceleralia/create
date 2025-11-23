@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { apiClient, configureTenant } from '@/services/api';
 import { applyBrandingVariables } from '@/utils/color';
+import type { MultilingualText } from '@/services/events';
 
 type TenantSocialLinks = {
   website?: string | null;
@@ -14,8 +15,8 @@ type TenantSocialLinks = {
 
 type TenantPhase = {
   id: number;
-  name: string;
-  description?: string | null;
+  name: MultilingualText | string;
+  description?: MultilingualText | string | null;
   eventId: number;
   eventName: string | null;
   eventStatus: string | null;
@@ -26,8 +27,8 @@ type TenantPhase = {
 };
 
 type HeroCopy = {
-  title: string | null;
-  subtitle: string | null;
+  title: MultilingualText | string | null;
+  subtitle: MultilingualText | string | null;
 };
 
 type HeroContent = Record<string, HeroCopy>;
@@ -112,8 +113,21 @@ function normalizeHeroContent(data: unknown): HeroContent {
       return acc;
     }
 
-    const title = typeof (value as Record<string, unknown>).title === 'string' ? (value as Record<string, string>).title : null;
-    const subtitle = typeof (value as Record<string, unknown>).subtitle === 'string' ? (value as Record<string, string>).subtitle : null;
+    // Manejar title: puede ser string o objeto multiidioma
+    const titleValue = (value as Record<string, unknown>).title;
+    const title = typeof titleValue === 'string' 
+      ? titleValue 
+      : (titleValue && typeof titleValue === 'object' && titleValue !== null)
+        ? titleValue as import('@/services/events').MultilingualText | string
+        : null;
+    
+    // Manejar subtitle: puede ser string o objeto multiidioma
+    const subtitleValue = (value as Record<string, unknown>).subtitle;
+    const subtitle = typeof subtitleValue === 'string'
+      ? subtitleValue
+      : (subtitleValue && typeof subtitleValue === 'object' && subtitleValue !== null)
+        ? subtitleValue as import('@/services/events').MultilingualText | string
+        : null;
 
     const normalizedLang = lang.toLowerCase();
     const baseLang = normalizedLang.split('-')[0];

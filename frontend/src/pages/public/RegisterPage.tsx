@@ -6,8 +6,8 @@ import { z } from 'zod';
 import { isAxiosError } from 'axios';
 import { Link, Navigate, useNavigate } from 'react-router';
 
-import { PageContainer, AuthCard, ErrorDisplay, PasswordInput } from '@/components/common';
-import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
+import { PageContainer, ErrorDisplay, PasswordField } from '@/components/common';
+import { AuthCard } from '@/components/common/AuthCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/form';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { type RegistrationSchema } from '@/services/public';
 import { registerUser } from '@/services/auth';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +34,7 @@ const baseSchema = z
       }),
     password: z.string().min(8),
     confirmPassword: z.string().min(8),
+    language: z.enum(['es', 'ca', 'en']),
     acceptPrivacyPolicy: z.boolean().refine(val => val === true, {
       message: 'register.privacyPolicyRequired'
     })
@@ -43,7 +45,9 @@ const baseSchema = z
   });
 
 type BaseFormValues = z.infer<typeof baseSchema>;
-type FormValues = BaseFormValues & Record<string, string | boolean | undefined>;
+type FormValues = BaseFormValues & Record<string, string | boolean | undefined> & {
+  language: 'es' | 'ca' | 'en';
+};
 
 type NormalizedSchemaField = {
   id: string;
@@ -176,86 +180,6 @@ export default function RegisterPage() {
   // El schema de registro siempre viene del tenant, no del evento
   const registrationSchema = tenantRegistrationSchema;
 
-  const schema = useMemo(
-    () =>
-      baseSchema.superRefine((values, ctx) => {
-        // Validar todos los campos del schema dinámicamente
-        const fields = schemaFieldsRef.current;
-        for (const field of fields) {
-          if (!field.required) {
-            continue;
-          }
-
-          let rawValue = (values as Record<string, unknown>)[field.id];
-          let stringValue = typeof rawValue === 'string' ? rawValue.trim() : '';
-          
-          // Si el valor no está en react-hook-form, intentar leerlo del select oculto directamente
-          // Esto puede ocurrir cuando el componente Select no sincroniza correctamente con react-hook-form
-          if (!stringValue && typeof globalThis.window !== 'undefined') {
-            try {
-              // Buscar el select oculto por name o id
-              const selectElement = document.querySelector<HTMLSelectElement>(`select[name="${field.id}"], select#${field.id}`);
-              if (selectElement?.value) {
-                stringValue = selectElement.value.trim();
-              } else {
-                // Fallback: leer del FormData
-                const formElement = document.querySelector<HTMLFormElement>('form');
-                if (formElement) {
-                  const formData = new FormData(formElement);
-                  const formDataValue = formData.get(field.id);
-                  if (formDataValue && typeof formDataValue === 'string') {
-                    stringValue = formDataValue.trim();
-                  }
-                }
-              }
-            } catch (error) {
-              // Si hay un error accediendo al DOM, continuar con la validación normal
-              console.warn('Error reading select value in validation:', error);
-            }
-          }
-
-          if (!stringValue) {
-            ctx.addIssue({
-              code: 'custom',
-              path: [field.id],
-              message: 'register.dynamicFieldRequired'
-            });
-            continue;
-          }
-
-          // Si el campo tiene opciones definidas, validar que el valor sea una de ellas
-          if (field.options && field.options.length > 0) {
-            const validValues = field.options.map(opt => opt.value);
-            if (!validValues.includes(stringValue)) {
-              ctx.addIssue({
-                code: 'custom',
-                path: [field.id],
-                message: 'register.dynamicFieldInvalid'
-              });
-            }
-          }
-        }
-      }),
-    [registrationSchema, i18n.language]
-  );
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      acceptPrivacyPolicy: false
-    }
-  });
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    getValues,
-    reset,
-    setValue,
-    trigger
-  } = form;
-
   // Normalizar todos los campos del schema dinámicamente
   const schemaFields = useMemo(() => {
     // Si el schema viene como string (JSON sin parsear), parsearlo
@@ -270,6 +194,140 @@ export default function RegisterPage() {
     return normalizeSchemaFields(parsedSchema, i18n.language ?? 'es');
   }, [registrationSchema, i18n.language]);
 
+  // Actualizar la referencia cuando cambien los campos del schema
+  useEffect(() => {
+    schemaFieldsRef.current = schemaFields;
+  }, [schemaFields]);
+
+  // Crear schema de validación dinámico que incluya explícitamente los campos obligatorios
+  const schema = useMemo(() => {
+    console.log('[RegisterPage] Creando schema de validación con campos:', schemaFields);
+    return baseSchema.superRefine((values, ctx) => {
+      console.log('[RegisterPage] Iniciando validación superRefine');
+      console.log('[RegisterPage] Valores del formulario:', values);
+      console.log('[RegisterPage] Campos del schema a validar:', schemaFields);
+      
+      // Validar todos los campos obligatorios del esquema de registro
+      for (const field of schemaFields) {
+        console.log(`[RegisterPage] Validando campo: ${field.id}, requerido: ${field.required}`);
+        
+        if (!field.required) {
+          console.log(`[RegisterPage] Campo ${field.id} no es requerido, saltando`);
+          continue;
+        }
+
+        let rawValue = (values as Record<string, unknown>)[field.id];
+        console.log(`[RegisterPage] Valor crudo para ${field.id}:`, rawValue, typeof rawValue);
+        let stringValue = typeof rawValue === 'string' ? rawValue.trim() : '';
+        
+        // Si el valor no está en react-hook-form, intentar leerlo del DOM directamente
+        // Esto puede ocurrir cuando el componente Select no sincroniza correctamente con react-hook-form
+        if (!stringValue && globalThis.window !== undefined) {
+          console.log(`[RegisterPage] Valor vacío para ${field.id}, intentando leer del DOM`);
+          try {
+            // Buscar el select oculto por name o id
+            const selectElement = document.querySelector<HTMLSelectElement>(`select[name="${field.id}"], select#${field.id}`);
+            if (selectElement?.value) {
+              stringValue = selectElement.value.trim();
+              console.log(`[RegisterPage] Valor encontrado en select DOM para ${field.id}:`, stringValue);
+            } else {
+              // Fallback: leer del FormData
+              const formElement = document.querySelector<HTMLFormElement>('form');
+              if (formElement) {
+                const formData = new FormData(formElement);
+                const formDataValue = formData.get(field.id);
+                if (formDataValue && typeof formDataValue === 'string') {
+                  stringValue = formDataValue.trim();
+                  console.log(`[RegisterPage] Valor encontrado en FormData para ${field.id}:`, stringValue);
+                }
+              }
+            }
+          } catch (error) {
+            // Si hay un error accediendo al DOM, continuar con la validación normal
+            console.warn('[RegisterPage] Error reading select value in validation:', error);
+          }
+        }
+
+        console.log(`[RegisterPage] Valor final para ${field.id}:`, stringValue);
+
+        // Validar que el campo obligatorio tenga un valor
+        if (!stringValue) {
+          console.log(`[RegisterPage] ❌ Campo obligatorio ${field.id} está vacío, añadiendo error`);
+          ctx.addIssue({
+            code: 'custom',
+            path: [field.id],
+            message: 'register.dynamicFieldRequired'
+          });
+          continue;
+        }
+
+        // Si el campo tiene opciones definidas, validar que el valor sea una de ellas
+        if (field.options && field.options.length > 0) {
+          const validValuesSet = new Set(field.options.map(opt => opt.value));
+          console.log(`[RegisterPage] Validando valor ${stringValue} contra opciones válidas:`, Array.from(validValuesSet));
+          if (!validValuesSet.has(stringValue)) {
+            console.log(`[RegisterPage] ❌ Valor ${stringValue} no es válido para campo ${field.id}`);
+            ctx.addIssue({
+              code: 'custom',
+              path: [field.id],
+              message: 'register.dynamicFieldInvalid'
+            });
+          } else {
+            console.log(`[RegisterPage] ✅ Valor ${stringValue} es válido para campo ${field.id}`);
+          }
+        } else {
+          console.log(`[RegisterPage] ✅ Campo ${field.id} tiene valor válido:`, stringValue);
+        }
+      }
+      
+      console.log('[RegisterPage] Validación superRefine completada');
+    });
+  }, [schemaFields]);
+
+  // Determinar idioma inicial basado en i18n o navegador
+  const initialLanguage = useMemo(() => {
+    const currentLang = i18n.language?.split('-')[0]?.toLowerCase();
+    if (currentLang === 'es' || currentLang === 'ca' || currentLang === 'en') {
+      return currentLang;
+    }
+    return 'es';
+  }, [i18n.language]);
+
+  // Calcular valores por defecto para campos del schema (campos obligatorios con opciones)
+  const schemaDefaultValues = useMemo(() => {
+    const defaults: Record<string, string> = {};
+    for (const field of schemaFields) {
+      if (field.required && field.type === 'select' && field.options && field.options.length > 0) {
+        const firstOption = field.options[0];
+        const defaultValue = firstOption?.value || '';
+        if (defaultValue && defaultValue.trim() !== '') {
+          defaults[field.id] = defaultValue.trim();
+          console.log(`[RegisterPage] Valor por defecto calculado para ${field.id}:`, defaultValue);
+        }
+      }
+    }
+    return defaults;
+  }, [schemaFields]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      acceptPrivacyPolicy: false,
+      language: initialLanguage,
+      ...schemaDefaultValues
+    }
+  });
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+    getValues,
+    reset,
+    setValue,
+    trigger
+  } = form;
+
   useEffect(() => {
     schemaFieldsRef.current = schemaFields;
 
@@ -280,40 +338,172 @@ export default function RegisterPage() {
       email: currentValues.email ?? '',
       password: currentValues.password ?? '',
       confirmPassword: currentValues.confirmPassword ?? '',
+      language: currentValues.language ?? initialLanguage,
       acceptPrivacyPolicy: currentValues.acceptPrivacyPolicy ?? false
     };
 
-    // Inicializar todos los campos del schema con valores vacíos solo si no tienen valor
-    // Mantener los valores existentes si el usuario ya ha interactuado con el formulario
+    // Inicializar todos los campos del schema
+    // Para campos obligatorios con opciones, establecer el primer valor por defecto
     for (const field of schemaFields) {
-      if (!(field.id in currentValues) || currentValues[field.id] === undefined || currentValues[field.id] === null) {
-        nextValues[field.id] = '';
-      } else {
-        // Preservar el valor existente, incluso si es una cadena vacía (para mantener el estado del formulario)
-        nextValues[field.id] = currentValues[field.id];
+      let fieldValue: string | undefined = undefined;
+      
+      // Primero verificar si hay un valor en react-hook-form
+      const hasExistingValue = field.id in currentValues && 
+        currentValues[field.id] !== undefined && 
+        currentValues[field.id] !== null &&
+        String(currentValues[field.id]).trim() !== '';
+
+      if (hasExistingValue) {
+        // Preservar el valor existente si el usuario ya ha interactuado con el formulario
+        fieldValue = String(currentValues[field.id]).trim();
+        console.log(`[RegisterPage] useEffect - Preservando valor existente para ${field.id}:`, fieldValue);
+      } else if (field.required && field.type === 'select' && field.options && field.options.length > 0) {
+        // Para campos obligatorios con opciones, establecer el primer valor por defecto
+        // Esto fuerza al usuario a cambiar explícitamente el valor si no quiere el primero
+        const firstOption = field.options[0];
+        // field.options es un array de objetos { value: string, label?: ... }
+        const defaultValue = firstOption?.value || '';
+        
+        if (defaultValue && defaultValue.trim() !== '') {
+          fieldValue = defaultValue.trim();
+          console.log(`[RegisterPage] useEffect - Estableciendo primer valor por defecto para ${field.id}:`, fieldValue, '(de opciones:', field.options.map(opt => opt.value).join(', '), ')');
+        } else {
+          console.warn(`[RegisterPage] useEffect - No se pudo obtener valor por defecto para ${field.id}, primera opción:`, firstOption);
+        }
+      } else if (globalThis.window !== undefined && field.type === 'select') {
+        // Si no hay valor en react-hook-form pero es un select, intentar leerlo del DOM
+        try {
+          const selectElement = document.querySelector<HTMLSelectElement>(`select[name="${field.id}"], select#${field.id}`);
+          if (selectElement?.value && selectElement.value.trim() !== '') {
+            fieldValue = selectElement.value.trim();
+            console.log(`[RegisterPage] useEffect - Valor encontrado en DOM para ${field.id}:`, fieldValue);
+          }
+        } catch (error) {
+          console.warn(`[RegisterPage] Error leyendo valor del DOM para ${field.id}:`, error);
+        }
       }
+      
+      // Establecer el valor (o string vacío si no hay valor)
+      nextValues[field.id] = fieldValue ?? '';
     }
 
+    console.log('[RegisterPage] useEffect - Valores a establecer:', nextValues);
+
     // Solo resetear si hay cambios en los campos del schema, pero preservar valores existentes
+    // No usar keepDirtyValues: false porque puede causar que se pierdan los valores por defecto
     reset(nextValues, {
-      keepDirtyValues: true,
+      keepDirtyValues: true, // Preservar valores que el usuario haya modificado
       keepErrors: false,
-      keepTouched: true // Mantener el estado touched para no perder la interacción del usuario
+      keepTouched: false // Resetear touched para que los valores por defecto se muestren correctamente
     });
-  }, [schemaFields, getValues, reset]);
+  }, [schemaFields, getValues, reset, initialLanguage]);
+
+  // Efecto adicional para sincronizar valores del DOM con react-hook-form cuando el usuario selecciona valores
+  useEffect(() => {
+    if (globalThis.window === undefined) {
+      return;
+    }
+
+    // Sincronizar valores de selects del DOM con react-hook-form
+    for (const field of schemaFields) {
+      if (field.type !== 'select') {
+        continue;
+      }
+
+      try {
+        const selectElement = document.querySelector<HTMLSelectElement>(`select[name="${field.id}"], select#${field.id}`);
+        if (selectElement) {
+          const domValue = selectElement.value?.trim() || '';
+          const formValue = getValues(field.id);
+          const formValueStr = typeof formValue === 'string' ? formValue.trim() : '';
+          
+          // Si el valor en el DOM es diferente al valor en el formulario, sincronizar
+          if (domValue !== formValueStr && domValue !== '') {
+            console.log(`[RegisterPage] Sincronizando valor del DOM para ${field.id}:`, domValue, '-> react-hook-form');
+            setValue(field.id, domValue, { 
+              shouldValidate: true, 
+              shouldDirty: true, 
+              shouldTouch: true 
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(`[RegisterPage] Error sincronizando valor del DOM para ${field.id}:`, error);
+      }
+    }
+  }, [schemaFields, getValues, setValue]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       setSubmissionError(null);
       
-      const language = i18n.language?.split('-')[0]?.toLowerCase();
-      const answersPayload: Record<string, string> = {};
-
-      // Procesar todos los campos del schema dinámicamente
-      // Leer valores de react-hook-form, con fallback al FormData si no están disponibles
+      console.log('[RegisterPage] onSubmit - Valores del formulario:', values);
+      console.log('[RegisterPage] onSubmit - Campos del schema:', schemaFields);
+      
+      // Validar explícitamente que todos los campos obligatorios del esquema tengan valor
+      const missingRequiredFields: string[] = [];
       const formElement = document.querySelector<HTMLFormElement>('form');
       const formData = formElement ? new FormData(formElement) : null;
       
+      for (const field of schemaFields) {
+        console.log(`[RegisterPage] onSubmit - Verificando campo ${field.id}, requerido: ${field.required}`);
+        
+        if (!field.required) {
+          continue;
+        }
+        
+        let value = values[field.id];
+        console.log(`[RegisterPage] onSubmit - Valor inicial para ${field.id}:`, value);
+        
+        // Si el valor no está en react-hook-form, leerlo del FormData como fallback
+        if ((!value || (typeof value === 'string' && !value.trim())) && formData) {
+          const formDataValue = formData.get(field.id);
+          console.log(`[RegisterPage] onSubmit - Valor en FormData para ${field.id}:`, formDataValue);
+          if (formDataValue && typeof formDataValue === 'string') {
+            value = formDataValue;
+          }
+        }
+        
+        // Validar que el campo tenga un valor válido
+        const stringValue = typeof value === 'string' ? value.trim() : '';
+        console.log(`[RegisterPage] onSubmit - Valor final para ${field.id}:`, stringValue);
+        
+        if (!stringValue) {
+          const fieldLabel = resolveSchemaLabel(
+            field.label,
+            i18n.language ?? 'es',
+            field.id
+          );
+          console.log(`[RegisterPage] ❌ Campo obligatorio ${field.id} (${fieldLabel}) está vacío`);
+          missingRequiredFields.push(fieldLabel);
+          
+          // Marcar el campo como error en el formulario
+          trigger(field.id);
+        } else {
+          console.log(`[RegisterPage] ✅ Campo ${field.id} tiene valor:`, stringValue);
+        }
+      }
+      
+      // Si faltan campos obligatorios, cancelar el proceso y mostrar errores
+      if (missingRequiredFields.length > 0) {
+        console.log('[RegisterPage] ❌ Faltan campos obligatorios:', missingRequiredFields);
+        const fieldsList = missingRequiredFields.join(', ');
+        setSubmissionError(
+          safeTranslate(
+            t,
+            'register.missingRequiredFields',
+            { fields: fieldsList, defaultValue: `Por favor, completa los siguientes campos obligatorios: ${fieldsList}` }
+          )
+        );
+        return;
+      }
+      
+      // Obtener el idioma del formulario
+      const selectedLanguage = values.language || initialLanguage;
+      console.log('[RegisterPage] Idioma seleccionado:', selectedLanguage);
+      const answersPayload: Record<string, string> = {};
+
+      // Procesar todos los campos del schema dinámicamente
       for (const field of schemaFields) {
         let value = values[field.id];
         
@@ -333,14 +523,23 @@ export default function RegisterPage() {
         }
       }
 
-      const response = await registerUser({
+      const registrationPayload = {
         first_name: values.firstName.trim(),
         last_name: values.lastName.trim(),
         email: values.email.toLowerCase(),
         password: values.password,
-        language: language === 'es' || language === 'en' || language === 'ca' ? language : 'es',
-        registration_answers: Object.keys(answersPayload).length ? answersPayload : undefined
+        language: (selectedLanguage === 'es' || selectedLanguage === 'en' || selectedLanguage === 'ca') 
+          ? selectedLanguage 
+          : 'es',
+        registration_answers: Object.keys(answersPayload).length > 0 ? answersPayload : undefined
+      };
+      
+      console.log('[RegisterPage] Enviando payload de registro:', {
+        ...registrationPayload,
+        password: '***'
       });
+      
+      const response = await registerUser(registrationPayload);
 
       const payload = response.data?.data;
       if (payload) {
@@ -349,17 +548,17 @@ export default function RegisterPage() {
         return;
       }
 
-      setSubmissionError(t('register.genericError'));
+      setSubmissionError(safeTranslate(t, 'register.genericError'));
     } catch (error) {
       if (isAxiosError(error)) {
         const message = error.response?.data?.message;
         if (message) {
-          setSubmissionError(t(message, { defaultValue: message }));
+          setSubmissionError(safeTranslate(t, message, { defaultValue: message }));
         } else {
-          setSubmissionError(t('register.genericError'));
+          setSubmissionError(safeTranslate(t, 'register.genericError'));
         }
       } else {
-        setSubmissionError(t('register.genericError'));
+        setSubmissionError(safeTranslate(t, 'register.genericError'));
       }
     }
   };
@@ -367,9 +566,9 @@ export default function RegisterPage() {
   if (!tenantSlug) {
     return (
       <PageContainer className="flex flex-col items-center gap-4 text-center">
-        <p className="text-sm text-muted-foreground">{t('register.missingTenant')}</p>
+        <p className="text-sm text-muted-foreground">{safeTranslate(t, 'register.missingTenant')}</p>
         <Button asChild>
-          <Link to="/">{t('register.goToPublicHub')}</Link>
+          <Link to="/">{safeTranslate(t, 'register.goToPublicHub')}</Link>
         </Button>
       </PageContainer>
     );
@@ -388,13 +587,13 @@ export default function RegisterPage() {
   return (
     <AuthCard
       maxWidth="xl"
-      title={t('register.title')}
-      subtitle={t('register.subtitle')}
+      title={safeTranslate(t, 'register.title')}
+      subtitle={safeTranslate(t, 'register.subtitle')}
       footer={
         <div className="flex flex-col items-center gap-2">
-          <p>{t('register.alreadyHaveAccount')}</p>
+          <p>{safeTranslate(t, 'register.alreadyHaveAccount')}</p>
           <Button variant="ghost" size="sm" className="p-0 text-[color:var(--tenant-primary)]" asChild>
-            <Link to={tenantPath('login')}>{t('register.goToLogin')}</Link>
+            <Link to={tenantPath('login')}>{safeTranslate(t, 'register.goToLogin')}</Link>
           </Button>
         </div>
       }
@@ -402,11 +601,11 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
-                label={t('register.firstName')}
+                label={safeTranslate(t, 'register.firstName')}
                 htmlFor="firstName"
                 error={
                   errors.firstName
-                    ? t(errors.firstName.message ?? '', { defaultValue: errors.firstName.message })
+                    ? safeTranslate(t, errors.firstName.message ?? '', { defaultValue: errors.firstName.message })
                     : undefined
                 }
                 required
@@ -414,11 +613,11 @@ export default function RegisterPage() {
                 <Input id="firstName" autoComplete="given-name" {...register('firstName')} />
               </FormField>
               <FormField
-                label={t('register.lastName')}
+                label={safeTranslate(t, 'register.lastName')}
                 htmlFor="lastName"
                 error={
                   errors.lastName
-                    ? t(errors.lastName.message ?? '', { defaultValue: errors.lastName.message })
+                    ? safeTranslate(t, errors.lastName.message ?? '', { defaultValue: errors.lastName.message })
                     : undefined
                 }
                 required
@@ -428,16 +627,58 @@ export default function RegisterPage() {
             </div>
 
             <FormField
-              label={t('register.email')}
+              label={safeTranslate(t, 'register.email')}
               htmlFor="email"
               error={
                 errors.email
-                  ? t(errors.email.message ?? '', { defaultValue: errors.email.message })
+                  ? safeTranslate(t, errors.email.message ?? '', { defaultValue: errors.email.message })
                   : undefined
               }
               required
             >
               <Input id="email" type="email" autoComplete="email" {...register('email')} />
+            </FormField>
+
+            <FormField
+              label={safeTranslate(t, 'register.language', { defaultValue: 'Idioma' })}
+              htmlFor="language"
+              error={
+                errors.language
+                  ? safeTranslate(t, errors.language.message ?? '', { defaultValue: errors.language.message })
+                  : undefined
+              }
+              required
+            >
+              <Controller
+                name="language"
+                control={form.control}
+                render={({ field: controllerField }) => (
+                  <Select
+                    id="language"
+                    name={controllerField.name}
+                    value={controllerField.value || initialLanguage}
+                    onValueChange={(value) => {
+                      const langValue = value === 'es' || value === 'ca' || value === 'en' ? value : 'es';
+                      controllerField.onChange(langValue);
+                      setValue('language', langValue, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                      trigger('language');
+                    }}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const langValue = value === 'es' || value === 'ca' || value === 'en' ? value : 'es';
+                      controllerField.onChange(langValue);
+                      setValue('language', langValue, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+                      trigger('language');
+                    }}
+                    onBlur={controllerField.onBlur}
+                    ref={controllerField.ref}
+                  >
+                    <option value="es">{safeTranslate(t, 'common.languages.es', { defaultValue: 'Español' })}</option>
+                    <option value="ca">{safeTranslate(t, 'common.languages.ca', { defaultValue: 'Català' })}</option>
+                    <option value="en">{safeTranslate(t, 'common.languages.en', { defaultValue: 'English' })}</option>
+                  </Select>
+                )}
+              />
             </FormField>
 
             {/* Renderizar todos los campos del schema dinámicamente */}
@@ -450,7 +691,7 @@ export default function RegisterPage() {
                     field.id
                   );
                   const errorMessage = errors[field.id]?.message
-                    ? t(errors[field.id]?.message ?? '', { defaultValue: errors[field.id]?.message })
+                    ? safeTranslate(t, errors[field.id]?.message ?? '', { defaultValue: errors[field.id]?.message })
                     : undefined;
 
                   const processedOptions = processFieldOptions(field.options, i18n.language ?? 'es');
@@ -467,34 +708,63 @@ export default function RegisterPage() {
                           control={form.control}
                           rules={{
                             required: field.required
-                              ? t('register.dynamicFieldRequired', { defaultValue: 'Este campo es obligatorio' })
+                              ? safeTranslate(t, 'register.dynamicFieldRequired', { defaultValue: 'Este campo es obligatorio' })
                               : false
                           }}
                           render={({ field: controllerField }) => {
-                            const currentValue = typeof controllerField.value === 'string' ? controllerField.value : '';
+                            // Obtener el valor actual del formulario, con fallback a string vacío
+                            const currentValue = typeof controllerField.value === 'string' && controllerField.value.trim() !== '' 
+                              ? controllerField.value 
+                              : '';
+                            
+                            console.log(`[RegisterPage] Renderizando Select para ${field.id}, valor actual en react-hook-form:`, currentValue);
+                            
+                            // Si no hay valor pero el campo es obligatorio con opciones, usar el primer valor como defaultValue
+                            const defaultValue = !currentValue && field.required && field.options && field.options.length > 0
+                              ? field.options[0]?.value || ''
+                              : undefined;
+                            
                             return (
                               <Select
                                 id={field.id}
                                 name={controllerField.name}
-                                value={currentValue}
+                                value={currentValue || defaultValue || ''}
+                                defaultValue={defaultValue}
                                 onValueChange={(value) => {
-                                  // Establecer el valor directamente en react-hook-form
+                                  console.log(`[RegisterPage] onValueChange para ${field.id}, nuevo valor:`, value);
+                                  // Establecer el valor directamente en react-hook-form usando controllerField.onChange
+                                  // Esto es lo más importante para mantener la sincronización
                                   controllerField.onChange(value);
-                                  // Forzar validación después de establecer el valor
-                                  setValue(field.id, value, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
-                                  trigger(field.id);
+                                  // También usar setValue para asegurar sincronización completa
+                                  setValue(field.id, value, { 
+                                    shouldValidate: true, 
+                                    shouldDirty: true, 
+                                    shouldTouch: true 
+                                  });
+                                  // Disparar validación
+                                  setTimeout(() => {
+                                    trigger(field.id);
+                                  }, 0);
                                 }}
                                 onChange={(e) => {
-                                  // Manejar también el onChange del select oculto
+                                  // Manejar también el onChange del select oculto (fallback)
                                   const value = e.target.value;
-                                  controllerField.onChange(value);
-                                  // Asegurar que react-hook-form detecte el cambio
-                                  setValue(field.id, value, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
-                                  trigger(field.id);
+                                  console.log(`[RegisterPage] onChange (fallback) para ${field.id}, valor:`, value);
+                                  if (value !== currentValue) {
+                                    controllerField.onChange(value);
+                                    setValue(field.id, value, { 
+                                      shouldValidate: true, 
+                                      shouldDirty: true, 
+                                      shouldTouch: true 
+                                    });
+                                    setTimeout(() => {
+                                      trigger(field.id);
+                                    }, 0);
+                                  }
                                 }}
                                 onBlur={controllerField.onBlur}
                                 ref={controllerField.ref}
-                                placeholder={t('register.selectPlaceholder', { defaultValue: 'Selecciona una opción' })}
+                                placeholder={safeTranslate(t, 'register.selectPlaceholder', { defaultValue: 'Selecciona una opción' })}
                               >
                                 {processedOptions.map(option => (
                                   <option key={option.value} value={option.value}>
@@ -526,39 +796,35 @@ export default function RegisterPage() {
             ) : null}
 
             <FormField
-              label={t('register.password')}
+              label={safeTranslate(t, 'register.password')}
               htmlFor="password"
-              description={t('register.passwordHelper')}
+              description={safeTranslate(t, 'register.passwordHelper')}
               error={
                 errors.password
-                  ? t(errors.password.message ?? '', { defaultValue: errors.password.message })
+                  ? safeTranslate(t, errors.password.message ?? '', { defaultValue: errors.password.message })
                   : undefined
               }
               required
             >
-              <div className="flex gap-2">
-                <PasswordInput
-                  id="password"
-                  autoComplete="new-password"
-                  className="flex-1"
-                  {...register('password')}
-                />
-                <PasswordGeneratorButton
-                  onGenerate={password => {
-                    setValue('password', password, { shouldValidate: true });
-                    setValue('confirmPassword', password, { shouldValidate: true });
-                  }}
-                  aria-label={t('register.generatePassword')}
-                />
-              </div>
+              <PasswordField
+                id="password"
+                autoComplete="new-password"
+                showGenerator
+                onPasswordGenerated={password => {
+                  setValue('password', password, { shouldValidate: true });
+                  setValue('confirmPassword', password, { shouldValidate: true });
+                }}
+                generatorAriaLabel={safeTranslate(t, 'register.generatePassword')}
+                {...register('password')}
+              />
             </FormField>
 
             <FormField
-              label={t('register.confirmPassword')}
+              label={safeTranslate(t, 'register.confirmPassword')}
               htmlFor="confirmPassword"
               error={
                 errors.confirmPassword
-                  ? t(errors.confirmPassword.message ?? '', {
+                  ? safeTranslate(t, errors.confirmPassword.message ?? '', {
                       defaultValue: errors.confirmPassword.message
                     })
                   : undefined
@@ -566,12 +832,13 @@ export default function RegisterPage() {
               required
             >
               <div className="flex gap-2">
-                <PasswordInput
+                <PasswordField
                   id="confirmPassword"
                   autoComplete="new-password"
                   className="flex-1"
                   {...register('confirmPassword')}
                 />
+                <div className="w-10" aria-hidden="true" />
               </div>
             </FormField>
 
@@ -584,7 +851,7 @@ export default function RegisterPage() {
                   {...register('acceptPrivacyPolicy', { required: true })}
                 />
                 <label htmlFor="acceptPrivacyPolicy" className="text-sm leading-relaxed text-foreground">
-                  {t('register.acceptPrivacyPolicy', {
+                  {safeTranslate(t, 'register.acceptPrivacyPolicy', {
                     defaultValue: 'Acepto la '
                   })}
                   <a
@@ -594,13 +861,13 @@ export default function RegisterPage() {
                     className="font-medium text-[color:var(--tenant-primary)] underline hover:text-[color:var(--tenant-primary)]/80"
                     onClick={e => e.stopPropagation()}
                   >
-                    {t('register.privacyPolicy', { defaultValue: 'Política de Privacidad' })}
+                    {safeTranslate(t, 'register.privacyPolicy', { defaultValue: 'Política de Privacidad' })}
                   </a>
                 </label>
               </div>
               {errors.acceptPrivacyPolicy ? (
                 <p className="text-sm text-destructive">
-                  {t(errors.acceptPrivacyPolicy.message ?? '', { defaultValue: errors.acceptPrivacyPolicy.message })}
+                  {safeTranslate(t, errors.acceptPrivacyPolicy.message ?? '', { defaultValue: errors.acceptPrivacyPolicy.message })}
                 </p>
               ) : null}
             </div>
@@ -608,7 +875,7 @@ export default function RegisterPage() {
             <ErrorDisplay error={submissionError} />
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? t('common.loading') : t('register.submit')}
+              {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'register.submit')}
             </Button>
           </form>
     </AuthCard>

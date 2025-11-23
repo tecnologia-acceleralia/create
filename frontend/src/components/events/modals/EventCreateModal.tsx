@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { UseFormReturn } from 'react-hook-form';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   Dialog,
   DialogContent,
@@ -32,9 +33,9 @@ export function EventCreateModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>{t('events.formTitle')}</DialogTitle>
+          <DialogTitle>{safeTranslate(t, 'events.formTitle')}</DialogTitle>
           <DialogDescription>
-            {t('events.createEventDescription', { defaultValue: 'Crea un nuevo evento' })}
+            {safeTranslate(t, 'events.createEventDescription', { defaultValue: 'Crea un nuevo evento' })}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-6">
@@ -42,14 +43,14 @@ export function EventCreateModal({
         </div>
         <DialogFooter className="px-6 pb-6 pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t('common.cancel')}
+            {safeTranslate(t, 'common.cancel')}
           </Button>
           <Button
             type="button"
             onClick={form.handleSubmit(onSubmit)}
             disabled={isSubmitting}
           >
-            {isSubmitting ? t('common.loading') : t('events.create')}
+            {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'events.create')}
           </Button>
         </DialogFooter>
       </DialogContent>

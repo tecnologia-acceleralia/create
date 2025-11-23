@@ -7,13 +7,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/common';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { getEventAssets, type EventAsset } from '@/services/event-assets';
 
 interface AssetMarkerSelectorProps {
   eventId: number;
+  onMarkerInsert?: (marker: string) => void;
 }
 
-export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
+export function AssetMarkerSelector({ eventId, onMarkerInsert }: AssetMarkerSelectorProps) {
   const { t } = useTranslation();
   const [copiedMarker, setCopiedMarker] = useState<string | null>(null);
   const [selectedValue, setSelectedValue] = useState<string>('');
@@ -26,16 +28,30 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
 
   const handleCopyMarker = async (name: string) => {
     const marker = `{{asset:${name}}}`;
+    
+    // Si hay callback de inserción, usarlo directamente
+    if (onMarkerInsert) {
+      onMarkerInsert(marker);
+      setCopiedMarker(name);
+      toast.success(safeTranslate(t, 'events.markerInserted', { defaultValue: 'Marcador insertado' }));
+      setTimeout(() => {
+        setCopiedMarker(null);
+        setSelectedValue('');
+      }, 2000);
+      return;
+    }
+
+    // Si no, copiar al portapapeles (comportamiento original)
     try {
       await navigator.clipboard.writeText(marker);
       setCopiedMarker(name);
-      toast.success(t('events.markerCopied', { defaultValue: 'Marcador copiado al portapapeles' }));
+      toast.success(safeTranslate(t, 'events.markerCopied', { defaultValue: 'Marcador copiado al portapapeles' }));
       setTimeout(() => {
         setCopiedMarker(null);
         setSelectedValue('');
       }, 2000);
     } catch (error) {
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   };
 
@@ -57,7 +73,7 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
   if (!assets || assets.length === 0) {
     return (
       <div className="rounded-md border border-border/60 bg-card/60 p-3 text-sm text-muted-foreground">
-        {t('events.noAssetsForMarkers', { defaultValue: 'No hay recursos disponibles para generar marcadores' })}
+        {safeTranslate(t, 'events.noAssetsForMarkers', { defaultValue: 'No hay recursos disponibles para generar marcadores' })}
       </div>
     );
   }
@@ -65,7 +81,7 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
   return (
     <div className="space-y-2 rounded-md border border-border/60 bg-card/60 p-3">
       <label className="text-sm font-medium text-foreground">
-        {t('events.selectMarker', { defaultValue: 'Seleccionar marcador' })}
+        {safeTranslate(t, 'events.selectMarker', { defaultValue: 'Seleccionar marcador' })}
       </label>
       <div className="flex gap-2">
         <Select
@@ -74,7 +90,7 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
           className="flex-1"
         >
           <option value="">
-            {t('events.selectMarkerPlaceholder', { defaultValue: 'Selecciona un recurso...' })}
+            {safeTranslate(t, 'events.selectMarkerPlaceholder', { defaultValue: 'Selecciona un recurso...' })}
           </option>
           {assets.map(asset => (
             <option key={asset.id} value={asset.name}>
@@ -93,7 +109,7 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
                 handleCopyMarker(firstAsset.name);
               }
             }}
-            title={t('events.copyFirstMarker', { defaultValue: 'Copiar primer marcador' })}
+            title={safeTranslate(t, 'events.copyFirstMarker', { defaultValue: 'Copiar primer marcador' })}
           >
             {copiedMarker ? (
               <Check className="h-4 w-4" aria-hidden="true" />
@@ -104,7 +120,7 @@ export function AssetMarkerSelector({ eventId }: AssetMarkerSelectorProps) {
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        {t('events.markerHint', {
+        {safeTranslate(t, 'events.markerHint', {
           defaultValue: 'Selecciona un recurso y se copiará el marcador {{asset:nombre}} al portapapeles para pegarlo en el HTML.'
         })}
       </p>

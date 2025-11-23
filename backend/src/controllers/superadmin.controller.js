@@ -882,7 +882,7 @@ export class SuperAdminController {
       const rawPassword = payload.password?.trim() || crypto.randomUUID();
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
 
-      const user = await User.create({
+      const userData = {
         email: payload.email,
         password: hashedPassword,
         first_name: payload.first_name,
@@ -891,7 +891,22 @@ export class SuperAdminController {
         status: payload.status ?? 'active',
         is_super_admin: Boolean(payload.is_super_admin),
         profile_image_url: coerceNullableString(payload.profile_image_url)
-      });
+      };
+
+      // Manejar registration_answers y grade
+      let registrationAnswers = payload.registration_answers && typeof payload.registration_answers === 'object' && !Array.isArray(payload.registration_answers)
+        ? { ...payload.registration_answers }
+        : {};
+      
+      if (payload.grade) {
+        registrationAnswers.grade = coerceNullableString(payload.grade);
+      }
+      
+      if (Object.keys(registrationAnswers).length > 0) {
+        userData.registration_answers = registrationAnswers;
+      }
+
+      const user = await User.create(userData);
 
       const tenantRolesMap = normalizeTenantRolesPayload(payload.tenantRoles);
       const tenantIds = Array.isArray(payload.tenantIds)
@@ -994,7 +1009,7 @@ export class SuperAdminController {
       }
 
       const updates = {};
-      const allowedFields = ['email', 'first_name', 'last_name', 'language', 'status', 'is_super_admin', 'profile_image_url'];
+      const allowedFields = ['email', 'first_name', 'last_name', 'language', 'status', 'is_super_admin', 'profile_image_url', 'registration_answers'];
 
       for (const field of allowedFields) {
         if (Object.prototype.hasOwnProperty.call(payload, field)) {
@@ -1002,10 +1017,30 @@ export class SuperAdminController {
             updates[field] = Boolean(payload[field]);
           } else if (field === 'profile_image_url') {
             updates[field] = coerceNullableString(payload[field]);
+          } else if (field === 'registration_answers') {
+            // registration_answers debe ser un objeto JSON válido
+            if (payload[field] === null || payload[field] === undefined) {
+              updates[field] = null;
+            } else if (typeof payload[field] === 'object') {
+              updates[field] = payload[field];
+            }
           } else {
             updates[field] = payload[field];
           }
         }
+      }
+      
+      // Manejar grade si viene en el payload (debe ir dentro de registration_answers)
+      if (Object.prototype.hasOwnProperty.call(payload, 'grade')) {
+        const currentAnswers = user.registration_answers || {};
+        const updatedAnswers = { ...currentAnswers };
+        const gradeValue = coerceNullableString(payload.grade);
+        if (gradeValue) {
+          updatedAnswers.grade = gradeValue;
+        } else if (updatedAnswers.grade !== undefined) {
+          delete updatedAnswers.grade;
+        }
+        updates.registration_answers = Object.keys(updatedAnswers).length > 0 ? updatedAnswers : null;
       }
 
       if (Object.prototype.hasOwnProperty.call(updates, 'email')) {

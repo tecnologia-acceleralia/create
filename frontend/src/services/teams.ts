@@ -52,6 +52,7 @@ export async function createTeam(payload: {
   requirements?: string;
 }) {
   const response = await apiClient.post('/teams', payload);
+  // La sesión se refrescará desde el componente que llama esta función
   return response.data.data as Team;
 }
 
@@ -66,6 +67,7 @@ export async function removeTeamMember(teamId: number, userId: number) {
 
 export async function setCaptain(teamId: number, userId: number) {
   await apiClient.patch(`/teams/${teamId}/captain`, { user_id: userId });
+  // La sesión se refrescará desde el componente que llama esta función
 }
 
 export async function getTeamsByEvent(eventId: number) {
@@ -80,5 +82,76 @@ export async function joinTeam(teamId: number) {
 
 export async function leaveTeam(teamId: number) {
   await apiClient.post(`/teams/${teamId}/leave`);
+  // La sesión se refrescará desde el componente que llama esta función
+}
+
+export type SubmissionSummary = {
+  id: number;
+  status: 'draft' | 'final';
+  type: 'provisional' | 'final';
+  submitted_at: string;
+  content?: string;
+  files_count: number;
+  evaluations: Array<{
+    id: number;
+    score?: number;
+    status?: 'draft' | 'final';
+    created_at: string;
+    language?: string;
+    metadata?: {
+      language?: string;
+      [key: string]: unknown;
+    };
+  }>;
+};
+
+export type TaskSubmissionsSummary = {
+  task_id: number;
+  task_title: string | { es: string; ca?: string; en?: string };
+  submissions: SubmissionSummary[];
+};
+
+export type PhaseEvaluationSummary = {
+  id: number;
+  score?: number;
+  status?: 'draft' | 'final';
+  comment?: string;
+  created_at: string;
+  language?: string;
+  metadata?: {
+    language?: string;
+    [key: string]: unknown;
+  };
+};
+
+export type PhaseSubmissionsSummary = {
+  phase_id: number;
+  phase_name: string | { es: string; ca?: string; en?: string };
+  tasks: TaskSubmissionsSummary[];
+  phase_evaluations: PhaseEvaluationSummary[];
+};
+
+export type ProjectEvaluationSummary = {
+  id: number;
+  score?: number;
+  status?: 'draft' | 'final';
+  comment?: string;
+  created_at: string;
+  language?: string;
+  metadata?: {
+    language?: string;
+    [key: string]: unknown;
+  };
+} | null;
+
+export type TeamSubmissionsAndEvaluationsSummary = {
+  team_id: number;
+  phases: PhaseSubmissionsSummary[];
+  project_evaluation: ProjectEvaluationSummary;
+};
+
+export async function getTeamSubmissionsAndEvaluationsSummary(teamId: number) {
+  const response = await apiClient.get(`/teams/${teamId}/submissions-evaluations-summary`);
+  return response.data.data as TeamSubmissionsAndEvaluationsSummary;
 }
 

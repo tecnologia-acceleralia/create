@@ -60,6 +60,12 @@ export class EvaluationsController {
         scoreValue = score;
       }
 
+      const metadata = req.body.metadata || {};
+      // Si se proporciona locale en el body, agregarlo al metadata
+      if (req.body.locale) {
+        metadata.language = req.body.locale;
+      }
+      
       const evaluation = await Evaluation.create({
         tenant_id: tenantId,
         submission_id: submission.id,
@@ -69,7 +75,7 @@ export class EvaluationsController {
         source: req.body.source ?? 'manual',
         status,
         rubric_snapshot: req.body.rubric_snapshot || null,
-        metadata: req.body.metadata || null
+        metadata: Object.keys(metadata).length > 0 ? metadata : null
       });
 
       // Solo notificar si es evaluación final
@@ -103,14 +109,34 @@ export class EvaluationsController {
         SubmissionFile,
         Task,
         PhaseRubric,
-        PhaseRubricCriterion
+        PhaseRubricCriterion,
+        Event
       } = getModels();
 
       const submission = await Submission.findOne({
         where: { id: req.params.submissionId },
         include: [
           { model: SubmissionFile, as: 'files' },
-          { model: Task, as: 'task' }
+          { 
+            model: Task, 
+            as: 'task',
+            include: [
+              { 
+                model: Event, 
+                as: 'event', 
+                attributes: [
+                  'id', 
+                  'ai_evaluation_prompt', 
+                  'ai_evaluation_model', 
+                  'ai_evaluation_temperature', 
+                  'ai_evaluation_max_tokens',
+                  'ai_evaluation_top_p',
+                  'ai_evaluation_frequency_penalty',
+                  'ai_evaluation_presence_penalty'
+                ] 
+              }
+            ]
+          }
         ]
       });
 
@@ -150,6 +176,26 @@ export class EvaluationsController {
       const sortedCriteria = [...rubric.criteria].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       rubric.criteria = sortedCriteria;
 
+      // Obtener la configuración de IA del evento si existe
+      const event = task.event;
+      const customPrompt = event?.ai_evaluation_prompt || null;
+      const aiConfig = {
+        model: event?.ai_evaluation_model || null,
+        temperature: event?.ai_evaluation_temperature !== null && event?.ai_evaluation_temperature !== undefined 
+          ? Number(event.ai_evaluation_temperature) 
+          : null,
+        max_tokens: event?.ai_evaluation_max_tokens || null,
+        top_p: event?.ai_evaluation_top_p !== null && event?.ai_evaluation_top_p !== undefined 
+          ? Number(event.ai_evaluation_top_p) 
+          : null,
+        frequency_penalty: event?.ai_evaluation_frequency_penalty !== null && event?.ai_evaluation_frequency_penalty !== undefined 
+          ? Number(event.ai_evaluation_frequency_penalty) 
+          : null,
+        presence_penalty: event?.ai_evaluation_presence_penalty !== null && event?.ai_evaluation_presence_penalty !== undefined 
+          ? Number(event.ai_evaluation_presence_penalty) 
+          : null
+      };
+
       const evaluationResult = await generateAiEvaluation({
         rubric,
         submission: {
@@ -162,7 +208,9 @@ export class EvaluationsController {
           })) ?? []
         },
         task,
-        locale: req.body.locale ?? 'es-ES'
+        locale: req.body.locale ?? 'es-ES',
+        customPrompt,
+        aiConfig
       });
 
       // Obtener tenant_id de la submission para asegurar consistencia
@@ -178,6 +226,7 @@ export class EvaluationsController {
       }
 
       const status = req.body.status ?? 'draft';
+      const locale = req.body.locale ?? 'es-ES';
       const evaluation = await Evaluation.create(
         {
           tenant_id: tenantId,
@@ -191,7 +240,8 @@ export class EvaluationsController {
           metadata: {
             criteria: evaluationResult.criteria,
             usage: evaluationResult.usage,
-            raw: evaluationResult.raw
+            raw: evaluationResult.raw,
+            language: locale
           }
         },
         { transaction }
@@ -428,6 +478,12 @@ export class EvaluationsController {
         return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
+      const metadata = req.body.metadata || {};
+      // Si se proporciona locale en el body, agregarlo al metadata
+      if (req.body.locale) {
+        metadata.language = req.body.locale;
+      }
+      
       const evaluation = await Evaluation.create({
         tenant_id: tenantId,
         evaluation_scope: 'phase',
@@ -441,7 +497,7 @@ export class EvaluationsController {
         source: req.body.source ?? 'manual',
         status,
         rubric_snapshot: req.body.rubric_snapshot || null,
-        metadata: req.body.metadata || null
+        metadata: Object.keys(metadata).length > 0 ? metadata : null
       });
 
       // Solo notificar si es evaluación final
@@ -571,6 +627,7 @@ export class EvaluationsController {
       }
 
       const status = req.body.status ?? 'draft';
+      const locale = req.body.locale ?? 'es-ES';
       const evaluation = await Evaluation.create(
         {
           tenant_id: tenantId,
@@ -588,7 +645,8 @@ export class EvaluationsController {
           metadata: {
             criteria: evaluationResult.criteria,
             usage: evaluationResult.usage,
-            raw: evaluationResult.raw
+            raw: evaluationResult.raw,
+            language: locale
           }
         },
         { transaction }
@@ -655,6 +713,128 @@ export class EvaluationsController {
 
       return successResponse(res, evaluations);
     } catch (error) {
+      next(error);
+    }
+  }
+
+  // Actualizar evaluación de fase
+  static async updatePhaseEvaluation(req, res, next) {
+    try {
+      if (!isReviewer(req)) {
+        return forbiddenResponse(res);
+      }
+
+      const { Phase, Evaluation, Team, Task, Submission } = getModels();
+      const phaseId = Number(req.params.phaseId);
+      const teamId = Number(req.params.teamId);
+      const evaluationId = Number(req.params.evaluationId);
+
+      const phase = await Phase.findOne({ where: { id: phaseId } });
+      if (!phase) {
+        return notFoundResponse(res, t(req, 'evaluations.phaseNotFound'));
+      }
+
+      const team = await Team.findOne({ where: { id: teamId } });
+      if (!team) {
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
+      }
+
+      const evaluation = await Evaluation.findOne({
+        where: {
+          id: evaluationId,
+          phase_id: phaseId,
+          team_id: teamId,
+          evaluation_scope: 'phase'
+        }
+      });
+
+      if (!evaluation) {
+        return notFoundResponse(res, t(req, 'evaluations.evaluationNotFound'));
+      }
+
+      // Guardar el estado anterior
+      const previousStatus = evaluation.status;
+
+      // Validar submission_ids si se proporcionan
+      if (req.body.submission_ids !== undefined) {
+        const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
+        if (submissionIds.length === 0) {
+          return badRequestResponse(res, t(req, 'evaluations.atLeastOneSubmissionRequired'));
+        }
+
+        // Obtener tareas de la fase
+        const tasks = await Task.findAll({ where: { phase_id: phaseId } });
+        const taskIds = tasks.map(t => t.id);
+
+        // Validar que todas las submissions pertenezcan al equipo y a las tareas de la fase
+        const submissions = await Submission.findAll({
+          where: {
+            id: { [Op.in]: submissionIds },
+            team_id: teamId,
+            task_id: { [Op.in]: taskIds }
+          }
+        });
+
+        if (submissions.length !== submissionIds.length) {
+          return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrPhase'));
+        }
+      }
+
+      // Validar que el comentario esté presente si se proporciona
+      if (req.body.comment !== undefined && (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0))) {
+        return badRequestResponse(res, t(req, 'evaluations.commentCannotBeEmpty'));
+      }
+
+      // Validar que el score esté en el rango correcto si se proporciona
+      let scoreValue = undefined;
+      if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
+        const score = Number(req.body.score);
+        if (isNaN(score) || score < 0 || score > 100) {
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange100'));
+        }
+        scoreValue = score;
+      } else if (req.body.score === null || req.body.score === '') {
+        scoreValue = null;
+      }
+
+      // Actualizar campos permitidos
+      const updateData = {};
+      if (req.body.submission_ids !== undefined) {
+        updateData.evaluated_submission_ids = req.body.submission_ids;
+      }
+      if (req.body.score !== undefined) {
+        updateData.score = scoreValue;
+      }
+      if (req.body.comment !== undefined) {
+        updateData.comment = req.body.comment ? req.body.comment.trim() : null;
+      }
+      if (req.body.status !== undefined) {
+        updateData.status = req.body.status;
+      }
+      if (req.body.rubric_snapshot !== undefined) {
+        updateData.rubric_snapshot = req.body.rubric_snapshot || null;
+      }
+      if (req.body.metadata !== undefined) {
+        updateData.metadata = req.body.metadata || null;
+      }
+
+      await evaluation.update(updateData);
+
+      // Si se cambió a final y antes no lo era, notificar
+      if (updateData.status === 'final' && previousStatus !== 'final') {
+        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`);
+      }
+
+      return successResponse(res, evaluation);
+    } catch (error) {
+      logger.error('Error al actualizar evaluación de fase', {
+        error: error.message,
+        stack: error.stack,
+        phaseId: req.params.phaseId,
+        teamId: req.params.teamId,
+        evaluationId: req.params.evaluationId,
+        body: req.body
+      });
       next(error);
     }
   }
@@ -751,6 +931,12 @@ export class EvaluationsController {
         return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
       }
 
+      const metadata = req.body.metadata || {};
+      // Si se proporciona locale en el body, agregarlo al metadata
+      if (req.body.locale) {
+        metadata.language = req.body.locale;
+      }
+      
       const evaluation = await Evaluation.create({
         tenant_id: tenantId,
         evaluation_scope: 'project',
@@ -764,7 +950,7 @@ export class EvaluationsController {
         source: req.body.source ?? 'manual',
         status,
         rubric_snapshot: req.body.rubric_snapshot || null,
-        metadata: req.body.metadata || null
+        metadata: Object.keys(metadata).length > 0 ? metadata : null
       });
 
       // Solo notificar si es evaluación final

@@ -5,6 +5,8 @@ import type { Event, Phase } from '@/services/events';
 import { useTenant } from '@/context/TenantContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { formatDateRange } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 
 type EventTimelineTabProps = {
   event: Event & { phases?: Phase[]; tasks?: unknown[]; rubrics?: unknown[] };
@@ -15,6 +17,7 @@ export function EventTimelineTab({ event }: EventTimelineTabProps) {
   const { branding } = useTenant();
   const tenantPath = useTenantPath();
   const locale = i18n.language ?? 'es';
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
   const phases = useMemo(() => {
     if (!event.phases || !Array.isArray(event.phases)) {
@@ -28,7 +31,7 @@ export function EventTimelineTab({ event }: EventTimelineTabProps) {
   if (!phases.length) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">{t('events.noPhases')}</p>
+        <p className="text-muted-foreground">{safeTranslate(t, 'events.noPhases')}</p>
       </div>
     );
   }
@@ -47,6 +50,8 @@ export function EventTimelineTab({ event }: EventTimelineTabProps) {
           {phases.map((phase, index) => {
             const color = branding.primaryColor || '#00416b';
             const dateRange = formatDateRange(locale, phase.start_date ?? null, phase.end_date ?? null);
+            const phaseName = getMultilingualText(phase.name, currentLang);
+            const phaseDescription = phase.description ? getMultilingualText(phase.description, currentLang) : null;
             
             return (
               <div key={phase.id} className="relative flex gap-4">
@@ -70,13 +75,13 @@ export function EventTimelineTab({ event }: EventTimelineTabProps) {
                     }}
                   >
                     <h3 className="text-lg font-semibold mb-1" style={{ color }}>
-                      {phase.name}
+                      {phaseName}
                     </h3>
                     {dateRange && (
                       <p className="text-sm text-muted-foreground mb-2">{dateRange}</p>
                     )}
-                    {phase.description && (
-                      <p className="text-sm text-muted-foreground">{phase.description}</p>
+                    {phaseDescription && (
+                      <p className="text-sm text-muted-foreground">{phaseDescription}</p>
                     )}
                   </Link>
                 </div>

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageContainer, PageHeader } from '@/components/common';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { useSuperAdminSession } from '@/context/SuperAdminContext';
 
 type SuperAdminLayoutProps = {
@@ -21,11 +22,11 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const location = useLocation();
 
   const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || user?.email;
-  const subtitle = displayName ? t('superadmin.welcome', { name: displayName }) : undefined;
+  const subtitle = displayName ? safeTranslate(t, 'superadmin.welcome', { name: displayName }) : undefined;
 
   return (
     <PageContainer className="space-y-6">
-      <PageHeader title={t('superadmin.title')} subtitle={subtitle} />
+      <PageHeader title={safeTranslate(t, 'superadmin.title')} subtitle={subtitle} />
 
       <nav className="flex flex-wrap gap-2 border-b border-border/70 pb-3">
         {NAV_ITEMS.map(item => {
@@ -44,7 +45,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              {t(`superadmin.nav.${item.key}`)}
+              {safeTranslate(t, `superadmin.nav.${item.key}`, { defaultValue: item.key })}
             </Link>
           );
         })}

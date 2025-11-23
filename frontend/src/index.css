@@ -64,3 +64,12 @@
     font-weight: 700;
   }
 }
+
+/* Estilos para CodeMirror Editor */
+.cm-editor {
+  height: 100%;
+}
+
+.cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}

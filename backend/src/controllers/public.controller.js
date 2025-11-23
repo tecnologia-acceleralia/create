@@ -2,7 +2,8 @@
 import jwt from 'jsonwebtoken';
 import { appConfig } from '../config/env.js';
 import { getModels } from "../models/index.js";
-import { resolveAssetMarkers } from '../utils/asset-markers.js';
+import { resolveAssetMarkers, resolveYouTubeUrls } from '../services/content.service.js';
+import { sanitizeHtmlContent } from '../utils/html-sanitizer.js';
 
 /**
  * Verifica opcionalmente si hay un usuario autenticado y si es administrador
@@ -188,15 +189,75 @@ export class PublicController {
 
     // Asegurar que las fechas se serialicen correctamente y resolver marcadores
     const payload = await Promise.all(events.map(async (event) => {
+      // Obtener description_html directamente del modelo (usa el getter)
+      const descriptionHtml = event.description_html;
       const eventJson = event.toJSON();
       
       // Resolver marcadores de assets en description_html antes de devolver
-      if (eventJson.description_html) {
-        eventJson.description_html = await resolveAssetMarkers(
-          eventJson.description_html,
-          event.id,
-          tenant.id
-        );
+      if (descriptionHtml) {
+        // Procesar description_html: puede ser string o objeto multiidioma
+        // Usar el valor del getter del modelo en lugar del JSON serializado
+        let processedHtml = descriptionHtml;
+        
+        // Si es objeto multiidioma, procesar cada idioma por separado
+        if (typeof processedHtml === 'object' && processedHtml !== null && !Array.isArray(processedHtml)) {
+          const processed = {};
+          for (const [lang, content] of Object.entries(processedHtml)) {
+            if (content && typeof content === 'string') {
+              // Si el contenido parece ser JSON escapado (doble serialización), parsearlo recursivamente
+              let langHtml = content;
+              
+              // Intentar parsear múltiples veces si es necesario (hasta 3 niveles de anidación)
+              for (let i = 0; i < 3; i++) {
+                if (langHtml.trim().startsWith('{') && (langHtml.includes('"es"') || langHtml.includes('"ca"') || langHtml.includes('"en"'))) {
+                  try {
+                    const parsed = JSON.parse(langHtml);
+                    // Si el parseado es un objeto multiidioma, tomar el idioma actual
+                    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                      const extracted = parsed[lang] || parsed.es;
+                      if (extracted && typeof extracted === 'string') {
+                        langHtml = extracted;
+                        continue; // Intentar parsear de nuevo si sigue siendo JSON
+                      } else {
+                        break; // Si no es string, usar el objeto parseado directamente
+                      }
+                    } else if (typeof parsed === 'string') {
+                      langHtml = parsed;
+                      continue; // Intentar parsear de nuevo si sigue siendo JSON
+                    } else {
+                      break; // Si no es string ni objeto, usar el parseado
+                    }
+                  } catch (e) {
+                    // Si falla el parse, usar el contenido actual
+                    break;
+                  }
+                } else {
+                  // Si no parece JSON, usar el contenido tal cual
+                  break;
+                }
+              }
+              
+              // Resolver marcadores de assets
+              langHtml = await resolveAssetMarkers(langHtml, event.id, tenant.id);
+              // Resolver URLs de YouTube
+              langHtml = resolveYouTubeUrls(langHtml);
+              // Sanitizar antes de enviar al frontend
+              langHtml = sanitizeHtmlContent(langHtml);
+              if (langHtml) {
+                processed[lang] = langHtml;
+              }
+            } else {
+              processed[lang] = content;
+            }
+          }
+          eventJson.description_html = Object.keys(processed).length > 0 ? processed : null;
+        } else if (typeof processedHtml === 'string') {
+          // Si es string, procesar directamente
+          processedHtml = await resolveAssetMarkers(processedHtml, event.id, tenant.id);
+          processedHtml = resolveYouTubeUrls(processedHtml);
+          // Sanitizar antes de enviar al frontend
+          eventJson.description_html = sanitizeHtmlContent(processedHtml);
+        }
       }
       
       // Convertir fechas a ISO string si existen

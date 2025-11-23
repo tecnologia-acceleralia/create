@@ -6,18 +6,19 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { FileIcon, FileText, FileImage, FileVideo, FileAudio, FileSpreadsheet, FileCode, FileArchive } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-
 import { Spinner } from '@/components/common';
+import { getFileIcon } from '@/utils/files';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { FileInput } from '@/components/ui/file-input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { FormField, FormGrid, FileUploadList } from '@/components/form';
 import { TaskContextCard } from '@/components/events';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getEventDetail, type Phase } from '@/services/events';
 import {
   createSubmission,
@@ -125,7 +126,7 @@ function TaskSubmissionPage() {
       });
     },
     onSuccess: () => {
-      toast.success(t('submissions.created'));
+      toast.success(safeTranslate(t, 'submissions.created'));
       form.reset({ status: 'final', content: '' });
       setFiles([]);
       void queryClient.invalidateQueries({ queryKey: ['submissions', numericTaskId] });
@@ -139,11 +140,11 @@ function TaskSubmissionPage() {
       ) {
         const response = (error as { response: { status?: number; data?: { message?: string } } }).response;
         if (response.status === 403 && response.data?.message?.includes('capitán')) {
-          toast.error(t('submissions.onlyCaptainCanSubmit'));
+          toast.error(safeTranslate(t, 'submissions.onlyCaptainCanSubmit'));
           return;
         }
       }
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   });
 
@@ -226,20 +227,25 @@ function TaskSubmissionPage() {
       comment: values.comment
     }),
     onSuccess: async () => {
-      toast.success(t('evaluations.created'));
+      toast.success(safeTranslate(t, 'evaluations.created'));
       evaluationForm.reset({ score: undefined, comment: '' });
       if (selectedSubmission) {
         const evals = await getEvaluations(selectedSubmission.id);
         setEvaluations(prev => ({ ...prev, [selectedSubmission.id]: evals }));
       }
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
   });
 
   const aiEvaluationMutation = useMutation({
-    mutationFn: () => createAiEvaluation(selectedSubmission!.id, { locale: i18n.language }),
+    mutationFn: () => {
+      toast.info(safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando evaluación con IA...' }), {
+        duration: 3000
+      });
+      return createAiEvaluation(selectedSubmission!.id, { locale: i18n.language });
+    },
     onSuccess: async () => {
-      toast.success(t('evaluations.aiCreated'));
+      toast.success(safeTranslate(t, 'evaluations.aiCreated'));
       if (selectedSubmission) {
         const evals = await getEvaluations(selectedSubmission.id);
         setEvaluations(prev => ({ ...prev, [selectedSubmission.id]: evals }));
@@ -254,15 +260,15 @@ function TaskSubmissionPage() {
       ) {
         const response = (error as { response: { status?: number } }).response;
         if (response.status === 409) {
-          toast.error(t('evaluations.missingRubric'));
+          toast.error(safeTranslate(t, 'evaluations.missingRubric'));
           return;
         }
         if (response.status === 500) {
-          toast.error(t('evaluations.aiServiceUnavailable'));
+          toast.error(safeTranslate(t, 'evaluations.aiServiceUnavailable'));
           return;
         }
       }
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   });
 
@@ -274,16 +280,25 @@ function TaskSubmissionPage() {
 
   const task = eventDetail?.tasks?.find(tk => tk.id === numericTaskId);
   const phase = eventDetail?.phases?.find(ph => ph.id === task?.phase_id) as Phase | undefined;
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
+  const layoutTitle = useMemo(() => {
+    if (!eventDetail?.name) {
+      return '';
+    }
+    return getMultilingualText(eventDetail.name, currentLang);
+  }, [eventDetail?.name, currentLang]);
   const layoutSubtitle = useMemo(() => {
     if (!phase) {
       return '';
     }
-    const parts: string[] = [phase.name];
-    if (phase.description) {
-      parts.push(phase.description);
+    const phaseName = getMultilingualText(phase.name, currentLang);
+    const phaseDescription = phase.description ? getMultilingualText(phase.description, currentLang) : null;
+    const parts: string[] = [phaseName];
+    if (phaseDescription) {
+      parts.push(phaseDescription);
     }
     return parts.join(' - ');
-  }, [phase]);
+  }, [phase, currentLang]);
   const taskConstraints = useMemo(() => {
     if (!task) {
       return {
@@ -307,13 +322,14 @@ function TaskSubmissionPage() {
   // Verificar si es fase 0
   const isPhaseZero = useMemo(() => {
     if (!phase) return false;
-    const normalizedName = phase.name?.toLowerCase() ?? '';
+    const phaseName = getMultilingualText(phase.name, currentLang);
+    const normalizedName = phaseName.toLowerCase();
     return (
       phase.order_index === 0 ||
       normalizedName.includes('fase 0') ||
       normalizedName.includes('phase 0')
     );
-  }, [phase]);
+  }, [phase, currentLang]);
 
   // Función para verificar si una tarea está en su periodo válido
   const periodStatus = useMemo(() => {
@@ -360,14 +376,14 @@ function TaskSubmissionPage() {
   const onSubmit = (values: SubmissionFormValues) => {
     // Validar que no se suban archivos si el tipo de entrega es 'text'
     if (files.length > 0 && task?.delivery_type === 'text') {
-      toast.error(t('submissions.filesNotAllowed'));
+      toast.error(safeTranslate(t, 'submissions.filesNotAllowed'));
       return;
     }
     
     // Validar que se suba al menos un archivo si el tipo de entrega lo requiere
     const requiresFiles = task?.delivery_type && ['file', 'zip', 'audio', 'video'].includes(task.delivery_type);
     if (requiresFiles && files.length === 0) {
-      toast.error(t('submissions.fileRequired'));
+      toast.error(safeTranslate(t, 'submissions.fileRequired'));
       return;
     }
     
@@ -385,17 +401,17 @@ function TaskSubmissionPage() {
 
     for (const file of incomingFiles) {
       if (files.length + nextFiles.length >= maxFiles) {
-        toast.warning(t('submissions.maxFilesReached', { count: maxFiles }));
+        toast.warning(safeTranslate(t, 'submissions.maxFilesReached', { count: maxFiles }));
         break;
       }
 
       if (maxFileSizeMb && file.size > maxFileSizeMb * 1024 * 1024) {
-        toast.error(t('submissions.fileTooLarge', { name: file.name, size: maxFileSizeMb }));
+        toast.error(safeTranslate(t, 'submissions.fileTooLarge', { name: file.name, size: maxFileSizeMb }));
         continue;
       }
 
       if (allowedMimeTypes.length > 0 && !allowedMimeTypes.includes(file.type)) {
-        toast.error(t('submissions.fileTypeNotAllowed', { name: file.name }));
+        toast.error(safeTranslate(t, 'submissions.fileTypeNotAllowed', { name: file.name }));
         continue;
       }
 
@@ -413,71 +429,8 @@ function TaskSubmissionPage() {
     setFiles(prev => prev.filter((_, idx) => idx !== index));
   };
 
-  const getFileIcon = (mimeType: string, fileName: string): { icon: LucideIcon; color: string } => {
-    const extension = fileName.split('.').pop()?.toLowerCase() || '';
-    const mime = mimeType.toLowerCase();
-
-    // PDF - debe ir primero porque algunos PDFs pueden tener mime types genéricos
-    if (extension === 'pdf' || mime === 'application/pdf') {
-      return { icon: FileText, color: '#dc2626' }; // red-600
-    }
-
-    // PowerPoint - verificar extensión primero
-    if (extension === 'ppt' || extension === 'pptx' || 
-        mime.includes('presentation') || mime.includes('powerpoint')) {
-      return { icon: FileText, color: '#ea580c' }; // orange-600
-    }
-
-    // Word - verificar extensión primero
-    if (extension === 'doc' || extension === 'docx' || 
-        mime.includes('word') || mime === 'application/msword') {
-      return { icon: FileText, color: '#2563eb' }; // blue-600
-    }
-
-    // Excel - verificar extensión primero
-    if (extension === 'xls' || extension === 'xlsx' || 
-        mime.includes('spreadsheet') || mime.includes('excel')) {
-      return { icon: FileSpreadsheet, color: '#16a34a' }; // green-600
-    }
-
-    // Imágenes
-    if (mime.startsWith('image/')) {
-      return { icon: FileImage, color: '#9333ea' }; // purple-600
-    }
-
-    // Videos
-    if (mime.startsWith('video/')) {
-      return { icon: FileVideo, color: '#db2777' }; // pink-600
-    }
-
-    // Audio
-    if (mime.startsWith('audio/')) {
-      return { icon: FileAudio, color: '#4f46e5' }; // indigo-600
-    }
-
-    // Archivos comprimidos
-    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(extension) ||
-        mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
-      return { icon: FileArchive, color: '#ca8a04' }; // yellow-600
-    }
-
-    // Código
-    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension) ||
-        (mime.includes('text/') && ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml'].includes(extension))) {
-      return { icon: FileCode, color: '#0891b2' }; // cyan-600
-    }
-
-    // Texto plano
-    if (extension === 'txt' || mime.startsWith('text/')) {
-      return { icon: FileText, color: '#4b5563' }; // gray-600
-    }
-
-    // Por defecto
-    return { icon: FileIcon, color: '#6b7280' }; // gray-500
-  };
-
   return (
-    <DashboardLayout title={eventDetail?.name ?? ''} subtitle={layoutSubtitle}>
+    <DashboardLayout title={layoutTitle} subtitle={layoutSubtitle}>
       <div className="space-y-6">
         {task && phase ? (
           <TaskContextCard
@@ -497,51 +450,51 @@ function TaskSubmissionPage() {
             {!isTeamCaptain && !isReviewer ? (
               <Card>
                 <CardHeader>
-                  <CardTitle>{t('submissions.register')}</CardTitle>
+                  <CardTitle>{safeTranslate(t, 'submissions.register')}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">{t('submissions.notTeamCaptain')}</p>
+                  <p className="text-sm text-muted-foreground">{safeTranslate(t, 'submissions.notTeamCaptain')}</p>
                 </CardContent>
               </Card>
             ) : (
               <Card>
                 <CardHeader>
-                  <CardTitle>{t('submissions.register')}</CardTitle>
+                  <CardTitle>{safeTranslate(t, 'submissions.register')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  <FormField label={t('submissions.description')} htmlFor="submission-content">
+                  <FormField label={safeTranslate(t, 'submissions.description')} htmlFor="submission-content">
                     <Textarea id="submission-content" rows={4} {...form.register('content')} />
                   </FormField>
                   <FormField
-                    label={t('submissions.attachments')}
+                    label={safeTranslate(t, 'submissions.attachments')}
                     htmlFor="submission-file"
-                    description={t('submissions.filesHelper', {
+                    description={safeTranslate(t, 'submissions.filesHelper', {
                       count: taskConstraints.maxFiles,
-                      maxSize: taskConstraints.maxFileSizeMb ?? t('submissions.unlimited'),
+                      maxSize: taskConstraints.maxFileSizeMb ?? safeTranslate(t, 'submissions.unlimited'),
                       types: taskConstraints.allowedMimeTypes.length
                         ? taskConstraints.allowedMimeTypes.join(', ')
-                        : t('submissions.anyMime')
+                        : safeTranslate(t, 'submissions.anyMime')
                     })}
                   >
                     <>
-                      <Input
+                      <FileInput
                         id="submission-file"
-                        type="file"
                         multiple={taskConstraints.maxFiles > 1}
                         onChange={handleFileChange}
                         accept={taskConstraints.allowedMimeTypes.length ? taskConstraints.allowedMimeTypes.join(',') : undefined}
+                        showFileName={false}
                       />
                       <FileUploadList files={files} onRemove={handleRemoveFile} />
                     </>
                   </FormField>
-                  <FormField label={t('submissions.type')}>
+                  <FormField label={safeTranslate(t, 'submissions.type')}>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 text-sm">
-                        <input type="radio" value="draft" {...form.register('status')} /> {t('submissions.draft')}
+                        <input type="radio" value="draft" {...form.register('status')} /> {safeTranslate(t, 'submissions.draft')}
                       </label>
                       <label className="flex items-center gap-2 text-sm">
-                        <input type="radio" value="final" {...form.register('status')} /> {t('submissions.final')}
+                        <input type="radio" value="final" {...form.register('status')} /> {safeTranslate(t, 'submissions.final')}
                       </label>
                     </div>
                   </FormField>
@@ -552,7 +505,7 @@ function TaskSubmissionPage() {
                       (task?.delivery_type && ['file', 'zip', 'audio', 'video'].includes(task.delivery_type) && files.length === 0)
                     }
                   >
-                    {createSubmissionMutation.isPending ? t('common.loading') : t('submissions.submit')}
+                    {createSubmissionMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'submissions.submit')}
                   </Button>
                 </form>
               </CardContent>
@@ -564,7 +517,7 @@ function TaskSubmissionPage() {
         {!hasNoDelivery && (
           <Card>
             <CardHeader>
-              <CardTitle>{t('submissions.list')}</CardTitle>
+              <CardTitle>{safeTranslate(t, 'submissions.list')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {/* Botón para ver todas las evaluaciones - solo si hay evaluaciones */}
@@ -576,7 +529,7 @@ function TaskSubmissionPage() {
                     onClick={handleViewAllEvaluations}
                     className={showAllEvaluations ? 'bg-primary/10' : ''}
                   >
-                    {t('submissions.viewEvaluations')}
+                    {safeTranslate(t, 'submissions.viewEvaluations')}
                   </Button>
                 </div>
               )}
@@ -584,7 +537,7 @@ function TaskSubmissionPage() {
               {/* Panel de todas las evaluaciones */}
               {showAllEvaluations && hasAnyEvaluations && (
                 <div className="mb-4 space-y-4 rounded-md border border-dashed border-border/60 p-4">
-                  <h3 className="font-semibold text-sm">{t('submissions.allEvaluations')}</h3>
+                  <h3 className="font-semibold text-sm">{safeTranslate(t, 'submissions.allEvaluations')}</h3>
                   {submissions?.map(submission => {
                     const submissionEvaluations = evaluations[submission.id] || [];
                     if (submissionEvaluations.length === 0) return null;
@@ -592,16 +545,16 @@ function TaskSubmissionPage() {
                     return (
                       <div key={submission.id} className="space-y-2 rounded-md border border-border/40 p-3">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{t('submissions.submissionDate')}: {new Date(submission.submitted_at).toLocaleString()}</span>
+                          <span>{safeTranslate(t, 'submissions.submissionDate')}: {new Date(submission.submitted_at).toLocaleString()}</span>
                           <Badge variant={submission.status === 'final' ? 'success' : 'secondary'} className="text-xs">
-                            {submission.status === 'final' ? t('submissions.final') : t('submissions.draft')}
+                            {submission.status === 'final' ? safeTranslate(t, 'submissions.final') : safeTranslate(t, 'submissions.draft')}
                           </Badge>
                         </div>
                         {submissionEvaluations.map(evaluation => (
                           <div key={evaluation.id} className="text-sm">
                             <div className="flex items-center gap-2">
                               <p className="font-medium">
-                                {t('submissions.score')}: {evaluation.score ?? 'N/A'}
+                                {safeTranslate(t, 'submissions.score')}: {evaluation.score ?? 'N/A'}
                               </p>
                               <span
                                 className={cn(
@@ -611,23 +564,23 @@ function TaskSubmissionPage() {
                                     : 'bg-muted text-muted-foreground'
                                 )}
                               >
-                                {evaluation.source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                                {evaluation.source === 'ai_assisted' ? safeTranslate(t, 'evaluations.aiBadge') : safeTranslate(t, 'evaluations.manualBadge')}
                               </span>
                               {evaluation.status === 'final' && (
                                 <Badge variant="default" className="bg-primary text-primary-foreground text-xs">
-                                  {t('evaluations.final', { defaultValue: 'Final' })}
+                                  {safeTranslate(t, 'evaluations.final', { defaultValue: 'Final' })}
                                 </Badge>
                               )}
                             </div>
                             <p>{evaluation.comment}</p>
                             <p className="text-xs text-muted-foreground">
-                              {t('submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
+                              {safeTranslate(t, 'submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
                             </p>
                             {evaluation.metadata?.criteria?.length ? (
                               <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                                 {evaluation.metadata.criteria.map((criterion, idx) => (
                                   <li key={`${evaluation.id}-criterion-${idx}`}>
-                                    {t('evaluations.criteriaScore', {
+                                    {safeTranslate(t, 'evaluations.criteriaScore', {
                                       index: idx + 1,
                                       score: criterion.score ?? 'N/A'
                                     })}: {criterion.feedback}
@@ -641,7 +594,7 @@ function TaskSubmissionPage() {
                     );
                   })}
                   {submissions?.every(sub => !evaluations[sub.id] || evaluations[sub.id].length === 0) && (
-                    <p className="text-muted-foreground text-sm">{t('submissions.noEvaluations')}</p>
+                    <p className="text-muted-foreground text-sm">{safeTranslate(t, 'submissions.noEvaluations')}</p>
                   )}
                 </div>
               )}
@@ -652,7 +605,7 @@ function TaskSubmissionPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
                     <Badge variant={submission.status === 'final' ? 'success' : 'secondary'}>
-                      {submission.status === 'final' ? t('submissions.final') : t('submissions.draft')}
+                      {submission.status === 'final' ? safeTranslate(t, 'submissions.final') : safeTranslate(t, 'submissions.draft')}
                     </Badge>
                   </div>
                   {submission.content ? <span>{submission.content}</span> : null}
@@ -688,7 +641,7 @@ function TaskSubmissionPage() {
                         <div key={evaluation.id}>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">
-                              {t('submissions.score')}: {evaluation.score ?? 'N/A'}
+                              {safeTranslate(t, 'submissions.score')}: {evaluation.score ?? 'N/A'}
                             </p>
                             <span
                               className={cn(
@@ -698,18 +651,18 @@ function TaskSubmissionPage() {
                                   : 'bg-muted text-muted-foreground'
                               )}
                             >
-                              {evaluation.source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                              {evaluation.source === 'ai_assisted' ? safeTranslate(t, 'evaluations.aiBadge') : safeTranslate(t, 'evaluations.manualBadge')}
                             </span>
                           </div>
                           <p>{evaluation.comment}</p>
                           <p className="text-xs text-muted-foreground">
-                            {t('submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
+                            {safeTranslate(t, 'submissions.evaluatedAt')}: {new Date(evaluation.created_at).toLocaleString()}
                           </p>
                           {evaluation.metadata?.criteria?.length ? (
                             <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                               {evaluation.metadata.criteria.map((criterion, idx) => (
                                 <li key={`${evaluation.id}-criterion-${idx}`}>
-                                  {t('evaluations.criteriaScore', {
+                                  {safeTranslate(t, 'evaluations.criteriaScore', {
                                     index: idx + 1,
                                     score: criterion.score ?? 'N/A'
                                   })}: {criterion.feedback}
@@ -720,14 +673,14 @@ function TaskSubmissionPage() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-muted-foreground">{t('submissions.noEvaluations')}</p>
+                      <p className="text-muted-foreground">{safeTranslate(t, 'submissions.noEvaluations')}</p>
                     )}
                     <form
                       className="mt-3 space-y-3"
                       onSubmit={evaluationForm.handleSubmit(values => evaluationMutation.mutate(values))}
                     >
                       <FormGrid columns={2}>
-                        <FormField label={t('evaluations.score')} htmlFor="evaluation-score">
+                        <FormField label={safeTranslate(t, 'evaluations.score')} htmlFor="evaluation-score">
                           <Input
                             id="evaluation-score"
                             type="number"
@@ -735,7 +688,7 @@ function TaskSubmissionPage() {
                             {...evaluationForm.register('score', { valueAsNumber: true })}
                           />
                         </FormField>
-                        <FormField className="md:col-span-2" label={t('evaluations.comment')} htmlFor="evaluation-comment">
+                        <FormField className="md:col-span-2" label={safeTranslate(t, 'evaluations.comment')} htmlFor="evaluation-comment">
                           <Textarea id="evaluation-comment" rows={3} {...evaluationForm.register('comment')} />
                         </FormField>
                       </FormGrid>
@@ -747,10 +700,17 @@ function TaskSubmissionPage() {
                           disabled={aiEvaluationMutation.isPending}
                           onClick={() => aiEvaluationMutation.mutate()}
                         >
-                          {aiEvaluationMutation.isPending ? t('evaluations.generatingAi') : t('evaluations.generateAi')}
+                          {aiEvaluationMutation.isPending ? (
+                            <>
+                              <Spinner size="sm" className="mr-2" />
+                              {safeTranslate(t, 'evaluations.generatingAi')}
+                            </>
+                          ) : (
+                            safeTranslate(t, 'evaluations.generateAi')
+                          )}
                         </Button>
                         <Button type="submit" size="sm" disabled={evaluationMutation.isPending}>
-                          {evaluationMutation.isPending ? t('common.loading') : t('evaluations.submit')}
+                          {evaluationMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'evaluations.submit')}
                         </Button>
                       </div>
                     </form>
@@ -761,16 +721,16 @@ function TaskSubmissionPage() {
                   <div className="mt-3 rounded-md border-2 border-primary/20 bg-primary/5 p-4">
                     <div className="mb-2 flex items-center gap-2">
                       <h4 className="font-semibold text-sm text-primary">
-                        {t('evaluations.finalEvaluationTitle', { defaultValue: 'Evaluación Final' })}
+                        {safeTranslate(t, 'evaluations.finalEvaluationTitle', { defaultValue: 'Evaluación Final' })}
                       </h4>
                       <Badge variant="default" className="bg-primary text-primary-foreground">
-                        {t('evaluations.final', { defaultValue: 'Final' })}
+                        {safeTranslate(t, 'evaluations.final', { defaultValue: 'Final' })}
                       </Badge>
                     </div>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <p className="font-medium">
-                          {t('submissions.score')}: {finalEvaluations[submission.id].score ?? 'N/A'}
+                          {safeTranslate(t, 'submissions.score')}: {finalEvaluations[submission.id].score ?? 'N/A'}
                         </p>
                         <span
                           className={cn(
@@ -780,18 +740,18 @@ function TaskSubmissionPage() {
                               : 'bg-muted text-muted-foreground'
                           )}
                         >
-                          {finalEvaluations[submission.id].source === 'ai_assisted' ? t('evaluations.aiBadge') : t('evaluations.manualBadge')}
+                          {finalEvaluations[submission.id].source === 'ai_assisted' ? safeTranslate(t, 'evaluations.aiBadge') : safeTranslate(t, 'evaluations.manualBadge')}
                         </span>
                       </div>
                       <p>{finalEvaluations[submission.id].comment}</p>
                       <p className="text-xs text-muted-foreground">
-                        {t('submissions.evaluatedAt')}: {new Date(finalEvaluations[submission.id].created_at).toLocaleString()}
+                        {safeTranslate(t, 'submissions.evaluatedAt')}: {new Date(finalEvaluations[submission.id].created_at).toLocaleString()}
                       </p>
                       {finalEvaluations[submission.id].metadata?.criteria?.length ? (
                         <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
                           {finalEvaluations[submission.id].metadata.criteria.map((criterion, idx) => (
                             <li key={`${finalEvaluations[submission.id].id}-criterion-${idx}`}>
-                              {t('evaluations.criteriaScore', {
+                              {safeTranslate(t, 'evaluations.criteriaScore', {
                                 index: idx + 1,
                                 score: criterion.score ?? 'N/A'
                               })}: {criterion.feedback}
@@ -804,7 +764,7 @@ function TaskSubmissionPage() {
                 )}
               </div>
               )) : (
-                <p className="text-sm text-muted-foreground">{t('submissions.noSubmissions')}</p>
+                <p className="text-sm text-muted-foreground">{safeTranslate(t, 'submissions.noSubmissions')}</p>
               )}
             </CardContent>
           </Card>

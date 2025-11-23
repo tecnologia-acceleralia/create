@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageContainer } from '@/components/common';
 import { useTenant } from '@/context/TenantContext';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 type AuthCardProps = {
   title?: string;
@@ -44,14 +45,14 @@ export function AuthCard({
             >
               <img
                 src={branding.logoUrl}
-                alt={t('navigation.brand', { defaultValue: 'Create' })}
+                alt={safeTranslate(t, 'navigation.brand', { defaultValue: 'Create' })}
                 className="h-full w-auto max-h-full max-w-full object-contain"
               />
             </div>
           ) : null}
           {tenantSlug ? (
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('auth.loginForTenant', { tenant: tenantSlug })}
+              {safeTranslate(t, 'auth.loginForTenant', { tenant: tenantSlug })}
             </p>
           ) : null}
           {title ? (

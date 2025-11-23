@@ -1,16 +1,20 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faDice } from '@fortawesome/free-solid-svg-icons';
+import { useTranslation } from 'react-i18next';
+import { Dice5 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { generateRandomPassword } from '@/utils/password';
-import type { UseFormSetValue } from 'react-hook-form';
+import { safeTranslate } from '@/utils/i18n-helpers';
 
 type PasswordGeneratorButtonProps = {
-  onGenerate: (password: string) => void;
-  className?: string;
-  'aria-label'?: string;
+  readonly onGenerate: (password: string) => void;
+  readonly className?: string;
+  readonly 'aria-label'?: string;
 };
 
 export function PasswordGeneratorButton({ onGenerate, className, 'aria-label': ariaLabel }: PasswordGeneratorButtonProps) {
+  const { t } = useTranslation();
+  const defaultAriaLabel = safeTranslate(t, 'register.generatePassword', { defaultValue: 'Generar contraseña aleatoria' });
+  const defaultTitle = safeTranslate(t, 'register.generatePassword', { defaultValue: 'Generar contraseña aleatoria' });
+
   const handleClick = () => {
     const password = generateRandomPassword();
     onGenerate(password);
@@ -23,10 +27,10 @@ export function PasswordGeneratorButton({ onGenerate, className, 'aria-label': a
       size="icon"
       onClick={handleClick}
       className={className}
-      aria-label={ariaLabel ?? 'Generar contraseña aleatoria'}
-      title="Generar contraseña aleatoria"
+      aria-label={ariaLabel ?? defaultAriaLabel}
+      title={defaultTitle}
     >
-      <FontAwesomeIcon icon={faDice} className="h-4 w-4" aria-hidden />
+      <Dice5 className="h-4 w-4" aria-hidden />
     </Button>
   );
 }

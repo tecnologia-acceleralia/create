@@ -14,13 +14,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FileInput } from '@/components/ui/file-input';
 import { Select } from '@/components/ui/select';
 import { FormField, FormGrid } from '@/components/form';
 import { InfoTooltip } from '@/components/common';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/utils/cn';
 import { fileToBase64 } from '@/utils/files';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import { RegistrationSchemaForm } from '@/components/events/forms/RegistrationSchemaForm';
+import { HeroContentField } from '@/components/common/HeroContentField';
 import {
   createTenantSuperAdmin,
   updateTenantSuperAdmin,
@@ -85,7 +88,22 @@ const tenantFormSchemaBase = z.object({
   max_evaluators: nullableNumber(),
   max_participants: nullableNumber(),
   max_appointments_per_month: nullableNumber(),
-  hero_content: nullableString(),
+  hero_content: z.preprocess(
+    value => {
+      if (value === '' || value === undefined || value === null) {
+        return null;
+      }
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return null;
+        }
+      }
+      return value;
+    },
+    z.any().nullable()
+  ),
   tenant_css: nullableString(),
   logo_url: nullableString(),
   registration_schema: z.preprocess(
@@ -140,7 +158,7 @@ type TenantFormSchema = {
   max_evaluators: number | null;
   max_participants: number | null;
   max_appointments_per_month: number | null;
-  hero_content: string | null;
+  hero_content: Record<string, { title: string; subtitle: string }> | null;
   tenant_css: string | null;
   logo_url: string | null;
   registration_schema: import('@/services/public').RegistrationSchema | null;
@@ -173,21 +191,14 @@ type TenantModalProps = {
   isSubmitting: boolean;
 };
 
-function parseHeroContent(
-  value: string | null | undefined,
-  form: UseFormReturn<TenantFormSchema>,
-  t: ReturnType<typeof useTranslation>['t']
-) {
-  if (!value) {
+// Función para convertir hero_content a formato JSON para el backend
+function prepareHeroContent(
+  value: Record<string, { title: string; subtitle: string }> | null | undefined
+): unknown {
+  if (!value || Object.keys(value).length === 0) {
     return undefined;
   }
-
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    form.setError('hero_content', { type: 'manual', message: t('superadmin.tenants.heroInvalid') });
-    throw error;
-  }
+  return value;
 }
 
 export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmitting }: TenantModalProps) {
@@ -219,7 +230,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
         max_evaluators: currentTenant.max_evaluators ?? null,
         max_participants: currentTenant.max_participants ?? null,
         max_appointments_per_month: currentTenant.max_appointments_per_month ?? null,
-        hero_content: currentTenant.hero_content ? JSON.stringify(currentTenant.hero_content, null, 2) : '',
+        hero_content: currentTenant.hero_content || null,
         tenant_css: currentTenant.tenant_css ?? '',
         logo_url: currentTenant.logo_url ?? '',
         registration_schema: currentTenant.registration_schema ?? null,
@@ -252,7 +263,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
       max_evaluators: null,
       max_participants: null,
       max_appointments_per_month: null,
-      hero_content: '',
+      hero_content: null,
       tenant_css: '',
       logo_url: '',
       registration_schema: null,
@@ -298,7 +309,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setLogoError(t('superadmin.tenants.logoTooLarge'));
+      setLogoError(safeTranslate(t, 'superadmin.tenants.logoTooLarge'));
       setLogoBase64(null);
       return;
     }
@@ -309,24 +320,18 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
       setLogoError(null);
       setRemoveLogo(false);
     } catch (error) {
-      setLogoError(t('superadmin.tenants.logoReadError'));
+      setLogoError(safeTranslate(t, 'superadmin.tenants.logoReadError'));
       setLogoBase64(null);
     }
   };
 
   const submitForm = async (values: TenantFormSchema) => {
-    let heroContent: unknown;
-    try {
-      heroContent = parseHeroContent(values.hero_content, form, t);
-    } catch (error) {
-      // El error ya se muestra en parseHeroContent mediante setError
-      return;
-    }
+    const heroContent = prepareHeroContent(values.hero_content);
 
     try {
       if (mode === 'create') {
         if (!values.admin_email) {
-          form.setError('admin_email', { type: 'manual', message: t('superadmin.tenants.adminEmailRequired') });
+          form.setError('admin_email', { type: 'manual', message: safeTranslate(t, 'superadmin.tenants.adminEmailRequired') });
           return;
         }
 
@@ -399,7 +404,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
     } catch (error) {
       // Los errores se manejan en las mutaciones, pero aquí capturamos cualquier error inesperado
       console.error('Error al enviar formulario:', error);
-      toast.error(t('common.error'));
+      toast.error(safeTranslate(t, 'common.error'));
     }
   };
 
@@ -410,8 +415,8 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
           <DialogHeader>
             <DialogTitle>
               {mode === 'create'
-                ? t('superadmin.tenants.createTitle')
-                : t('superadmin.tenants.editTitle', { name: tenant?.name ?? '' })}
+                ? safeTranslate(t, 'superadmin.tenants.createTitle')
+                : safeTranslate(t, 'superadmin.tenants.editTitle', { name: tenant?.name ?? '' })}
             </DialogTitle>
           </DialogHeader>
         </div>
@@ -423,7 +428,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
             const firstError = Object.values(errors)[0];
             const errorMessage = typeof firstError?.message === 'string' 
               ? firstError.message 
-              : firstError?.message?.message || t('common.error');
+              : firstError?.message?.message || safeTranslate(t, 'common.error');
             toast.error(errorMessage);
             // Hacer scroll al primer error
             const firstErrorField = Object.keys(errors)[0];
@@ -441,29 +446,29 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 <div className="sticky top-0 z-10 bg-background border-b border-border px-6 py-4">
                   <TabsList className="flex-wrap justify-start gap-2 bg-transparent">
                 <TabsTrigger value="general">
-                  {t('superadmin.tenants.sections.general')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.general')}
                 </TabsTrigger>
                 <TabsTrigger value="branding">
-                  {t('superadmin.tenants.sections.branding')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.branding')}
                 </TabsTrigger>
                 <TabsTrigger value="limits">
-                  {t('superadmin.tenants.sections.limits')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.limits')}
                 </TabsTrigger>
                 <TabsTrigger value="dates">
-                  {t('superadmin.tenants.sections.dates')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.dates')}
                 </TabsTrigger>
                 <TabsTrigger value="links">
-                  {t('superadmin.tenants.sections.links')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.links')}
                 </TabsTrigger>
                 <TabsTrigger value="content">
-                  {t('superadmin.tenants.sections.content')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.content')}
                 </TabsTrigger>
                 <TabsTrigger value="registration">
-                  {t('superadmin.tenants.sections.registration')}
+                  {safeTranslate(t, 'superadmin.tenants.sections.registration')}
                 </TabsTrigger>
                 {mode === 'create' ? (
                   <TabsTrigger value="admin">
-                    {t('superadmin.tenants.sections.admin')}
+                    {safeTranslate(t, 'superadmin.tenants.sections.admin')}
                   </TabsTrigger>
                 ) : null}
                   </TabsList>
@@ -471,7 +476,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                 <div className="px-6 py-4 flex-1 flex flex-col min-h-0">
               <TabsContent value="general" className="mt-0 space-y-6">
                 <FormGrid columns={2}>
-                  <FormField label={t('superadmin.tenants.fields.slug')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.slug')} required>
                     <Input
                       {...form.register('slug')}
                       disabled={mode === 'edit'}
@@ -481,7 +486,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                       <p className="text-xs text-destructive">{form.formState.errors.slug.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.name')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.name')} required>
                     <Input
                       {...form.register('name')}
                       className={cn(form.formState.errors.name && 'border-destructive')}
@@ -490,26 +495,26 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                       <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.subdomain')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.subdomain')}>
                     <Input {...form.register('subdomain')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.customDomain')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.customDomain')}>
                     <Input {...form.register('custom_domain')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.plan')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.plan')} required>
                     <Select {...form.register('plan_type')}>
                       {TENANT_PLANS.map(plan => (
                         <option key={plan} value={plan}>
-                          {t(`superadmin.tenantPlan.${plan}`)}
+                          {safeTranslate(t, `superadmin.tenantPlan.${plan}`, { defaultValue: plan })}
                         </option>
                       ))}
                     </Select>
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.status')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.status')} required>
                     <Select {...form.register('status')}>
                       {TENANT_STATUS.map(status => (
                         <option key={status} value={status}>
-                          {t(`superadmin.tenantStatus.${status}`)}
+                          {safeTranslate(t, `superadmin.tenantStatus.${status}`, { defaultValue: status })}
                         </option>
                       ))}
                     </Select>
@@ -519,31 +524,31 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
               <TabsContent value="branding" className="mt-0 space-y-6">
                 <FormGrid columns={3}>
-                  <FormField label={t('superadmin.tenants.fields.primaryColor')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.primaryColor')}>
                     <Input type="color" {...form.register('primary_color')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.secondaryColor')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.secondaryColor')}>
                     <Input type="color" {...form.register('secondary_color')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.accentColor')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.accentColor')}>
                     <Input type="color" {...form.register('accent_color')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.logoUrl')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.logoUrl')}>
                     <Input {...form.register('logo_url')} />
                   </FormField>
                   <FormField
                     label={
                       <div className="flex items-center gap-2">
-                        <span>{t('superadmin.tenants.fields.logoUpload')}</span>
-                        <InfoTooltip content={t('superadmin.tenants.fields.logoUploadInfo')} />
+                        <span>{safeTranslate(t, 'superadmin.tenants.fields.logoUpload')}</span>
+                        <InfoTooltip content={safeTranslate(t, 'superadmin.tenants.fields.logoUploadInfo')} />
                       </div>
                     }
                   >
-                    <Input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleFileChange} />
+                    <FileInput accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={handleFileChange} />
                     {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
                   </FormField>
                   {logoBase64 ? (
-                    <FormField label={t('superadmin.tenants.fields.logoPreview')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.logoPreview')}>
                       <div
                         className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
                         style={{ backgroundColor: primaryColor }}
@@ -557,7 +562,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                     </FormField>
                   ) : null}
                   {mode === 'edit' && tenant?.logo_url ? (
-                    <FormField label={t('superadmin.tenants.fields.currentLogo')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.currentLogo')}>
                       <div className="flex flex-col gap-2">
                         <div
                           className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
@@ -575,7 +580,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                             checked={removeLogo}
                             onChange={event => setRemoveLogo(event.target.checked)}
                           />
-                          {t('superadmin.tenants.removeLogo')}
+                          {safeTranslate(t, 'superadmin.tenants.removeLogo')}
                         </label>
                       </div>
                     </FormField>
@@ -585,13 +590,13 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
               <TabsContent value="limits" className="mt-0 space-y-6">
                 <FormGrid columns={3}>
-                  <FormField label={t('superadmin.tenants.fields.maxEvaluators')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.maxEvaluators')}>
                     <Input type="number" min={0} disabled {...form.register('max_evaluators')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.maxParticipants')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.maxParticipants')}>
                     <Input type="number" min={0} disabled {...form.register('max_participants')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.maxAppointments')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.maxAppointments')}>
                     <Input type="number" min={0} disabled {...form.register('max_appointments_per_month')} />
                   </FormField>
                 </FormGrid>
@@ -599,10 +604,10 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
               <TabsContent value="dates" className="mt-0 space-y-6">
                 <FormGrid columns={2}>
-                  <FormField label={t('superadmin.tenants.fields.startDate')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.startDate')}>
                     <Input type="date" {...form.register('start_date')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.endDate')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.endDate')}>
                     <Input type="date" {...form.register('end_date')} />
                   </FormField>
                 </FormGrid>
@@ -610,37 +615,43 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
               <TabsContent value="links" className="mt-0 space-y-6">
                 <FormGrid columns={2}>
-                  <FormField label={t('superadmin.tenants.fields.website')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.website')}>
                     <Input {...form.register('website_url')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.facebook')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.facebook')}>
                     <Input {...form.register('facebook_url')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.instagram')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.instagram')}>
                     <Input {...form.register('instagram_url')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.linkedin')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.linkedin')}>
                     <Input {...form.register('linkedin_url')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.twitter')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.twitter')}>
                     <Input {...form.register('twitter_url')} />
                   </FormField>
-                  <FormField label={t('superadmin.tenants.fields.youtube')}>
+                  <FormField label={safeTranslate(t, 'superadmin.tenants.fields.youtube')}>
                     <Input {...form.register('youtube_url')} />
                   </FormField>
                 </FormGrid>
               </TabsContent>
 
               <TabsContent value="content" className="mt-0 flex flex-col flex-1 min-h-0 gap-4">
-                <FormField label={t('superadmin.tenants.fields.heroContent')} className="flex-1 flex flex-col min-h-0">
+                <HeroContentField
+                  control={form.control}
+                  name="hero_content"
+                  label={safeTranslate(t, 'superadmin.tenants.fields.heroContent')}
+                  error={
+                    typeof form.formState.errors.hero_content?.message === 'string'
+                      ? form.formState.errors.hero_content.message
+                      : undefined
+                  }
+                  className="h-full flex flex-col"
+                />
+                <FormField label={safeTranslate(t, 'superadmin.tenants.fields.tenantCss')} className="h-full flex flex-col">
                   <textarea
-                    className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm resize-none min-h-0"
-                    {...form.register('hero_content')}
-                  />
-                </FormField>
-                <FormField label={t('superadmin.tenants.fields.tenantCss')} className="flex-1 flex flex-col min-h-0">
-                  <textarea
-                    className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none min-h-0"
+                    className="w-full flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+                    style={{ minHeight: 'calc(90vh - 200px)' }}
                     {...form.register('tenant_css')}
                   />
                 </FormField>
@@ -648,7 +659,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
 
               <TabsContent value="registration" className="mt-0 space-y-4">
                 <FormField
-                  label={t('events.registrationSchema')}
+                  label={safeTranslate(t, 'events.registrationSchema')}
                   htmlFor="tenant-registration-schema"
                   error={
                     typeof form.formState.errors.registration_schema?.message === 'string'
@@ -674,7 +685,7 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
               {mode === 'create' ? (
                 <TabsContent value="admin" className="mt-0 space-y-6">
                   <FormGrid columns={2}>
-                    <FormField label={t('superadmin.tenants.fields.adminEmail')} required>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.adminEmail')} required>
                       <Input
                         type="email"
                         {...form.register('admin_email')}
@@ -684,16 +695,16 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
                         <p className="text-xs text-destructive">{form.formState.errors.admin_email.message}</p>
                       ) : null}
                     </FormField>
-                    <FormField label={t('superadmin.tenants.fields.adminLanguage')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.adminLanguage')}>
                       <Input {...form.register('admin_language')} />
                     </FormField>
-                    <FormField label={t('superadmin.tenants.fields.adminFirstName')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.adminFirstName')}>
                       <Input {...form.register('admin_first_name')} />
                     </FormField>
-                    <FormField label={t('superadmin.tenants.fields.adminLastName')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.adminLastName')}>
                       <Input {...form.register('admin_last_name')} />
                     </FormField>
-                    <FormField label={t('superadmin.tenants.fields.adminPassword')}>
+                    <FormField label={safeTranslate(t, 'superadmin.tenants.fields.adminPassword')}>
                       <Input type="password" {...form.register('admin_password')} />
                     </FormField>
                   </FormGrid>
@@ -707,10 +718,10 @@ export function TenantModal({ mode, tenant, open, onClose, onSubmit, isSubmittin
           <div className="flex-shrink-0 border-t border-border px-6 py-4">
             <DialogFooter className="pt-0">
               <Button type="button" variant="outline" onClick={handleClose}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? t('common.loading') : t('common.save')}
+                {safeTranslate(t, 'common.cancel')}
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'common.save')}
               </Button>
             </DialogFooter>
           </div>

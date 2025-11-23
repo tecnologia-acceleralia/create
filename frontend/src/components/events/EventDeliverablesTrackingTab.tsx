@@ -11,12 +11,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getEventDeliverablesTracking, type EventDeliverablesTracking } from '@/services/events';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
 
 function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tenantPath = useTenantPath();
+  const currentLang = (i18n.language?.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const { isSuperAdmin, activeMembership, user } = useAuth();
   const roleScopes = useMemo(
     () => new Set<string>(activeMembership?.roles?.map(role => role.scope) ?? user?.roleScopes ?? []),
@@ -120,7 +123,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-destructive">
-          {t('events.deliverablesTracking.error')}
+          {safeTranslate(t, 'events.deliverablesTracking.error')}
         </CardContent>
       </Card>
     );
@@ -133,7 +136,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
     if (!trackingData || sortedTeams.length === 0 || sortedColumns.length === 0) return;
 
     // Crear headers: Equipo + todas las tareas
-    const teamHeader = t('events.deliverablesTracking.team');
+    const teamHeader = safeTranslate(t, 'events.deliverablesTracking.team');
     const taskHeaders = sortedColumns.map(col => `${col.phaseName} - ${col.taskTitle}`);
     const headers = [teamHeader, ...taskHeaders];
 
@@ -151,8 +154,8 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
           const submitted = deliverable?.submitted ?? false;
           const columnKey = taskHeaders[index];
           row[columnKey] = submitted 
-            ? t('events.deliverablesTracking.submitted')
-            : t('events.deliverablesTracking.notSubmitted');
+            ? safeTranslate(t, 'events.deliverablesTracking.submitted')
+            : safeTranslate(t, 'events.deliverablesTracking.notSubmitted');
         });
 
         return row;
@@ -167,10 +170,10 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{t('events.deliverablesTracking.subtitle')}</CardTitle>
+        <CardTitle>{safeTranslate(t, 'events.deliverablesTracking.subtitle')}</CardTitle>
         <Button variant="outline" size="sm" onClick={exportDeliverablesToCSV}>
           <Download className="h-4 w-4 mr-2" />
-          {t('common.export', { defaultValue: 'Exportar CSV' })}
+          {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -180,12 +183,12 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
             <span>
               {(() => {
                 const pluralText = pendingEvaluationsCount === 1
-                  ? t('evaluations.pendingEvaluationsAlertSingular')
-                  : t('evaluations.pendingEvaluationsAlertPlural');
+                  ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertSingular')
+                  : safeTranslate(t, 'evaluations.pendingEvaluationsAlertPlural');
                 const verbText = pendingEvaluationsCount === 1
-                  ? t('evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
-                  : t('evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
-                let message = t('evaluations.pendingEvaluationsAlert', {
+                  ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
+                  : safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
+                let message = safeTranslate(t, 'evaluations.pendingEvaluationsAlert', {
                   count: pendingEvaluationsCount,
                   plural: pluralText,
                   verb: verbText
@@ -202,18 +205,18 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
         <div className="overflow-x-auto">
         {sortedTeams.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
-            {t('events.deliverablesTracking.noTeams')}
+            {safeTranslate(t, 'events.deliverablesTracking.noTeams')}
           </div>
         ) : sortedColumns.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
-            {t('events.deliverablesTracking.noTasks')}
+            {safeTranslate(t, 'events.deliverablesTracking.noTasks')}
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-background w-[200px]">
-                  {t('events.deliverablesTracking.team')}
+                  {safeTranslate(t, 'events.deliverablesTracking.team')}
                 </TableHead>
                 {phases.map(phase => {
                   const phaseColumns = columnsByPhase.get(phase.id) || [];
@@ -225,7 +228,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                       colSpan={phaseColumns.length}
                       className="text-left bg-muted/50 w-[150px]"
                     >
-                      <div className="font-semibold">{phase.name}</div>
+                      <div className="font-semibold">{getMultilingualText(phase.name, currentLang)}</div>
                     </TableHead>
                   );
                 })}
@@ -259,7 +262,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                         {submitted ? (
                           <div className="flex flex-col items-center gap-2">
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                              {t('events.deliverablesTracking.submitted')}
+                              {safeTranslate(t, 'events.deliverablesTracking.submitted')}
                             </Badge>
                             {isReviewer && (
                               <div className="flex flex-col gap-1">
@@ -273,7 +276,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                                     <Link
                                       to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
                                     >
-                                      {t('evaluations.evaluateButton', { defaultValue: 'Evaluar' })}
+                                      {safeTranslate(t, 'evaluations.evaluateButton', { defaultValue: 'Evaluar' })}
                                     </Link>
                                   </Button>
                                 ) : (
@@ -286,7 +289,7 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                                     <Link
                                       to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}/submissions/${submissionId}/evaluate`)}
                                     >
-                                      {t('evaluations.viewEvaluationButton', { defaultValue: 'Ver evaluación' })}
+                                      {safeTranslate(t, 'evaluations.viewEvaluationButton', { defaultValue: 'Ver evaluación' })}
                                     </Link>
                                   </Button>
                                 )}
@@ -305,14 +308,14 @@ function EventDeliverablesTrackingTab({ eventId }: { eventId: number }) {
                                   className="flex items-center gap-1"
                                 >
                                   <ExternalLink className="h-3 w-3" />
-                                  {t('events.deliverablesTracking.viewSubmission')}
+                                  {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
                                 </Link>
                               </Button>
                             )}
                           </div>
                         ) : (
                           <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-                            {t('events.deliverablesTracking.notSubmitted')}
+                            {safeTranslate(t, 'events.deliverablesTracking.notSubmitted')}
                           </Badge>
                         )}
                       </TableCell>

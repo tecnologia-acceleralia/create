@@ -23,3 +23,13 @@ usersRouter.patch(
   (req, res, next) => AuthController.updateProfile(req, res, next)
 );
 
+usersRouter.post(
+  '/me/change-password',
+  [
+    body('currentPassword').isString().notEmpty().withMessage('La contraseña actual es requerida'),
+    body('newPassword').isString().isLength({ min: 8 }).withMessage('La nueva contraseña debe tener al menos 8 caracteres')
+  ],
+  validateRequest,
+  (req, res, next) => AuthController.changePassword(req, res, next)
+);
+

@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useParams, Link, useSearchParams, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
@@ -13,7 +13,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { useTenantPath } from '@/hooks/useTenantPath';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
 import { getEventDeliverablesTracking, getEvents, type EventDeliverablesTracking, type Event } from '@/services/events';
+import { getPhaseEvaluations, getProjectEvaluations, type PhaseEvaluation, type ProjectEvaluation } from '@/services/submissions';
+import { getTeamsByEvent, type Team } from '@/services/teams';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
 
 type DeliverableCellProps = Readonly<{
@@ -45,7 +49,7 @@ function DeliverableCell({
     return (
       <div className="flex flex-col items-center gap-2">
         <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-          {t('events.deliverablesTracking.submitted')}
+          {safeTranslate(t, 'events.deliverablesTracking.submitted')}
         </Badge>
         {(attachmentUrl || content) && (
           <Button
@@ -60,7 +64,7 @@ function DeliverableCell({
               className="flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
-              {t('events.deliverablesTracking.viewSubmission')}
+              {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
             </Link>
           </Button>
         )}
@@ -70,7 +74,7 @@ function DeliverableCell({
 
   return (
     <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">
-      {t('events.deliverablesTracking.notSubmitted')}
+      {safeTranslate(t, 'events.deliverablesTracking.notSubmitted')}
     </Badge>
   );
 }
@@ -92,11 +96,21 @@ function PhaseEvaluationCell({
   tenantPath,
   isReviewer,
   hasSubmissions,
-  hasFinalEvaluation
+  hasFinalEvaluation: hasFinalEvaluationProp
 }: PhaseEvaluationCellProps) {
   const { t } = useTranslation();
   const { branding } = useTenant();
   const primaryColor = branding.primaryColor || '#0ea5e9';
+
+  // Obtener evaluaciones de fase para verificar si hay evaluación final
+  const { data: evaluations } = useQuery<PhaseEvaluation[]>({
+    queryKey: ['phase-evaluation', phaseId, teamId],
+    queryFn: () => getPhaseEvaluations(phaseId, teamId),
+    enabled: isReviewer && hasSubmissions && phaseId !== null && teamId !== null && Number.isFinite(phaseId) && Number.isFinite(teamId),
+    retry: false
+  });
+
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
 
   if (!isReviewer || !hasSubmissions) {
     return null;
@@ -115,7 +129,7 @@ function PhaseEvaluationCell({
           <Link
             to={tenantPath(`dashboard/events/${eventId}/phases/${phaseId}/teams/${teamId}/evaluate`)}
           >
-            {t('evaluations.evaluatePhaseButton', { defaultValue: 'Evaluar fase' })}
+            {safeTranslate(t, 'evaluations.evaluatePhaseButton', { defaultValue: 'Evaluar fase' })}
           </Link>
         </Button>
       ) : (
@@ -128,7 +142,88 @@ function PhaseEvaluationCell({
           <Link
             to={tenantPath(`dashboard/events/${eventId}/phases/${phaseId}/teams/${teamId}/evaluate`)}
           >
-            {t('evaluations.viewPhaseEvaluationButton', { defaultValue: 'Ver evaluación' })}
+            {safeTranslate(t, 'evaluations.viewPhaseEvaluationButton', { defaultValue: 'Ver evaluación' })}
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
+}
+
+type ProjectEvaluationCellProps = Readonly<{
+  teamId: number;
+  eventId: number;
+  tenantPath: (path: string) => string;
+  isReviewer: boolean;
+  hasSubmissions: boolean;
+  hasFinalEvaluation?: boolean;
+}>;
+
+function ProjectEvaluationCell({
+  teamId,
+  eventId,
+  tenantPath,
+  isReviewer,
+  hasSubmissions,
+  hasFinalEvaluation: hasFinalEvaluationProp
+}: ProjectEvaluationCellProps) {
+  const { t } = useTranslation();
+  const { branding } = useTenant();
+  const primaryColor = branding.primaryColor || '#0ea5e9';
+
+  // Obtener equipo para obtener projectId
+  const { data: teams } = useQuery<Team[]>({
+    queryKey: ['teams', eventId],
+    queryFn: () => getTeamsByEvent(eventId),
+    enabled: isReviewer && hasSubmissions && eventId !== null && Number.isFinite(eventId)
+  });
+
+  const team = teams?.find(t => t.id === teamId);
+  const projectId = team?.project?.id;
+
+  // Obtener evaluaciones de proyecto para verificar si hay evaluación final
+  const { data: evaluations } = useQuery<ProjectEvaluation[]>({
+    queryKey: ['project-evaluation', projectId],
+    queryFn: () => getProjectEvaluations(projectId!),
+    enabled: isReviewer && hasSubmissions && projectId !== null && projectId !== undefined && Number.isFinite(projectId),
+    retry: false
+  });
+
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
+
+  if (!isReviewer || !hasSubmissions) {
+    return null;
+  }
+
+  if (!projectId) {
+    return null;
+  }
+
+  const projectEvaluationPath = tenantPath(`dashboard/events/${eventId}/teams/${teamId}/project/evaluate`);
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {!hasFinalEvaluation ? (
+        <Button
+          variant="default"
+          size="sm"
+          className="h-auto text-xs"
+          style={{ backgroundColor: primaryColor }}
+          asChild
+        >
+          <Link to={projectEvaluationPath}>
+            {safeTranslate(t, 'evaluations.evaluateProjectButton', { defaultValue: 'Evaluar proyecto' })}
+          </Link>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-auto text-xs"
+          asChild
+        >
+          <Link to={projectEvaluationPath}>
+            {safeTranslate(t, 'evaluations.viewProjectEvaluationButton', { defaultValue: 'Ver evaluación' })}
           </Link>
         </Button>
       )}
@@ -145,6 +240,7 @@ type TrackingTableProps = Readonly<{
   eventId: number;
   tenantPath: (path: string) => string;
   isReviewer: boolean;
+  selectedPhaseId: number | null;
 }>;
 
 function TrackingTable({ 
@@ -155,20 +251,32 @@ function TrackingTable({
   deliverablesMap, 
   eventId, 
   tenantPath,
-  isReviewer
+  isReviewer,
+  selectedPhaseId
 }: TrackingTableProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language ?? 'es';
+  const currentLang = (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const sortedPhases = [...trackingData.phases].sort((a, b) => a.orderIndex - b.orderIndex);
 
-  // Crear estructura de columnas con evaluación de fase
+  // Crear estructura de columnas con evaluación de fase (filtrada por fase seleccionada)
   const columnsWithEvaluation = useMemo(() => {
-    const result: Array<{ type: 'task' | 'evaluation'; phaseId: number; taskId?: number; taskTitle?: string }> = [];
+    const result: Array<{ type: 'task' | 'evaluation' | 'project'; phaseId?: number; taskId?: number; taskTitle?: string }> = [];
     
-    for (const phase of sortedPhases) {
+    // Si hay filtro de fase, solo mostrar esa fase
+    const phasesToShow = selectedPhaseId !== null 
+      ? sortedPhases.filter(p => p.id === selectedPhaseId)
+      : sortedPhases;
+    
+    for (const phase of phasesToShow) {
       const phaseColumns = columnsByPhase.get(phase.id) || [];
       // Agregar columnas de tareas
       phaseColumns.forEach(col => {
-        result.push({ type: 'task', phaseId: phase.id, taskId: col.taskId, taskTitle: col.taskTitle });
+        // Asegurar que taskTitle sea un string (puede venir como objeto multilingüe del backend)
+        const taskTitleStr = typeof col.taskTitle === 'string' 
+          ? col.taskTitle 
+          : getMultilingualText(col.taskTitle as any, currentLang);
+        result.push({ type: 'task', phaseId: phase.id, taskId: col.taskId, taskTitle: taskTitleStr });
       });
       // Agregar columna de evaluación de fase si hay tareas
       if (phaseColumns.length > 0) {
@@ -176,8 +284,13 @@ function TrackingTable({
       }
     }
     
+    // Si no hay filtro de fase (mostrando todo), agregar columna de evaluación de proyecto al final
+    if (selectedPhaseId === null) {
+      result.push({ type: 'project' });
+    }
+    
     return result;
-  }, [sortedPhases, columnsByPhase]);
+  }, [sortedPhases, columnsByPhase, selectedPhaseId]);
 
   // Verificar si hay entregas en una fase para un equipo
   const hasPhaseSubmissions = (phaseId: number, teamId: number) => {
@@ -189,20 +302,31 @@ function TrackingTable({
     });
   };
 
-  // Verificar si hay evaluación final de fase
-  const hasPhaseFinalEvaluation = (phaseId: number, teamId: number) => {
-    // TODO: Implementar cuando tengamos el endpoint para obtener evaluaciones de fase
-    return false;
+  // Verificar si hay entregas en todo el proyecto para un equipo
+  const hasProjectSubmissions = (teamId: number) => {
+    return sortedPhases.some(phase => {
+      const phaseColumns = columnsByPhase.get(phase.id) || [];
+      return phaseColumns.some(col => {
+        const key = `${teamId}:${col.taskId}`;
+        const deliverable = deliverablesMap.get(key);
+        return deliverable?.submitted ?? false;
+      });
+    });
   };
+
+  // Filtrar fases para mostrar en el header según el filtro
+  const phasesToShowInHeader = selectedPhaseId !== null 
+    ? sortedPhases.filter(p => p.id === selectedPhaseId)
+    : sortedPhases;
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead className="sticky left-0 z-10 bg-background w-[200px]">
-            {t('events.deliverablesTracking.team')}
+            {safeTranslate(t, 'events.deliverablesTracking.team')}
           </TableHead>
-          {sortedPhases.map(phase => {
+          {phasesToShowInHeader.map(phase => {
             const phaseColumns = columnsByPhase.get(phase.id) || [];
             if (phaseColumns.length === 0) return null;
             
@@ -212,10 +336,18 @@ function TrackingTable({
                 colSpan={phaseColumns.length + 1}
                 className="text-left bg-muted/50"
               >
-                <div className="font-semibold">{phase.name}</div>
+                <div className="font-semibold">{getMultilingualText(phase.name, currentLang)}</div>
               </TableHead>
             );
           })}
+          {selectedPhaseId === null && (
+            <TableHead
+              colSpan={1}
+              className="text-left bg-muted/50"
+            >
+              <div className="font-semibold">{safeTranslate(t, 'evaluations.projectEvaluation', { defaultValue: 'Proyecto' })}</div>
+            </TableHead>
+          )}
         </TableRow>
         <TableRow>
           <TableHead className="sticky left-0 z-10 bg-background"></TableHead>
@@ -223,13 +355,24 @@ function TrackingTable({
             if (col.type === 'evaluation') {
               return (
                 <TableHead key={`eval-${col.phaseId}`} className="text-center w-[120px]">
-                  <div className="text-xs font-medium">{t('evaluations.evaluation', { defaultValue: 'Evaluación' })}</div>
+                  <div className="text-xs font-medium">{safeTranslate(t, 'evaluations.evaluation', { defaultValue: 'Evaluación' })}</div>
+                </TableHead>
+              );
+            }
+            if (col.type === 'project') {
+              return (
+                <TableHead key="project-eval" className="text-center w-[120px]">
+                  <div className="text-xs font-medium">{safeTranslate(t, 'evaluations.evaluation', { defaultValue: 'Evaluación' })}</div>
                 </TableHead>
               );
             }
             return (
               <TableHead key={`${col.phaseId}-${col.taskId}`} className="text-center w-[150px]">
-                <div className="text-xs font-medium">{col.taskTitle}</div>
+                <div className="text-xs font-medium">
+                  {typeof col.taskTitle === 'string' 
+                    ? col.taskTitle 
+                    : getMultilingualText(col.taskTitle as any, currentLang)}
+                </div>
               </TableHead>
             );
           })}
@@ -243,18 +386,31 @@ function TrackingTable({
             </TableCell>
             {columnsWithEvaluation.map(col => {
               if (col.type === 'evaluation') {
-                const hasSubmissions = hasPhaseSubmissions(col.phaseId, team.id);
-                const hasFinalEval = hasPhaseFinalEvaluation(col.phaseId, team.id);
+                const hasSubmissions = hasPhaseSubmissions(col.phaseId!, team.id);
                 return (
                   <TableCell key={`eval-${col.phaseId}-${team.id}`} className="text-center w-[120px]">
                     <PhaseEvaluationCell
-                      phaseId={col.phaseId}
+                      phaseId={col.phaseId!}
                       teamId={team.id}
                       eventId={eventId}
                       tenantPath={tenantPath}
                       isReviewer={isReviewer}
                       hasSubmissions={hasSubmissions}
-                      hasFinalEvaluation={hasFinalEval}
+                    />
+                  </TableCell>
+                );
+              }
+              
+              if (col.type === 'project') {
+                const hasSubmissions = hasProjectSubmissions(team.id);
+                return (
+                  <TableCell key={`project-eval-${team.id}`} className="text-center w-[120px]">
+                    <ProjectEvaluationCell
+                      teamId={team.id}
+                      eventId={eventId}
+                      tenantPath={tenantPath}
+                      isReviewer={isReviewer}
+                      hasSubmissions={hasSubmissions}
                     />
                   </TableCell>
                 );
@@ -303,6 +459,8 @@ type TrackingContentProps = Readonly<{
   tenantPath: (path: string) => string;
   isReviewer: boolean;
   pendingEvaluationsCount: number;
+  selectedPhaseId: number | null;
+  onPhaseFilterChange: (phaseId: number | null) => void;
 }>;
 
 function TrackingContent({
@@ -316,12 +474,16 @@ function TrackingContent({
   deliverablesMap,
   tenantPath,
   isReviewer,
-  pendingEvaluationsCount
+  pendingEvaluationsCount,
+  selectedPhaseId,
+  onPhaseFilterChange
 }: TrackingContentProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language ?? 'es';
+  const currentLang = (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
   if (!selectedEventId) {
-    return <EmptyState message={t('tracking.deliverables.noEventSelected')} />;
+    return <EmptyState message={safeTranslate(t, 'tracking.deliverables.noEventSelected')} />;
   }
 
   if (isLoadingTracking) {
@@ -331,7 +493,7 @@ function TrackingContent({
   if (isError || !trackingData) {
     return (
       <div className="py-10 text-center text-sm text-destructive">
-        {t('events.deliverablesTracking.error')}
+        {safeTranslate(t, 'events.deliverablesTracking.error')}
       </div>
     );
   }
@@ -339,7 +501,7 @@ function TrackingContent({
   if (sortedTeams.length === 0) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        {t('events.deliverablesTracking.noTeams')}
+        {safeTranslate(t, 'events.deliverablesTracking.noTeams')}
       </div>
     );
   }
@@ -347,10 +509,12 @@ function TrackingContent({
   if (sortedColumns.length === 0) {
     return (
       <div className="py-10 text-center text-sm text-muted-foreground">
-        {t('events.deliverablesTracking.noTasks')}
+        {safeTranslate(t, 'events.deliverablesTracking.noTasks')}
       </div>
     );
   }
+
+  const sortedPhases = trackingData ? [...trackingData.phases].sort((a, b) => a.orderIndex - b.orderIndex) : [];
 
   return (
     <div className="space-y-4">
@@ -360,12 +524,12 @@ function TrackingContent({
           <span>
             {(() => {
               const pluralText = pendingEvaluationsCount === 1
-                ? t('evaluations.pendingEvaluationsAlertSingular')
-                : t('evaluations.pendingEvaluationsAlertPlural');
+                ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertSingular')
+                : safeTranslate(t, 'evaluations.pendingEvaluationsAlertPlural');
               const verbText = pendingEvaluationsCount === 1
-                ? t('evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
-                : t('evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
-              let message = t('evaluations.pendingEvaluationsAlert', {
+                ? safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbSingular', { defaultValue: '' })
+                : safeTranslate(t, 'evaluations.pendingEvaluationsAlertVerbPlural', { defaultValue: '' });
+              let message = safeTranslate(t, 'evaluations.pendingEvaluationsAlert', {
                 count: pendingEvaluationsCount,
                 plural: pluralText,
                 verb: verbText
@@ -379,6 +543,33 @@ function TrackingContent({
           </span>
         </div>
       )}
+      {trackingData && sortedPhases.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium whitespace-nowrap">
+            {safeTranslate(t, 'events.deliverablesTracking.filterByPhase', { defaultValue: 'Filtrar por fase' })}:
+          </label>
+          <Select
+            value={selectedPhaseId?.toString() || 'all'}
+            onValueChange={(value) => {
+              if (value === 'all') {
+                onPhaseFilterChange(null);
+              } else {
+                onPhaseFilterChange(Number(value));
+              }
+            }}
+            className="w-full sm:w-[300px]"
+          >
+            <option value="all">
+              {safeTranslate(t, 'events.deliverablesTracking.allPhases', { defaultValue: 'Todas las fases' })}
+            </option>
+            {sortedPhases.map(phase => (
+              <option key={phase.id} value={phase.id.toString()}>
+                {getMultilingualText(phase.name, currentLang)}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <TrackingTable
           trackingData={trackingData}
@@ -389,6 +580,7 @@ function TrackingContent({
           eventId={selectedEventId}
           tenantPath={tenantPath}
           isReviewer={isReviewer}
+          selectedPhaseId={selectedPhaseId}
         />
       </div>
     </div>
@@ -396,8 +588,10 @@ function TrackingContent({
 }
 
 export default function DeliverablesTrackingPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const tenantPath = useTenantPath();
+  const locale = i18n.language ?? 'es';
+  const currentLang = (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
   const location = useLocation();
   const { eventId: eventIdParam } = useParams<{ eventId?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -407,6 +601,12 @@ export default function DeliverablesTrackingPage() {
     [activeMembership, user]
   );
   const isReviewer = isSuperAdmin || roleScopes.has('evaluator') || roleScopes.has('organizer') || roleScopes.has('tenant_admin');
+  
+  // Estado para el filtro de fase
+  const [selectedPhaseId, setSelectedPhaseId] = useState<number | null>(() => {
+    const phaseParam = searchParams.get('phaseId');
+    return phaseParam ? Number(phaseParam) : null;
+  });
   
   // Detectar eventId de la URL si estamos en contexto de evento
   const activeEventIdFromPath = useMemo(() => {
@@ -430,6 +630,13 @@ export default function DeliverablesTrackingPage() {
   // Obtener eventId de la URL, search params, contexto de evento o evento actual del AuthContext
   const eventIdFromUrl = eventIdParam || searchParams.get('eventId') || (activeEventIdFromPath ? String(activeEventIdFromPath) : null);
   const selectedEventId = eventIdFromUrl ? Number(eventIdFromUrl) : (currentEventId ?? null);
+  
+  // Resetear filtro de fase cuando cambia el evento (solo si no hay phaseId en los params)
+  useEffect(() => {
+    if (selectedEventId && !searchParams.get('phaseId')) {
+      setSelectedPhaseId(null);
+    }
+  }, [selectedEventId, searchParams]);
   
   // Si hay un evento activo en la URL o en el contexto pero no está seleccionado, seleccionarlo automáticamente
   // También verificar que el evento existe en la lista de eventos disponibles
@@ -463,8 +670,17 @@ export default function DeliverablesTrackingPage() {
       if (!grouped.has(column.phaseId)) {
         grouped.set(column.phaseId, []);
       }
+      // Normalizar taskTitle y phaseName: pueden venir como objetos multilingües del backend
+      const taskTitleStr = typeof column.taskTitle === 'string' 
+        ? column.taskTitle 
+        : getMultilingualText(column.taskTitle as any, currentLang);
+      const phaseNameStr = typeof column.phaseName === 'string' 
+        ? column.phaseName 
+        : getMultilingualText(column.phaseName as any, currentLang);
       grouped.get(column.phaseId)!.push({
         ...column,
+        taskTitle: taskTitleStr,
+        phaseName: phaseNameStr,
         orderIndex: column.orderIndex ?? 0
       });
     }
@@ -549,8 +765,16 @@ export default function DeliverablesTrackingPage() {
   const exportDeliverablesToCSV = () => {
     if (!trackingData || sortedTeams.length === 0 || sortedColumns.length === 0) return;
 
-    const teamHeader = t('events.deliverablesTracking.team');
-    const taskHeaders = sortedColumns.map(col => `${col.phaseName} - ${col.taskTitle}`);
+    const teamHeader = safeTranslate(t, 'events.deliverablesTracking.team');
+    const taskHeaders = sortedColumns.map(col => {
+      const phaseNameStr = typeof col.phaseName === 'string' 
+        ? col.phaseName 
+        : getMultilingualText(col.phaseName as any, currentLang);
+      const taskTitleStr = typeof col.taskTitle === 'string' 
+        ? col.taskTitle 
+        : getMultilingualText(col.taskTitle as any, currentLang);
+      return `${phaseNameStr} - ${taskTitleStr}`;
+    });
     const headers = [teamHeader, ...taskHeaders];
 
     const csvData = sortedTeams
@@ -567,8 +791,8 @@ export default function DeliverablesTrackingPage() {
           const submitted = deliverable?.submitted ?? false;
           const columnKey = taskHeaders[index];
           row[columnKey] = submitted 
-            ? t('events.deliverablesTracking.submitted')
-            : t('events.deliverablesTracking.notSubmitted');
+            ? safeTranslate(t, 'events.deliverablesTracking.submitted')
+            : safeTranslate(t, 'events.deliverablesTracking.notSubmitted');
         }
 
         return row;
@@ -577,7 +801,8 @@ export default function DeliverablesTrackingPage() {
     if (csvData.length === 0) return;
 
     const csv = arrayToCSV(csvData, headers);
-    const eventName = events?.find(e => e.id === selectedEventId)?.name || 'evento';
+    const event = events?.find(e => e.id === selectedEventId);
+    const eventName = event ? getMultilingualText(event.name, currentLang) : 'evento';
     const sanitizedEventName = eventName.toLowerCase().replaceAll(/\s+/g, '-');
     downloadCSV(csv, `entregables-${sanitizedEventName}`);
   };
@@ -588,19 +813,21 @@ export default function DeliverablesTrackingPage() {
     return <Spinner fullHeight />;
   }
 
+  const selectedEventName = selectedEvent ? getMultilingualText(selectedEvent.name, currentLang) : null;
+
   return (
     <DashboardLayout
-      title={t('tracking.deliverables.title')}
-      subtitle={selectedEvent ? selectedEvent.name : t('tracking.deliverables.subtitle')}
+      title={safeTranslate(t, 'tracking.deliverables.title')}
+      subtitle={selectedEventName || safeTranslate(t, 'tracking.deliverables.subtitle')}
     >
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>{t('tracking.deliverables.selectEvent')}</CardTitle>
+            <CardTitle>{safeTranslate(t, 'tracking.deliverables.selectEvent')}</CardTitle>
             {selectedEventId && trackingData && (
               <Button variant="outline" size="sm" onClick={exportDeliverablesToCSV}>
                 <Download className="h-4 w-4 mr-2" />
-                {t('common.export', { defaultValue: 'Exportar CSV' })}
+                {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
               </Button>
             )}
           </div>
@@ -609,18 +836,21 @@ export default function DeliverablesTrackingPage() {
           <Select
             value={selectedEventId?.toString() || ''}
             onValueChange={handleEventChange}
-            placeholder={t('tracking.deliverables.selectEventPlaceholder')}
+            placeholder={safeTranslate(t, 'tracking.deliverables.selectEventPlaceholder')}
             className="w-full sm:w-[300px]"
           >
             {events && events.length > 0 ? (
-              events.map(event => (
-                <option key={event.id} value={event.id.toString()}>
-                  {event.name}
-                </option>
-              ))
+              events.map(event => {
+                const eventName = getMultilingualText(event.name, currentLang);
+                return (
+                  <option key={event.id} value={event.id.toString()}>
+                    {eventName}
+                  </option>
+                );
+              })
             ) : (
               <option value="" disabled>
-                {t('events.empty')}
+                {safeTranslate(t, 'events.empty')}
               </option>
             )}
           </Select>
@@ -637,6 +867,17 @@ export default function DeliverablesTrackingPage() {
             tenantPath={tenantPath}
             isReviewer={isReviewer}
             pendingEvaluationsCount={pendingEvaluationsCount}
+            selectedPhaseId={selectedPhaseId}
+            onPhaseFilterChange={(phaseId) => {
+              setSelectedPhaseId(phaseId);
+              const newSearchParams = new URLSearchParams(searchParams);
+              if (phaseId !== null) {
+                newSearchParams.set('phaseId', phaseId.toString());
+              } else {
+                newSearchParams.delete('phaseId');
+              }
+              setSearchParams(newSearchParams, { replace: true });
+            }}
           />
         </CardContent>
       </Card>

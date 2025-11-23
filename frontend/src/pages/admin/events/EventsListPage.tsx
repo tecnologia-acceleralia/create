@@ -5,22 +5,38 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
+import { Trash2, ArrowLeft } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { ResourceListCard } from '@/components/cards';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 import { EventCreateModal } from '@/components/events/modals';
 import { Spinner, EmptyState } from '@/components/common';
 import { EventCard } from '@/components/events/EventCard';
-import { createEvent, getEvents, type Event } from '@/services/events';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { createEvent, getEvents, cloneEvent, archiveEvent, type Event } from '@/services/events';
 import { useTenantPath } from '@/hooks/useTenantPath';
-import { eventSchema, EventForm, type EventFormValues } from '@/components/events/forms';
+import { eventSchema, type EventFormValues } from '@/components/events/forms';
+import { getMultilingualText } from '@/utils/multilingual';
 
 function EventsListPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const tenantPath = useTenantPath();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const locale = i18n.language?.toLowerCase() ?? 'es';
+  const currentLang = (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en';
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -44,12 +60,34 @@ function EventsListPage() {
   const createMutation = useMutation({
     mutationFn: createEvent,
     onSuccess: () => {
-      toast.success(t('events.created'));
+      toast.success(safeTranslate(t, 'events.created'));
       void queryClient.invalidateQueries({ queryKey: ['events'] });
       eventForm.reset();
       setIsDialogOpen(false);
     },
-    onError: () => toast.error(t('common.error'))
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: cloneEvent,
+    onSuccess: () => {
+      toast.success(safeTranslate(t, 'events.cloned'));
+      void queryClient.invalidateQueries({ queryKey: ['events'] });
+    },
+    onError: () => toast.error(safeTranslate(t, 'common.error'))
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: archiveEvent,
+    onSuccess: () => {
+      toast.success(safeTranslate(t, 'events.deleted'));
+      void queryClient.invalidateQueries({ queryKey: ['events'] });
+      setEventToDelete(null);
+    },
+    onError: () => {
+      toast.error(safeTranslate(t, 'common.error'));
+      setEventToDelete(null);
+    }
   });
 
   const onSubmit = (values: EventFormValues) => {
@@ -71,14 +109,32 @@ function EventsListPage() {
     eventForm.reset();
   };
 
+  const handleDeleteClick = (event: Event) => {
+    setEventToDelete(event);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (eventToDelete) {
+      deleteMutation.mutate(eventToDelete.id);
+    }
+  };
+
   return (
     <DashboardLayout
-      title={t('dashboard.tenantAdmin')}
-      subtitle={t('events.title')}
+      title={safeTranslate(t, 'dashboard.tenantAdmin')}
+      subtitle={safeTranslate(t, 'events.title')}
       actions={
-        <Button onClick={() => setIsDialogOpen(true)}>
-          {t('events.create')}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link to={tenantPath('dashboard')}>
+              <ArrowLeft className="h-4 w-4 mr-2" aria-hidden />
+              {safeTranslate(t, 'dashboard.backToDashboard')}
+            </Link>
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            {safeTranslate(t, 'events.create')}
+          </Button>
+        </div>
       }
     >
       <EventCreateModal
@@ -89,11 +145,38 @@ function EventsListPage() {
         isSubmitting={createMutation.isPending}
       />
 
+      <AlertDialog open={eventToDelete !== null} onOpenChange={open => (!open ? setEventToDelete(null) : null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{safeTranslate(t, 'events.deleteConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {eventToDelete
+                ? safeTranslate(t, 'events.deleteConfirmDescription', {
+                    name: getMultilingualText(eventToDelete.name, currentLang)
+                  })
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{safeTranslate(t, 'common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending
+                ? safeTranslate(t, 'common.processing')
+                : safeTranslate(t, 'events.deleteConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {isLoading ? (
         <Spinner fullHeight />
       ) : (
         <ResourceListCard
-          title={t('events.title')}
+          title={safeTranslate(t, 'events.title')}
           items={events ?? []}
           renderItem={event => (
             <EventCard
@@ -102,13 +185,31 @@ function EventsListPage() {
               to={tenantPath(`events/${event.id}`)}
               showStatus={false}
               actions={
-                <Button asChild variant="outline">
-                  <Link to={tenantPath(`dashboard/events/${event.id}`)}>{t('events.manage')}</Link>
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => cloneMutation.mutate(event.id)}
+                    disabled={cloneMutation.isPending}
+                  >
+                    {safeTranslate(t, 'events.clone')}
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link to={tenantPath(`dashboard/events/${event.id}`)}>{safeTranslate(t, 'events.manage')}</Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleDeleteClick(event)}
+                    disabled={deleteMutation.isPending}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" aria-hidden />
+                    {safeTranslate(t, 'events.delete')}
+                  </Button>
+                </div>
               }
             />
           )}
-          emptyMessage={<EmptyState message={t('events.empty')} />}
+          emptyMessage={<EmptyState message={safeTranslate(t, 'events.empty')} />}
           contentClassName="grid gap-4 md:grid-cols-2"
         />
       )}

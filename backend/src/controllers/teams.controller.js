@@ -167,7 +167,7 @@ export class TeamsController {
 
   static async removeMember(req, res, next) {
     try {
-      const { TeamMember } = getModels();
+      const { TeamMember, Notification } = getModels();
       const team = await findTeamOr404(req.params.teamId);
 
       const userIdToRemove = Number(req.params.userId);
@@ -203,6 +203,20 @@ export class TeamsController {
         if (isSelfRemoval) {
           return badRequestResponse(res, t(req, 'teams.mustAssignCaptainBeforeLeave'));
         }
+      }
+
+      // Crear notificación solo si no es auto-eliminación
+      if (!isSelfRemoval) {
+        const title = t(req, 'teams.notification.memberRemovedTitle');
+        const message = t(req, 'teams.notification.memberRemovedMessage', { teamName: team.name });
+        
+        await Notification.create({
+          tenant_id: req.tenant.id,
+          user_id: userIdToRemove,
+          title,
+          message,
+          type: 'system'
+        });
       }
 
       await member.destroy();
@@ -425,7 +439,7 @@ export class TeamsController {
   static async leaveTeam(req, res, next) {
     const transaction = await getSequelize().transaction();
     try {
-      const { TeamMember, Team } = getModels();
+      const { TeamMember } = getModels();
       const team = await findTeamOr404(req.params.teamId);
       const userId = req.user.id;
 
@@ -491,6 +505,165 @@ export class TeamsController {
       res.status(204).send();
     } catch (error) {
       await transaction.rollback();
+      next(error);
+    }
+  }
+
+  /**
+   * Obtiene un resumen de entregas y evaluaciones del equipo agrupadas por fase
+   */
+  static async getSubmissionsAndEvaluationsSummary(req, res, next) {
+    try {
+      const { Submission, Evaluation, Task, Phase, SubmissionFile } = getModels();
+      const teamId = Number(req.params.teamId);
+      
+      const team = await findTeamOr404(teamId);
+      
+      // Verificar permisos: el usuario debe ser miembro del equipo o tener permisos de administrador
+      const isReviewer = isTenantAdmin(req) || req.auth?.isSuperAdmin;
+      if (!isReviewer) {
+        const { TeamMember } = getModels();
+        const membership = await TeamMember.findOne({
+          where: { team_id: teamId, user_id: req.user.id }
+        });
+        if (!membership) {
+          return forbiddenResponse(res);
+        }
+      }
+
+      // Obtener todas las fases del evento con sus tareas
+      const phases = await Phase.findAll({
+        where: { event_id: team.event_id },
+        order: [['order_index', 'ASC']],
+        include: [
+          {
+            model: Task,
+            as: 'tasks',
+            required: false,
+            separate: true,
+            order: [['order_index', 'ASC']]
+          }
+        ]
+      });
+
+      // Obtener todas las entregas del equipo
+      const submissions = await Submission.findAll({
+        where: { team_id: teamId },
+        include: [
+          { model: Task, as: 'task', include: [{ model: Phase, as: 'phase' }] },
+          { model: SubmissionFile, as: 'files' }
+        ],
+        order: [['submitted_at', 'DESC']]
+      });
+
+      // Obtener todas las evaluaciones del equipo
+      // Evaluaciones de submissions individuales
+      const submissionEvaluations = await Evaluation.findAll({
+        where: {
+          submission_id: { [Op.in]: submissions.map(s => s.id) },
+          evaluation_scope: 'submission'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      // Evaluaciones de fase
+      const phaseEvaluations = await Evaluation.findAll({
+        where: {
+          team_id: teamId,
+          evaluation_scope: 'phase'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      // Evaluación final del proyecto
+      const projectEvaluation = await Evaluation.findOne({
+        where: {
+          team_id: teamId,
+          evaluation_scope: 'project'
+        },
+        order: [['created_at', 'DESC']]
+      });
+
+      // Agrupar entregas por fase
+      const phasesWithSubmissions = phases.map(phase => {
+        const phaseTasks = phase.tasks || [];
+        const phaseSubmissions = submissions.filter(sub => {
+          const taskPhaseId = sub.task?.phase_id;
+          return taskPhaseId === phase.id;
+        });
+
+        const tasksWithSubmissions = phaseTasks.map(task => {
+          const taskSubmissions = phaseSubmissions.filter(sub => sub.task_id === task.id);
+          return {
+            task_id: task.id,
+            task_title: task.title,
+            submissions: taskSubmissions.map(sub => {
+              const subData = sub.toJSON ? sub.toJSON() : sub;
+              const files = subData.files || [];
+              return {
+                id: subData.id,
+                status: subData.status,
+                type: subData.type,
+                submitted_at: subData.submitted_at,
+                content: subData.content,
+                files_count: Array.isArray(files) ? files.length : 0,
+                evaluations: submissionEvaluations
+                  .filter(evaluation => evaluation.submission_id === subData.id)
+                  .map(evaluation => {
+                    const evalData = evaluation.toJSON ? evaluation.toJSON() : evaluation;
+                    return {
+                      id: evalData.id,
+                      score: evalData.score,
+                      status: evalData.status,
+                      created_at: evalData.created_at,
+                      language: evalData.metadata?.language || null,
+                      metadata: evalData.metadata || null
+                    };
+                  })
+              };
+            })
+          };
+        });
+
+        return {
+          phase_id: phase.id,
+          phase_name: phase.name,
+          tasks: tasksWithSubmissions,
+          phase_evaluations: phaseEvaluations
+            .filter(evaluation => evaluation.phase_id === phase.id)
+            .map(evaluation => {
+              const evalData = evaluation.toJSON ? evaluation.toJSON() : evaluation;
+              return {
+                id: evalData.id,
+                score: evalData.score,
+                status: evalData.status,
+                comment: evalData.comment,
+                created_at: evalData.created_at,
+                language: evalData.metadata?.language || null,
+                metadata: evalData.metadata || null
+              };
+            })
+        };
+      });
+
+      const projectEvalData = projectEvaluation ? (projectEvaluation.toJSON ? projectEvaluation.toJSON() : projectEvaluation) : null;
+      
+      const result = {
+        team_id: teamId,
+        phases: phasesWithSubmissions,
+        project_evaluation: projectEvalData ? {
+          id: projectEvalData.id,
+          score: projectEvalData.score,
+          status: projectEvalData.status,
+          comment: projectEvalData.comment,
+          created_at: projectEvalData.created_at,
+          language: projectEvalData.metadata?.language || null,
+          metadata: projectEvalData.metadata || null
+        } : null
+      };
+
+      return successResponse(res, result);
+    } catch (error) {
       next(error);
     }
   }

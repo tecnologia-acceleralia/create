@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -13,10 +13,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { FormField, FormGrid } from '@/components/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PasswordGeneratorButton } from '@/components/common/PasswordGeneratorButton';
+import { PasswordField } from '@/components/common';
 import { cn } from '@/utils/cn';
+import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   createSuperAdminUser,
   updateSuperAdminUser,
@@ -25,6 +27,7 @@ import {
   TENANT_ROLE_SCOPES,
   type TenantRoleScope
 } from '@/services/superadmin';
+import type { RegistrationSchema } from '@/services/public';
 
 const USER_STATUS = ['active', 'inactive', 'invited'] as const;
 
@@ -35,20 +38,33 @@ type TenantRolesFormValue = Record<string, TenantRoleScope[]>;
 const isValidTenantRoleScope = (scope: string): scope is TenantRoleScope =>
   TENANT_ROLE_SCOPES.includes(scope as TenantRoleScope);
 
-const userFormSchema = z.object({
-  email: z.string().email(),
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  language: z.string().min(2).max(10),
-  status: z.enum(USER_STATUS),
-  is_super_admin: z.boolean().optional(),
-  password: z
-    .union([z.string().min(6), z.literal('')])
-    .transform<string | undefined>(value => (value === '' ? undefined : value))
-    .optional(),
-  tenantIds: z.array(z.number()).optional(),
-  tenantRoles: z.record(z.string(), z.array(tenantRoleEnum)).optional()
-});
+const createUserFormSchema = (schemaFields: NormalizedSchemaField[]) => {
+  const baseSchema = z.object({
+    email: z.string().email(),
+    first_name: z.string().min(1),
+    last_name: z.string().min(1),
+    language: z.string().min(2).max(10),
+    status: z.enum(USER_STATUS),
+    is_super_admin: z.boolean().optional(),
+    password: z
+      .union([z.string().min(6), z.literal('')])
+      .transform<string | undefined>(value => (value === '' ? undefined : value))
+      .optional(),
+    tenantIds: z.array(z.number()).optional(),
+    tenantRoles: z.record(z.string(), z.array(tenantRoleEnum)).optional()
+  });
+
+  const schemaFieldsObj: Record<string, z.ZodTypeAny> = {};
+  for (const field of schemaFields) {
+    if (field.required) {
+      schemaFieldsObj[field.id] = z.string().min(1);
+    } else {
+      schemaFieldsObj[field.id] = z.string().optional();
+    }
+  }
+
+  return baseSchema.extend(schemaFieldsObj);
+};
 
 type UserFormSchema = z.infer<typeof userFormSchema>;
 
@@ -66,12 +82,123 @@ type UserModalProps = {
   onSubmit: (payload: UserModalSubmitPayload) => Promise<void>;
   isSubmitting: boolean;
   tenants: SuperAdminTenant[];
+  selectedTenantId?: number;
 };
 
-export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, tenants }: UserModalProps) {
-  const { t } = useTranslation();
+type NormalizedSchemaField = {
+  id: string;
+  label?: Record<string, string> | string;
+  required: boolean;
+  options?: Array<{ value: string; label?: Record<string, string> | string }>;
+  type: 'text' | 'select' | 'textarea';
+};
 
-  const getUserFormDefaults = (currentMode: UserModalMode, currentUser: SuperAdminUser | null): UserFormSchema => {
+function resolveSchemaLabel(
+  label: Record<string, string> | string | undefined,
+  language: string,
+  fallback: string
+): string {
+  if (!label) {
+    return fallback;
+  }
+  if (typeof label === 'string') {
+    return label;
+  }
+  const normalized = language?.split('-')[0]?.toLowerCase();
+  if (normalized && label[normalized]) {
+    return label[normalized] ?? fallback;
+  }
+  return label.es ?? label.en ?? label.ca ?? fallback;
+}
+
+function normalizeSchemaFields(schema: RegistrationSchema | null, language: string): NormalizedSchemaField[] {
+  if (!schema || typeof schema !== 'object') {
+    return [];
+  }
+
+  const fields: NormalizedSchemaField[] = [];
+
+  // Procesar todos los campos del nivel raíz del schema (excepto additionalFields)
+  for (const [key, value] of Object.entries(schema)) {
+    if (key === 'additionalFields') {
+      continue;
+    }
+
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const fieldValue = value as {
+        label?: Record<string, string> | string;
+        required?: boolean;
+        options?: Array<{ value: string; label?: Record<string, string> | string }>;
+      };
+
+      const hasOptions = Array.isArray(fieldValue.options) && fieldValue.options.length > 0;
+      const type: 'text' | 'select' | 'textarea' = hasOptions ? 'select' : 'text';
+
+      fields.push({
+        id: key,
+        label: fieldValue.label,
+        required: Boolean(fieldValue.required),
+        options: hasOptions ? fieldValue.options : undefined,
+        type
+      });
+    }
+  }
+
+  // Procesar additionalFields si existen
+  if (Array.isArray(schema.additionalFields)) {
+    for (const field of schema.additionalFields) {
+      if (field && typeof field === 'object' && field.id) {
+        fields.push({
+          id: field.id.trim() || `custom_field_${fields.length + 1}`,
+          label: field.label,
+          required: Boolean(field.required),
+          options: field.type === 'select' && Array.isArray(field.options) ? field.options : undefined,
+          type: field.type || 'text'
+        });
+      }
+    }
+  }
+
+  return fields;
+}
+
+export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, tenants, selectedTenantId }: UserModalProps) {
+  const { t, i18n } = useTranslation();
+  
+  // Determinar qué tenant usar para obtener el schema
+  const targetTenant = useMemo(() => {
+    if (selectedTenantId) {
+      return tenants.find(t => t.id === selectedTenantId);
+    }
+    if (user && user.tenantMemberships && user.tenantMemberships.length > 0) {
+      const firstTenantId = user.tenantMemberships[0]?.tenant?.id;
+      if (firstTenantId) {
+        return tenants.find(t => t.id === firstTenantId);
+      }
+    }
+    return null;
+  }, [selectedTenantId, user, tenants]);
+
+  const registrationSchema = targetTenant?.registration_schema ?? null;
+  const schemaFields = useMemo(
+    () => normalizeSchemaFields(registrationSchema, i18n.language),
+    [registrationSchema, i18n.language]
+  );
+
+  const userFormSchema = useMemo(() => createUserFormSchema(schemaFields), [schemaFields]);
+
+  const getUserFormDefaults = (currentMode: UserModalMode, currentUser: SuperAdminUser | null): Record<string, unknown> => {
+    const baseDefaults: Record<string, unknown> = {
+      email: '',
+      first_name: '',
+      last_name: '',
+      language: 'es',
+      status: 'active',
+      is_super_admin: false,
+      tenantIds: [],
+      tenantRoles: {}
+    };
+
     if (currentMode === 'edit' && currentUser) {
       const tenantRolesDefaults = (currentUser.tenantMemberships ?? []).reduce<TenantRolesFormValue>(
         (accumulator, membership) => {
@@ -90,34 +217,40 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
         {}
       );
 
-      return {
-        email: currentUser.email,
-        first_name: currentUser.first_name,
-        last_name: currentUser.last_name,
-        language: currentUser.language ?? 'es',
-        status: currentUser.status,
-        is_super_admin: currentUser.is_super_admin,
-        tenantIds:
-          currentUser.tenantMemberships
-            .map(membership => membership.tenant?.id)
-            .filter((id): id is number => typeof id === 'number') ?? [],
-        tenantRoles: tenantRolesDefaults
-      };
+      baseDefaults.email = currentUser.email;
+      baseDefaults.first_name = currentUser.first_name;
+      baseDefaults.last_name = currentUser.last_name;
+      baseDefaults.language = currentUser.language ?? 'es';
+      baseDefaults.status = currentUser.status;
+      baseDefaults.is_super_admin = currentUser.is_super_admin;
+      baseDefaults.tenantIds =
+        currentUser.tenantMemberships
+          .map(membership => membership.tenant?.id)
+          .filter((id): id is number => typeof id === 'number') ?? [];
+      baseDefaults.tenantRoles = tenantRolesDefaults;
+
+      // Agregar valores de los campos del schema desde registration_answers
+      if (currentUser.registration_answers && typeof currentUser.registration_answers === 'object') {
+        const answers = currentUser.registration_answers;
+        for (const field of schemaFields) {
+          if (answers[field.id] !== undefined) {
+            baseDefaults[field.id] = String(answers[field.id]);
+          }
+        }
+      }
     }
 
-    return {
-      email: '',
-      first_name: '',
-      last_name: '',
-      language: 'es',
-      status: 'active',
-      is_super_admin: false,
-      tenantIds: [],
-      tenantRoles: {}
-    };
+    // Inicializar campos del schema con valores vacíos
+    for (const field of schemaFields) {
+      if (!(field.id in baseDefaults)) {
+        baseDefaults[field.id] = '';
+      }
+    }
+
+    return baseDefaults;
   };
 
-  const form = useForm<UserFormSchema>({
+  const form = useForm<Record<string, unknown>>({
     resolver: zodResolver(userFormSchema),
     defaultValues: getUserFormDefaults(mode, user)
   });
@@ -201,46 +334,55 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
     form.reset(getUserFormDefaults(mode, user));
   };
 
-  const submitForm = async (values: UserFormSchema) => {
-    const tenantRolesPayload = (values.tenantIds ?? []).reduce<Record<number, TenantRoleScope[]>>(
+  const submitForm = async (values: Record<string, unknown>) => {
+    const tenantRolesPayload = ((values.tenantIds as number[]) ?? []).reduce<Record<number, TenantRoleScope[]>>(
       (accumulator, tenantId) => {
-        const scopes = values.tenantRoles?.[String(tenantId)] ?? [];
-        accumulator[tenantId] = scopes as TenantRoleScope[];
+        const scopes = (values.tenantRoles as Record<string, TenantRoleScope[]>)?.[String(tenantId)] ?? [];
+        accumulator[tenantId] = scopes;
         return accumulator;
       },
       {}
     );
 
+    // Extraer campos del schema
+    const registrationAnswers: Record<string, unknown> = {};
+    let grade: string | undefined = undefined;
+
+    for (const field of schemaFields) {
+      const value = values[field.id];
+      if (value && typeof value === 'string' && value.trim()) {
+        if (field.id === 'grade') {
+          grade = value.trim();
+        } else {
+          registrationAnswers[field.id] = value.trim();
+        }
+      }
+    }
+
+    const basePayload = {
+      email: values.email as string,
+      first_name: values.first_name as string,
+      last_name: values.last_name as string,
+      language: values.language as string,
+      status: values.status as 'active' | 'inactive' | 'invited',
+      is_super_admin: Boolean(values.is_super_admin),
+      password: values.password as string | undefined,
+      tenantIds: (values.tenantIds as number[]) ?? [],
+      tenantRoles: tenantRolesPayload,
+      grade: grade ?? null,
+      registration_answers: Object.keys(registrationAnswers).length > 0 ? registrationAnswers : undefined
+    };
+
     if (mode === 'create') {
       await onSubmit({
         type: 'create',
-        body: {
-          email: values.email,
-          first_name: values.first_name,
-          last_name: values.last_name,
-          language: values.language,
-          status: values.status,
-          is_super_admin: Boolean(values.is_super_admin),
-          password: values.password ?? undefined,
-          tenantIds: values.tenantIds ?? [],
-          tenantRoles: tenantRolesPayload
-        }
+        body: basePayload
       });
     } else if (user) {
       await onSubmit({
         type: 'update',
         userId: user.id,
-        body: {
-          email: values.email,
-          first_name: values.first_name,
-          last_name: values.last_name,
-          language: values.language,
-          status: values.status,
-          is_super_admin: Boolean(values.is_super_admin),
-          password: values.password ?? undefined,
-          tenantIds: values.tenantIds ?? [],
-          tenantRoles: tenantRolesPayload
-        }
+        body: basePayload
       });
     }
     form.reset(getUserFormDefaults(mode, user));
@@ -252,8 +394,8 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>
             {mode === 'create'
-              ? t('superadmin.users.createTitle')
-              : t('superadmin.users.editTitle', { email: user?.email ?? '' })}
+              ? safeTranslate(t, 'superadmin.users.createTitle')
+              : safeTranslate(t, 'superadmin.users.editTitle', { email: user?.email ?? '' })}
           </DialogTitle>
         </DialogHeader>
 
@@ -263,14 +405,17 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
               <div className="flex-1 overflow-y-auto flex flex-col">
                 <div className="sticky top-0 z-10 bg-background border-b border-border px-6 pb-4 pt-4">
                   <TabsList>
-                    <TabsTrigger value="general">{t('superadmin.users.tabs.general')}</TabsTrigger>
-                    <TabsTrigger value="tenants">{t('superadmin.users.tabs.tenants')}</TabsTrigger>
+                    <TabsTrigger value="general">{safeTranslate(t, 'superadmin.users.tabs.general')}</TabsTrigger>
+                    {schemaFields.length > 0 && (
+                      <TabsTrigger value="registration">{safeTranslate(t, 'superadmin.users.tabs.registration')}</TabsTrigger>
+                    )}
+                    <TabsTrigger value="tenants">{safeTranslate(t, 'superadmin.users.tabs.tenants')}</TabsTrigger>
                   </TabsList>
                 </div>
                 <div className="px-6">
               <TabsContent value="general" className="mt-0">
                 <FormGrid columns={2}>
-                  <FormField label={t('superadmin.users.fields.email')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.email')} required>
                     <Input
                       type="email"
                       {...form.register('email')}
@@ -280,7 +425,7 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                       <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.language')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.language')} required>
                     <Input
                       {...form.register('language')}
                       className={cn(form.formState.errors.language && 'border-destructive')}
@@ -289,7 +434,7 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                       <p className="text-xs text-destructive">{form.formState.errors.language.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.firstName')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.firstName')} required>
                     <Input
                       {...form.register('first_name')}
                       className={cn(form.formState.errors.first_name && 'border-destructive')}
@@ -298,7 +443,7 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                       <p className="text-xs text-destructive">{form.formState.errors.first_name.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.lastName')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.lastName')} required>
                     <Input
                       {...form.register('last_name')}
                       className={cn(form.formState.errors.last_name && 'border-destructive')}
@@ -307,57 +452,125 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                       <p className="text-xs text-destructive">{form.formState.errors.last_name.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.status')} required>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.status')} required>
                     <Select {...form.register('status')}>
                       {USER_STATUS.map(status => (
                         <option key={status} value={status}>
-                          {t(`superadmin.userStatus.${status}`)}
+                          {safeTranslate(t, `superadmin.userStatus.${status}`, { defaultValue: status })}
                         </option>
                       ))}
                     </Select>
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.password')}>
-                    <div className="flex gap-2">
-                      <Input
-                        type="password"
-                        placeholder={mode === 'edit' ? t('superadmin.users.passwordOptional') : undefined}
-                        className="flex-1"
-                        {...form.register('password')}
-                      />
-                      <PasswordGeneratorButton
-                        onGenerate={password => form.setValue('password', password, { shouldValidate: true })}
-                        aria-label={t('superadmin.users.generatePassword')}
-                      />
-                    </div>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.password')}>
+                    <PasswordField
+                      placeholder={mode === 'edit' ? safeTranslate(t, 'superadmin.users.passwordOptional') : undefined}
+                      showGenerator
+                      onPasswordGenerated={password => form.setValue('password', password, { shouldValidate: true })}
+                      generatorAriaLabel={safeTranslate(t, 'superadmin.users.generatePassword')}
+                      {...form.register('password')}
+                    />
                     {form.formState.errors.password ? (
                       <p className="text-xs text-destructive">{form.formState.errors.password.message}</p>
                     ) : null}
                   </FormField>
-                  <FormField label={t('superadmin.users.fields.isSuperAdmin')}>
+                  <FormField label={safeTranslate(t, 'superadmin.users.fields.isSuperAdmin')}>
                     <label className="flex items-center gap-2 text-sm">
                       <input type="checkbox" {...form.register('is_super_admin')} />
-                      {t('superadmin.users.superAdminHint')}
+                      {safeTranslate(t, 'superadmin.users.superAdminHint')}
                     </label>
                   </FormField>
                 </FormGrid>
               </TabsContent>
 
+              {schemaFields.length > 0 && (
+                <TabsContent value="registration" className="mt-0">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-4">
+                        {targetTenant
+                          ? safeTranslate(t, 'superadmin.users.registrationFields.title', { tenant: targetTenant.name })
+                          : safeTranslate(t, 'superadmin.users.registrationFields.titleDefault')}
+                      </h3>
+                      <FormGrid columns={2}>
+                        {schemaFields.map(field => {
+                          const fieldLabel = resolveSchemaLabel(field.label, i18n.language, field.id);
+                          const fieldOptions = field.options
+                            ? field.options.map(opt => ({
+                                value: opt.value,
+                                label: resolveSchemaLabel(opt.label, i18n.language, opt.value)
+                              }))
+                            : undefined;
+
+                          return (
+                            <FormField key={field.id} label={fieldLabel} required={field.required}>
+                              {field.type === 'select' && fieldOptions ? (
+                                <Controller
+                                  name={field.id}
+                                  control={form.control}
+                                  render={({ field: formField }) => (
+                                    <Select {...formField}>
+                                      <option value="">{safeTranslate(t, 'common.select')}</option>
+                                      {fieldOptions.map(option => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </Select>
+                                  )}
+                                />
+                              ) : field.type === 'textarea' ? (
+                                <Controller
+                                  name={field.id}
+                                  control={form.control}
+                                  render={({ field: formField }) => (
+                                    <Textarea
+                                      {...formField}
+                                      className={cn(form.formState.errors[field.id] && 'border-destructive')}
+                                    />
+                                  )}
+                                />
+                              ) : (
+                                <Controller
+                                  name={field.id}
+                                  control={form.control}
+                                  render={({ field: formField }) => (
+                                    <Input
+                                      {...formField}
+                                      className={cn(form.formState.errors[field.id] && 'border-destructive')}
+                                    />
+                                  )}
+                                />
+                              )}
+                              {form.formState.errors[field.id] ? (
+                                <p className="text-xs text-destructive">
+                                  {String(form.formState.errors[field.id]?.message)}
+                                </p>
+                              ) : null}
+                            </FormField>
+                          );
+                        })}
+                      </FormGrid>
+                    </div>
+                  </div>
+                </TabsContent>
+              )}
+
               <TabsContent value="tenants" className="mt-0">
                 <section className="space-y-4">
                   <h3 className="text-sm font-semibold uppercase text-muted-foreground">
-                    {t('superadmin.users.tenantAccess')}
+                    {safeTranslate(t, 'superadmin.users.tenantAccess')}
                   </h3>
                   {tenants.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('superadmin.users.noTenantsAvailable')}</p>
+                    <p className="text-sm text-muted-foreground">{safeTranslate(t, 'superadmin.users.noTenantsAvailable')}</p>
                   ) : (
                     <div className="space-y-4">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div className="space-y-2">
-                          <h4 className="text-sm font-semibold">{t('superadmin.users.tenantsTab.available')}</h4>
+                          <h4 className="text-sm font-semibold">{safeTranslate(t, 'superadmin.users.tenantsTab.available')}</h4>
                           <div className="rounded-md border bg-background">
                             {availableTenants.length === 0 ? (
                               <p className="px-4 py-3 text-sm text-muted-foreground">
-                                {t('superadmin.users.tenantsTab.emptyAvailable')}
+                                {safeTranslate(t, 'superadmin.users.tenantsTab.emptyAvailable')}
                               </p>
                             ) : (
                               <ul className="max-h-64 divide-y overflow-y-auto">
@@ -368,7 +581,7 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                                       <p className="text-xs text-muted-foreground">{tenant.slug}</p>
                                     </div>
                                     <Button type="button" size="sm" onClick={() => handleAddTenant(tenant.id)}>
-                                      {t('superadmin.users.tenantsTab.add')}
+                                      {safeTranslate(t, 'superadmin.users.tenantsTab.add')}
                                     </Button>
                                   </li>
                                 ))}
@@ -377,11 +590,11 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <h4 className="text-sm font-semibold">{t('superadmin.users.tenantsTab.selected')}</h4>
+                          <h4 className="text-sm font-semibold">{safeTranslate(t, 'superadmin.users.tenantsTab.selected')}</h4>
                           <div className="rounded-md border bg-background">
                             {selectedTenants.length === 0 ? (
                               <p className="px-4 py-3 text-sm text-muted-foreground">
-                                {t('superadmin.users.tenantsTab.emptySelected')}
+                                {safeTranslate(t, 'superadmin.users.tenantsTab.emptySelected')}
                               </p>
                             ) : (
                               <ul className="max-h-64 divide-y overflow-y-auto">
@@ -397,7 +610,7 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                                       variant="outline"
                                       onClick={() => handleRemoveTenant(tenant.id)}
                                     >
-                                      {t('superadmin.users.tenantsTab.remove')}
+                                      {safeTranslate(t, 'superadmin.users.tenantsTab.remove')}
                                     </Button>
                                   </li>
                                 ))}
@@ -409,8 +622,8 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
 
                       {selectedTenants.length > 0 ? (
                         <div className="space-y-3">
-                          <h4 className="text-sm font-semibold">{t('superadmin.users.roles.title')}</h4>
-                          <p className="text-xs text-muted-foreground">{t('superadmin.users.roles.description')}</p>
+                          <h4 className="text-sm font-semibold">{safeTranslate(t, 'superadmin.users.roles.title')}</h4>
+                          <p className="text-xs text-muted-foreground">{safeTranslate(t, 'superadmin.users.roles.description')}</p>
                           <div className="space-y-3">
                             {selectedTenants.map(tenant => {
                               const tenantKey = String(tenant.id);
@@ -435,19 +648,19 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
                                                 handleToggleTenantRole(tenant.id, scope, event.target.checked)
                                               }
                                             />
-                                            <span>{t(`superadmin.users.roleLabels.${scope}`)}</span>
+                                            <span>{safeTranslate(t, `superadmin.users.roleLabels.${scope}`, { defaultValue: scope })}</span>
                                           </label>
                                         );
                                       })}
                                     </div>
                                   ) : (
                                     <p className="mt-2 text-xs text-muted-foreground">
-                                      {t('superadmin.users.roles.noOptions')}
+                                      {safeTranslate(t, 'superadmin.users.roles.noOptions')}
                                     </p>
                                   )}
                                   {selectedScopes.length === 0 ? (
                                     <p className="mt-2 text-xs text-muted-foreground">
-                                      {t('superadmin.users.roles.empty')}
+                                      {safeTranslate(t, 'superadmin.users.roles.empty')}
                                     </p>
                                   ) : null}
                                 </div>
@@ -467,10 +680,10 @@ export function UserModal({ mode, user, open, onClose, onSubmit, isSubmitting, t
 
           <DialogFooter className="px-6 pb-6 pt-4 border-t">
             <Button type="button" variant="outline" onClick={handleClose}>
-              {t('common.cancel')}
+              {safeTranslate(t, 'common.cancel')}
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('common.loading') : t('common.save')}
+              {isSubmitting ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'common.save')}
             </Button>
           </DialogFooter>
         </form>

@@ -3,9 +3,23 @@
  * Si un recurso no tiene descripción, se genera una basada en el nombre del archivo.
  * 
  * Dependencias: requiere que la migración 0006-add-asset-description.js haya sido ejecutada.
+ * IMPORTANTE: Este seeder es idempotente y verifica la existencia de la columna antes de usarla.
  */
 
 export async function up(queryInterface) {
+  // Verificar que la columna description existe (debe existir después de la migración 0006)
+  const tableDescription = await queryInterface.describeTable('event_assets').catch(() => null);
+  
+  if (!tableDescription) {
+    throw new Error('La tabla event_assets no existe. Ejecuta primero las migraciones.');
+  }
+
+  if (!tableDescription.description) {
+    console.log('⚠ La columna description no existe en la tabla event_assets. Este seeder requiere la migración 0006-add-asset-description.js');
+    console.log('⚠ Omitiendo este seeder. Los assets se crearán sin descripción hasta que se ejecute la migración correspondiente.');
+    return;
+  }
+
   // Obtener todos los assets sin descripción
   const [assets] = await queryInterface.sequelize.query(`
     SELECT id, name, original_filename, url

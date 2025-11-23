@@ -5,12 +5,15 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/utils/cn';
 import { formatDate, formatDateRange } from '@/utils/date';
+import { safeTranslate } from '@/utils/i18n-helpers';
+import { getMultilingualText } from '@/utils/multilingual';
+import type { MultilingualText } from '@/services/events';
 
 type EventLike =
   | {
       id: number | string;
-      name: string;
-      description?: string | null;
+      name: MultilingualText | string;
+      description?: MultilingualText | string | null;
       start_date: string;
       end_date: string;
       status?: string | null;
@@ -22,8 +25,8 @@ type EventLike =
     }
   | {
       id: number | string;
-      name: string;
-      description?: string | null;
+      name: MultilingualText | string;
+      description?: MultilingualText | string | null;
       startDate: string;
       endDate: string;
       status?: string | null;
@@ -126,8 +129,13 @@ export function EventCard({ event, to, className, actions, children, showVideo =
   const showVisibility = normalized.isPublic !== null && normalized.isPublic !== undefined;
   const publishWindowAvailable = Boolean(normalized.publishStartAt && normalized.publishEndAt);
 
+  // Convertir el nombre y descripción del evento a string usando getMultilingualText
+  const currentLang = useMemo(() => (locale.split('-')[0] || 'es') as 'es' | 'ca' | 'en', [locale]);
+  const eventName = useMemo(() => getMultilingualText(event.name, currentLang), [event.name, currentLang]);
+  const eventDescription = useMemo(() => getMultilingualText(event.description, currentLang), [event.description, currentLang]);
+
   const statusLabel = normalized.status
-    ? t(`events.status.${normalized.status}`, {
+    ? safeTranslate(t, `events.status.${normalized.status}`, {
         defaultValue: normalized.status.charAt(0).toUpperCase() + normalized.status.slice(1)
       })
     : null;
@@ -136,10 +144,10 @@ export function EventCard({ event, to, className, actions, children, showVideo =
 
   const titleContent = hasActions && to ? (
     <Link to={to} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tenant-primary)] focus-visible:ring-offset-2 rounded">
-      {normalized.name}
+      {eventName}
     </Link>
   ) : (
-    normalized.name
+    eventName
   );
 
   const content = (
@@ -160,7 +168,7 @@ export function EventCard({ event, to, className, actions, children, showVideo =
         </p>
       </CardHeader>
       <CardContent className="space-y-4 text-sm">
-        {normalized.description ? <p className="text-muted-foreground">{normalized.description}</p> : null}
+        {eventDescription ? <p className="text-muted-foreground">{eventDescription}</p> : null}
 
         {showVisibility ? (
           <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
@@ -172,11 +180,11 @@ export function EventCard({ event, to, className, actions, children, showVideo =
                   : 'bg-amber-500/10 text-amber-600'
               )}
             >
-              {normalized.isPublic ? t('events.publicBadge') : t('events.privateBadge')}
+              {normalized.isPublic ? safeTranslate(t, 'events.publicBadge') : safeTranslate(t, 'events.privateBadge')}
             </span>
             {showPublishWindow && publishWindowAvailable ? (
               <span className="text-muted-foreground">
-                {t('events.publishWindow', {
+                {safeTranslate(t, 'events.publishWindow', {
                   start: formatDate(locale, normalized.publishStartAt ?? null),
                   end: formatDate(locale, normalized.publishEndAt ?? null)
                 })}
@@ -188,7 +196,7 @@ export function EventCard({ event, to, className, actions, children, showVideo =
         {videoSrc ? (
           <div className="aspect-video w-full overflow-hidden rounded-lg border border-border/40">
             <iframe
-              title={normalized.name}
+              title={eventName}
               src={videoSrc}
               className="h-full w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
