@@ -335,32 +335,9 @@ else
     warning "No se pudieron pre-instalar dependencias del backend (se intentará al iniciar el contenedor)"
 fi
 
-# Detectar o crear volumen del frontend
-FRONTEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)frontend_node_modules$" | head -n 1)
-if [ -z "$FRONTEND_VOLUME_NAME" ]; then
-    # Intentar crear con el nombre más probable
-    FRONTEND_VOLUME_NAME="${PROJECT_NAME}_frontend_node_modules"
-    if ! docker volume create "$FRONTEND_VOLUME_NAME" >/dev/null 2>&1; then
-        # Si falla, intentar con otro nombre
-        FRONTEND_VOLUME_NAME="frontend_node_modules"
-        docker volume create "$FRONTEND_VOLUME_NAME" >/dev/null 2>&1 || true
-    fi
-    log "Volumen $FRONTEND_VOLUME_NAME creado"
-fi
-
-# Pre-instalar dependencias del frontend
-log "📦 Pre-instalando dependencias del frontend en volumen $FRONTEND_VOLUME_NAME..."
-if docker run --rm \
-    -v "$FRONTEND_VOLUME_NAME:/app/node_modules" \
-    -v "$(pwd)/frontend/package.json:/app/package.json:ro" \
-    -v "$(pwd)/frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" \
-    -w /app \
-    node:22-alpine \
-    sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" >/dev/null 2>&1; then
-    success "Dependencias del frontend pre-instaladas en el volumen"
-else
-    warning "No se pudieron pre-instalar dependencias del frontend (se intentará al iniciar el contenedor)"
-fi
+# Nota: No pre-instalamos dependencias del frontend porque frontend-prod es una imagen estática
+# El frontend en producción se construye durante el build de la imagen Docker
+# y no monta ningún volumen de node_modules (solo el servicio 'frontend' de desarrollo lo hace)
 
 # Levantar servicios
 log "🚀 Levantando servicios..."
@@ -430,62 +407,10 @@ else
     fi
 fi
 
-# Verificar e instalar dependencias en el frontend si el volumen está vacío
-log "📦 Verificando instalación de dependencias en el frontend..."
-# Verificar estado del contenedor
-FRONTEND_CONTAINER_STATUS=$(docker-compose --profile prod ps frontend-prod --format "{{.Status}}" 2>/dev/null || echo "")
-if echo "$FRONTEND_CONTAINER_STATUS" | grep -q "Exited\|Restarting"; then
-    warning "El contenedor frontend-prod no está corriendo correctamente. Verificando logs..."
-    docker-compose --profile prod logs frontend-prod --tail=20
-    log "Intentando instalar dependencias y reiniciar el contenedor..."
-    # Intentar instalar dependencias usando docker run temporal
-    FRONTEND_VOLUME_NAME=$(docker volume ls --format "{{.Name}}" | grep -E "(^|_)frontend_node_modules$" | head -n 1)
-    if [ -n "$FRONTEND_VOLUME_NAME" ]; then
-        log "Instalando dependencias en el volumen $FRONTEND_VOLUME_NAME usando contenedor temporal..."
-        if docker run --rm -v "$FRONTEND_VOLUME_NAME:/app/node_modules" -v "$(pwd)/frontend/package.json:/app/package.json:ro" -v "$(pwd)/frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml:ro" -w /app node:22-alpine sh -c "npm install -g pnpm@10.21.0 && pnpm install --frozen-lockfile" 2>&1; then
-            success "Dependencias del frontend instaladas en el volumen"
-            log "Reiniciando contenedor frontend-prod..."
-            docker-compose --profile prod restart frontend-prod
-            sleep 5
-        else
-            error "Error al instalar dependencias del frontend en el volumen"
-            exit 1
-        fi
-    fi
-fi
-
-# Esperar a que el contenedor del frontend esté completamente iniciado
-for i in {1..10}; do
-    if docker-compose --profile prod exec -T frontend-prod sh -c "test -d /app" 2>/dev/null; then
-        break
-    fi
-    if [ $i -eq 10 ]; then
-        error "Timeout esperando que el contenedor frontend-prod esté listo"
-        log "🔍 Verificando logs del frontend-prod..."
-        docker-compose --profile prod logs frontend-prod --tail=20
-        exit 1
-    fi
-    sleep 2
-done
-
-# Verificar si las dependencias están instaladas en el frontend
-if docker-compose --profile prod exec -T frontend-prod sh -c "test -d node_modules/react" 2>/dev/null; then
-    success "Dependencias del frontend verificadas correctamente"
-else
-    warning "Dependencias del frontend no encontradas en el volumen, instalando..."
-    # Instalar dependencias en el volumen
-    if docker-compose --profile prod exec -T frontend-prod pnpm install --frozen-lockfile; then
-        success "Dependencias del frontend instaladas correctamente en el volumen"
-        log "Reiniciando contenedor frontend-prod para aplicar cambios..."
-        docker-compose --profile prod restart frontend-prod
-        sleep 5
-    else
-        error "Error al instalar dependencias del frontend"
-        log "🔍 Verificando logs del frontend-prod..."
-        docker-compose --profile prod logs frontend-prod --tail=20
-        exit 1
-    fi
-fi
+# Nota: frontend-prod no necesita verificación de dependencias porque es una imagen estática
+# El frontend en producción se construye durante el build de la imagen Docker
+# y no monta ningún volumen de node_modules
+log "ℹ️  Frontend-prod es una imagen estática, no requiere verificación de dependencias"
 
 # Verificar health checks de Docker
 log "🏥 Verificando health checks de Docker..."
