@@ -83,6 +83,25 @@ function normalizeEventPayload(body) {
     payload.description_html = normalizeMultilingualHtml(payload.description_html);
   }
 
+  // Convertir fechas a objetos Date (Sequelize requiere Date para campos DATE)
+  if (Object.hasOwn(payload, 'start_date')) {
+    payload.start_date = toDateOrNull(payload.start_date);
+    if (!payload.start_date) {
+      const error = new Error('La fecha de inicio es obligatoria y debe ser válida');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (Object.hasOwn(payload, 'end_date')) {
+    payload.end_date = toDateOrNull(payload.end_date);
+    if (!payload.end_date) {
+      const error = new Error('La fecha de fin es obligatoria y debe ser válida');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   if (Object.hasOwn(payload, 'video_url')) {
     if (!payload.video_url || (typeof payload.video_url === 'string' && payload.video_url.trim() === '')) {
       payload.video_url = null;
@@ -92,15 +111,11 @@ function normalizeEventPayload(body) {
   }
 
   if (Object.hasOwn(payload, 'publish_start_at')) {
-    if (!payload.publish_start_at) {
-      payload.publish_start_at = null;
-    }
+    payload.publish_start_at = toDateOrNull(payload.publish_start_at);
   }
 
   if (Object.hasOwn(payload, 'publish_end_at')) {
-    if (!payload.publish_end_at) {
-      payload.publish_end_at = null;
-    }
+    payload.publish_end_at = toDateOrNull(payload.publish_end_at);
   }
 
   if (payload.is_public === false) {
@@ -479,13 +494,14 @@ export class EventsController {
       const payload = normalizeEventPayload(req.body);
       const event = await Event.create({
         ...payload,
+        tenant_id: req.tenant.id,
         created_by: req.user.id
       });
 
       logger.info('Evento creado', { eventId: event.id, tenantId: req.tenant.id });
       return successResponse(res, event, 201);
     } catch (error) {
-      logger.error('Error creando evento', { error: error.message });
+      logger.error('Error creando evento', { error: error.message, stack: error.stack });
       const statusCode = error.statusCode ?? 500;
       return res.status(statusCode).json({
         success: false,

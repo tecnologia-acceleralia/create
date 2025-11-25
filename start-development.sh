@@ -321,28 +321,37 @@ get_env_file_values() {
         exit 1
     fi
     
-    declare -A values
+    # Cargar variables de entorno de forma compatible con bash 3.x
+    # Lee el archivo línea por línea y exporta las variables
     while IFS= read -r line || [[ -n "$line" ]]; do
+        # Eliminar espacios al inicio y final
         line=$(echo "$line" | xargs)
+        
+        # Saltar líneas vacías o comentarios
         if [[ -z "$line" || "$line" =~ ^# ]]; then
             continue
         fi
+        
+        # Extraer clave y valor
         if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
             local key="${BASH_REMATCH[1]}"
             local value="${BASH_REMATCH[2]}"
+            
+            # Eliminar espacios alrededor de clave y valor
             key=$(echo "$key" | xargs)
             value=$(echo "$value" | xargs)
+            
+            # Eliminar comillas si están presentes
             if [[ "$value" =~ ^\"(.*)\"$ ]]; then
                 value="${BASH_REMATCH[1]}"
+            elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
             fi
-            values["$key"]="$value"
+            
+            # Exportar la variable
+            export "${key}=${value}"
         fi
     done < "$file_path"
-    
-    # Exportar valores como variables de entorno temporales
-    for key in "${!values[@]}"; do
-        export "${key}=${values[$key]}"
-    fi
 }
 
 wait_for_database() {
@@ -371,7 +380,7 @@ initialize_database() {
     fi
     
     # Cargar variables de entorno
-    source <(grep -v '^#' "$env_file_path" | grep '=' | sed 's/^/export /')
+    get_env_file_values "$env_file_path"
     
     local root_password="${MYSQL_ROOT_PASSWORD:-}"
     if [[ -z "$root_password" ]]; then
@@ -444,7 +453,7 @@ reset_database() {
     fi
     
     # Cargar variables de entorno
-    source <(grep -v '^#' "$env_file_path" | grep '=' | sed 's/^/export /')
+    get_env_file_values "$env_file_path"
     
     write_info "Reseteando base de datos (eliminando y recreando)"
     
@@ -673,7 +682,7 @@ new_backup() {
             should_dump_database=false
         else
             # Cargar variables de entorno
-            source <(grep -v '^#' "$env_file_path" | grep '=' | sed 's/^/export /')
+            get_env_file_values "$env_file_path"
             
             local root_password="${MYSQL_ROOT_PASSWORD:-}"
             if [[ -z "$root_password" ]]; then
@@ -1031,7 +1040,7 @@ main() {
         if [[ -z "$line" ]]; then
             continue
         fi
-        if [[ "$line" =~ ^R.*->.* ]]; then
+        if [[ "$line" =~ ^R.*-\>.* ]]; then
             # Archivo renombrado
             local parts=(${line//->/ })
             for part in "${parts[@]}"; do
@@ -1047,7 +1056,9 @@ main() {
         fi
     done
     
-    local all_changes=("${pending_remote_changes[@]}" "${local_changes[@]}")
+    local all_changes=()
+    [[ ${#pending_remote_changes[@]} -gt 0 ]] && all_changes+=("${pending_remote_changes[@]}")
+    [[ ${#local_changes[@]} -gt 0 ]] && all_changes+=("${local_changes[@]}")
     # Eliminar duplicados y ordenar
     all_changes=($(printf '%s\n' "${all_changes[@]}" | sort -u))
     

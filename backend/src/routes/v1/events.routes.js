@@ -18,16 +18,77 @@ eventsRouter.post(
   '/',
   authorizeRoles('tenant_admin'),
   [
-    body('name').isString().notEmpty(),
-    body('description').optional().isString(),
-    body('start_date').isISO8601(),
-    body('end_date').isISO8601(),
+    // Aceptar name como string o objeto multiidioma
+    body('name')
+      .custom((value) => {
+        if (typeof value === 'string') {
+          return value.trim().length > 0;
+        }
+        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          // Verificar que tenga al menos una propiedad con valor no vacío
+          return Object.values(value).some(v => typeof v === 'string' && v.trim().length > 0);
+        }
+        return false;
+      })
+      .withMessage('El nombre es obligatorio'),
+    body('description').optional(),
+    // Aceptar fechas en formato ISO8601 (incluye YYYY-MM-DD de input type="date")
+    body('start_date')
+      .custom((value) => {
+        if (!value) return false;
+        // Aceptar formato ISO8601 completo o YYYY-MM-DD
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de inicio debe ser válida (formato ISO8601)'),
+    body('end_date')
+      .custom((value) => {
+        if (!value) return false;
+        // Aceptar formato ISO8601 completo o YYYY-MM-DD
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de fin debe ser válida (formato ISO8601)'),
     body('min_team_size').optional().isInt({ min: 1 }),
     body('max_team_size').optional().isInt({ min: 1 }),
     body('video_url').optional({ checkFalsy: true }).isURL().withMessage('URL de video inválida'),
     body('is_public').optional().isBoolean().toBoolean(),
-    body('publish_start_at').optional({ checkFalsy: true }).isISO8601().toDate(),
-    body('publish_end_at').optional({ checkFalsy: true }).isISO8601().toDate(),
+    body('publish_start_at')
+      .optional({ checkFalsy: true })
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de inicio de publicación debe ser válida (formato ISO8601)'),
+    body('publish_end_at')
+      .optional({ checkFalsy: true })
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de fin de publicación debe ser válida (formato ISO8601)'),
     body().custom(value => {
       if (value.is_public && (!value.publish_start_at || !value.publish_end_at)) {
         throw new Error('Las fechas de publicación son obligatorias para eventos públicos');
@@ -130,14 +191,62 @@ eventsRouter.put(
         return false;
       })
       .withMessage('La descripción debe ser un string, un objeto multiidioma o null'),
-    body('start_date').optional().isISO8601(),
-    body('end_date').optional().isISO8601(),
+    body('start_date')
+      .optional()
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de inicio debe ser válida (formato ISO8601)'),
+    body('end_date')
+      .optional()
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de fin debe ser válida (formato ISO8601)'),
     body('min_team_size').optional().isInt({ min: 1 }),
     body('max_team_size').optional().isInt({ min: 1 }),
     body('video_url').optional({ checkFalsy: true }).isURL().withMessage('URL de video inválida'),
     body('is_public').optional().isBoolean().toBoolean(),
-    body('publish_start_at').optional({ checkFalsy: true }).isISO8601().toDate(),
-    body('publish_end_at').optional({ checkFalsy: true }).isISO8601().toDate(),
+    body('publish_start_at')
+      .optional({ checkFalsy: true })
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de inicio de publicación debe ser válida (formato ISO8601)'),
+    body('publish_end_at')
+      .optional({ checkFalsy: true })
+      .custom((value) => {
+        if (!value) return true;
+        const iso8601Regex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?(Z|[+-]\d{2}:\d{2})?)?$/;
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (typeof value === 'string' && (iso8601Regex.test(value) || dateOnlyRegex.test(value))) {
+          const date = new Date(value);
+          return !isNaN(date.getTime());
+        }
+        return false;
+      })
+      .withMessage('La fecha de fin de publicación debe ser válida (formato ISO8601)'),
     body().custom(value => {
       if (value.is_public && (!value.publish_start_at || !value.publish_end_at)) {
         throw new Error('Las fechas de publicación son obligatorias para eventos públicos');
