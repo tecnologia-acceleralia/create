@@ -1032,6 +1032,12 @@ main() {
     invoke_audit_fix "$SCRIPT_ROOT/frontend" pnpm audit fix
     
     local local_changes=()
+    
+    # Asegura que el array exista aun si SKIP_GIT=true o si el shell ignora la
+    # declaracion previa (evita errores con set -u en zsh).
+    if [[ -z ${local_changes_raw+x} ]]; then
+        local_changes_raw=()
+    fi
     if [[ "$SKIP_GIT" != true ]]; then
         local_changes_raw=($(invoke_cli_output git status --porcelain 2>/dev/null || echo ""))
     fi
