@@ -9,6 +9,32 @@ import { authenticate } from '../../middleware/auth.middleware.js';
 import { authorizeRoles } from '../../middleware/authorization.middleware.js';
 import { validateRequest } from '../../middleware/validation.middleware.js';
 
+const isMultilingualObject = (value) =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const validateRequiredMultilingual = (value) => {
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+  if (isMultilingualObject(value) && typeof value.es === 'string' && value.es.trim().length > 0) {
+    return true;
+  }
+  throw new Error('El campo debe incluir al menos texto en español');
+};
+
+const validateOptionalMultilingual = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return true;
+  }
+  if (typeof value === 'string') {
+    return true;
+  }
+  if (isMultilingualObject(value) && typeof value.es === 'string') {
+    return true;
+  }
+  throw new Error('Formato de campo multiidioma inválido');
+};
+
 export const eventsRouter = Router();
 
 eventsRouter.use(authenticate);
@@ -278,10 +304,21 @@ eventsRouter.post(
   authorizeRoles('tenant_admin'),
   [
     param('eventId').isInt(),
-    body('name').isString().notEmpty(),
-    body('description').optional({ nullable: true }).isString(),
-    body('intro_html').optional({ nullable: true }).isString(),
-    body('order_index').optional().isInt({ min: 1 }),
+    body('name').custom(validateRequiredMultilingual),
+    body('description').optional({ nullable: true }).custom(validateOptionalMultilingual),
+    body('intro_html').optional({ nullable: true }).custom(validateOptionalMultilingual),
+    body('order_index')
+      .optional({ nullable: true, checkFalsy: true })
+      .custom(value => {
+        if (value === null || value === undefined || value === '') return true;
+        const num = Number(value);
+        return Number.isInteger(num) && num >= 1;
+      })
+      .customSanitizer(value => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number.parseInt(value, 10);
+        return Number.isNaN(num) ? null : num;
+      }),
     body('is_elimination').optional().isBoolean(),
     body('start_date')
       .optional({ nullable: true, checkFalsy: true })
@@ -326,10 +363,21 @@ eventsRouter.put(
   [
     param('eventId').isInt(),
     param('phaseId').isInt(),
-    body('name').optional().isString().notEmpty(),
-    body('description').optional({ nullable: true }).isString(),
-    body('intro_html').optional({ nullable: true }).isString(),
-    body('order_index').optional().isInt({ min: 1 }),
+    body('name').optional().custom(validateRequiredMultilingual),
+    body('description').optional({ nullable: true }).custom(validateOptionalMultilingual),
+    body('intro_html').optional({ nullable: true }).custom(validateOptionalMultilingual),
+    body('order_index')
+      .optional({ nullable: true, checkFalsy: true })
+      .custom(value => {
+        if (value === null || value === undefined || value === '') return true;
+        const num = Number(value);
+        return Number.isInteger(num) && num >= 1;
+      })
+      .customSanitizer(value => {
+        if (value === null || value === undefined || value === '') return null;
+        const num = Number.parseInt(value, 10);
+        return Number.isNaN(num) ? null : num;
+      }),
     body('is_elimination').optional().isBoolean(),
     body('start_date')
       .optional({ nullable: true, checkFalsy: true })

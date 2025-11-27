@@ -871,6 +871,7 @@ export class EventsController {
       const payload = {
         ...req.body,
         event_id: event.id,
+        tenant_id: req.tenant?.id ?? null,
         order_index: req.body.order_index ?? count + 1
       };
       // Normalizar campos multiidioma
