@@ -648,9 +648,18 @@ export class AuthController {
       }
 
       // Verificar campos faltantes del schema del tenant
+      // Solo se verifica para usuarios que no son super admins ni tenant admins/organizers
       let tenantMissingFields = [];
       let tenantRegistrationSchema = null;
-      if (tenant.registration_schema) {
+      
+      // Obtener los scopes del usuario en el tenant activo
+      const userRoleScopes = new Set(
+        activeMembership?.assignedRoles?.map(role => role.scope) ?? []
+      );
+      const isAdminOrOrganizer = userRoleScopes.has('tenant_admin') || userRoleScopes.has('organizer');
+      
+      // Saltar verificación de campos faltantes para super admins y admins/organizers
+      if (!user.is_super_admin && !isAdminOrOrganizer && tenant.registration_schema) {
         if (typeof tenant.registration_schema === 'object') {
           tenantRegistrationSchema = tenant.registration_schema;
         } else if (typeof tenant.registration_schema === 'string') {
@@ -660,12 +669,12 @@ export class AuthController {
             tenantRegistrationSchema = null;
           }
         }
-      }
 
-      if (tenantRegistrationSchema) {
-        tenantMissingFields = checkMissingRequiredFields(tenantRegistrationSchema, {
-          registration_answers: user.registration_answers || {}
-        });
+        if (tenantRegistrationSchema) {
+          tenantMissingFields = checkMissingRequiredFields(tenantRegistrationSchema, {
+            registration_answers: user.registration_answers || {}
+          });
+        }
       }
 
       // Verificar campos faltantes del schema del evento si se proporciona event_id
