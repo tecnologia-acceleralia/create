@@ -387,6 +387,7 @@
     "editTask": "Edit task",
     "createTask": "Create task",
     "taskUpdated": "Task updated successfully",
+    "taskDeleted": "Task deleted successfully",
     "editRubric": "Edit rubric",
     "createRubric": "Create rubric",
     "confirmDeletePhase": "Are you sure you want to delete this phase?",

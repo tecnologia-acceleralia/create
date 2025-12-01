@@ -6,6 +6,7 @@ import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Download, Upload } from 'lucide-react';
+import { isAxiosError } from 'axios';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner, EmptyState, CardWithActions } from '@/components/common';
@@ -345,7 +346,14 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       toast.success(safeTranslate(t, 'events.phaseDeleted'));
       void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
     },
-    onError: () => toast.error(safeTranslate(t, 'common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || safeTranslate(t, 'common.error');
+        toast.error(message);
+      } else {
+        toast.error(safeTranslate(t, 'common.error'));
+      }
+    }
   });
 
   // Mutaciones de tareas

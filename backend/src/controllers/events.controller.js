@@ -3,7 +3,7 @@ import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { toInt, toDateOrNull } from '../utils/parsers.js';
 import { findEventOr404 } from '../utils/finders.js';
-import { successResponse, badRequestResponse, notFoundResponse } from '../utils/response.js';
+import { successResponse, badRequestResponse, notFoundResponse, conflictResponse } from '../utils/response.js';
 import { resolveAssetMarkers, resolveYouTubeUrls } from '../services/content.service.js';
 import { sanitizeMultilingualHtml, sanitizeHtmlContent } from '../utils/html-sanitizer.js';
 import { copyEventAsset } from '../services/tenant-assets.service.js';
@@ -976,13 +976,25 @@ export class EventsController {
 
   static async deletePhase(req, res, next) {
     try {
-      const { Phase } = getModels();
+      const { Phase, Task } = getModels();
       const phase = await Phase.findOne({
         where: { id: toInt(req.params.phaseId), event_id: toInt(req.params.eventId) }
       });
 
       if (!phase) {
         return notFoundResponse(res, 'Fase no encontrada');
+      }
+
+      // Verificar si hay tareas asociadas
+      const taskCount = await Task.count({
+        where: { phase_id: phase.id }
+      });
+
+      if (taskCount > 0) {
+        return conflictResponse(
+          res,
+          'No se puede eliminar la fase porque tiene tareas asociadas. Por favor, elimina primero las tareas.'
+        );
       }
 
       await phase.destroy();

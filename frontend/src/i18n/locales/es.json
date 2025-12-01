@@ -387,6 +387,7 @@
     "editTask": "Editar tarea",
     "createTask": "Crear tarea",
     "taskUpdated": "Tarea actualizada correctamente",
+    "taskDeleted": "Tarea eliminada correctamente",
     "editRubric": "Editar rúbrica",
     "createRubric": "Crear rúbrica",
     "confirmDeletePhase": "¿Estás seguro de que quieres eliminar esta fase?",
