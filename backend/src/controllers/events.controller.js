@@ -1264,6 +1264,7 @@ export class EventsController {
 
           // Preparar payload de la fase
           const phasePayload = {
+            tenant_id: event.tenant_id, // Agregar tenant_id del evento
             event_id: event.id,
             name: normalizeMultilingualField(phaseData.name),
             description: normalizeMultilingualText(phaseData.description),
@@ -1278,7 +1279,7 @@ export class EventsController {
 
           // Validar fechas
           if (phasePayload.start_date && phasePayload.end_date && phasePayload.start_date > phasePayload.end_date) {
-            errors.push(`Fase "${phaseName}": la fecha de fin debe ser posterior o igual a la fecha de inicio`);
+            errors.push(`Fase "${phaseData.name}": la fecha de fin debe ser posterior o igual a la fecha de inicio`);
             continue;
           }
 
@@ -1298,6 +1299,7 @@ export class EventsController {
                 }
 
                 const taskPayload = {
+                  tenant_id: event.tenant_id, // Agregar tenant_id del evento
                   event_id: event.id,
                   phase_id: phase.id,
                   title: normalizeMultilingualField(taskData.title),
@@ -1321,7 +1323,7 @@ export class EventsController {
             }
           }
         } catch (phaseError) {
-          errors.push(`Fase "${phaseName || i + 1}": ${phaseError.message}`);
+          errors.push(`Fase "${phaseData.name || i + 1}": ${phaseError.message}`);
         }
       }
 

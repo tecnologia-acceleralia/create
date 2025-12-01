@@ -883,7 +883,121 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
           return;
         }
 
-        const result = await importPhasesAndTasks(eventId, importData, replace);
+        // Normalizar los datos: convertir objetos multilingües a strings
+        const normalizeMultilingual = (value: unknown): string | null => {
+          if (value === null || value === undefined) return null;
+          if (typeof value === 'string') return value;
+          if (typeof value === 'object' && !Array.isArray(value)) {
+            // Es un objeto multilingüe, extraer español o el primer valor
+            const obj = value as Record<string, unknown>;
+            return (obj.es || obj.ca || obj.en || Object.values(obj)[0] || '') as string;
+          }
+          return String(value);
+        };
+
+        const normalizedData: PhaseTaskExportData = {
+          ...importData,
+          event_name: typeof importData.event_name === 'string' 
+            ? importData.event_name 
+            : normalizeMultilingual(importData.event_name) || '',
+          phases: importData.phases.map(phase => {
+            const normalizedPhase: any = {
+              name: normalizeMultilingual(phase.name) || '',
+              order_index: phase.order_index,
+              is_elimination: phase.is_elimination,
+              tasks: phase.tasks?.map(task => {
+                const normalizedTask: any = {
+                  title: normalizeMultilingual(task.title) || '',
+                  delivery_type: task.delivery_type,
+                  is_required: task.is_required,
+                  status: task.status,
+                  order_index: task.order_index,
+                  max_files: task.max_files
+                };
+                
+                // Solo agregar campos opcionales si no son null
+                const taskDescription = phase.description !== undefined ? normalizeMultilingual(task.description) : undefined;
+                if (taskDescription !== null && taskDescription !== undefined) {
+                  normalizedTask.description = taskDescription;
+                }
+                
+                const taskIntroHtml = task.intro_html !== undefined ? normalizeMultilingual(task.intro_html) : undefined;
+                if (taskIntroHtml !== null && taskIntroHtml !== undefined) {
+                  normalizedTask.intro_html = taskIntroHtml;
+                }
+                
+                if (task.due_date !== null && task.due_date !== undefined) {
+                  normalizedTask.due_date = task.due_date;
+                }
+                
+                if (task.max_file_size_mb !== null && task.max_file_size_mb !== undefined) {
+                  normalizedTask.max_file_size_mb = task.max_file_size_mb;
+                }
+                
+                if (task.allowed_mime_types !== null && task.allowed_mime_types !== undefined) {
+                  normalizedTask.allowed_mime_types = task.allowed_mime_types;
+                }
+                
+                return normalizedTask;
+              }) || []
+            };
+            
+            // Solo agregar campos opcionales de fase si no son null
+            const phaseDescription = phase.description !== undefined ? normalizeMultilingual(phase.description) : undefined;
+            if (phaseDescription !== null && phaseDescription !== undefined) {
+              normalizedPhase.description = phaseDescription;
+            }
+            
+            const phaseIntroHtml = phase.intro_html !== undefined ? normalizeMultilingual(phase.intro_html) : undefined;
+            if (phaseIntroHtml !== null && phaseIntroHtml !== undefined) {
+              normalizedPhase.intro_html = phaseIntroHtml;
+            }
+            
+            if (phase.start_date !== null && phase.start_date !== undefined) {
+              normalizedPhase.start_date = phase.start_date;
+            }
+            
+            if (phase.end_date !== null && phase.end_date !== undefined) {
+              normalizedPhase.end_date = phase.end_date;
+            }
+            
+            if (phase.view_start_date !== null && phase.view_start_date !== undefined) {
+              normalizedPhase.view_start_date = phase.view_start_date;
+            }
+            
+            if (phase.view_end_date !== null && phase.view_end_date !== undefined) {
+              normalizedPhase.view_end_date = phase.view_end_date;
+            }
+            
+            return normalizedPhase;
+          })
+        };
+
+        // Log temporal para debugging
+        if (import.meta.env.DEV) {
+          console.log('[Import] Datos normalizados:', {
+            phasesCount: normalizedData.phases.length,
+            firstPhase: normalizedData.phases[0] ? {
+              name: normalizedData.phases[0].name,
+              nameType: typeof normalizedData.phases[0].name,
+              description: normalizedData.phases[0].description,
+              descriptionType: typeof normalizedData.phases[0].description,
+              tasksCount: normalizedData.phases[0].tasks?.length || 0,
+              firstTask: normalizedData.phases[0].tasks?.[0] ? {
+                title: normalizedData.phases[0].tasks[0].title,
+                titleType: typeof normalizedData.phases[0].tasks[0].title
+              } : null
+            } : null
+          });
+        }
+
+        const result = await importPhasesAndTasks(eventId, normalizedData, replace);
+        
+        if (!result) {
+          console.error('[Import] Result es undefined');
+          toast.error(safeTranslate(t, 'common.error'));
+          return;
+        }
         
         if (result.success) {
           if (replace) {
@@ -914,10 +1028,16 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
           void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
         }
       } catch (error: any) {
+        console.error('[Import] Error completo:', error);
+        console.error('[Import] Error response:', error?.response);
+        console.error('[Import] Error data:', error?.response?.data);
+        
         if (error instanceof SyntaxError) {
           toast.error(safeTranslate(t, 'events.invalidJsonFile'));
         } else {
-          toast.error(error?.response?.data?.message || safeTranslate(t, 'common.error'));
+          const errorMessage = error?.response?.data?.message || error?.message || safeTranslate(t, 'common.error');
+          console.error('[Import] Mostrando error al usuario:', errorMessage);
+          toast.error(errorMessage);
         }
       } finally {
         setIsImporting(false);
