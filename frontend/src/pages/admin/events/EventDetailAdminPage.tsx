@@ -616,25 +616,36 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     // name es requerido, así que siempre debe tener al menos texto en español
     let cleanedName: MultilingualText | string | undefined;
     if (typeof values.name === 'object' && values.name !== null) {
-      cleanedName = cleanMultilingualValue(values.name, true);
-      // Si cleanMultilingualValue retorna null para un campo requerido, usar el valor original
-      // (la validación del formulario debería haber rechazado esto)
-      if (!cleanedName && values.name.es) {
-        cleanedName = { es: values.name.es.trim() };
-        if (values.name.ca?.trim()) cleanedName.ca = values.name.ca.trim();
-        if (values.name.en?.trim()) cleanedName.en = values.name.en.trim();
+      // Normalizar primero para asegurar que ca y en estén presentes (aunque sean strings vacíos)
+      const normalizedName = normalizeMultilingualValue(values.name);
+      if (normalizedName) {
+        cleanedName = cleanMultilingualValue(normalizedName, true) ?? undefined;
+        // Si cleanMultilingualValue retorna null para un campo requerido, usar el valor normalizado
+        // (la validación del formulario debería haber rechazado esto)
+        if (!cleanedName && normalizedName.es) {
+          cleanedName = { es: normalizedName.es.trim() };
+          if (normalizedName.ca?.trim()) cleanedName.ca = normalizedName.ca.trim();
+          if (normalizedName.en?.trim()) cleanedName.en = normalizedName.en.trim();
+        }
       }
     } else if (typeof values.name === 'string') {
       cleanedName = values.name.trim() || undefined;
     }
 
     // description y description_html son opcionales
-    const cleanedDescription = typeof values.description === 'object' && values.description !== null
-      ? cleanMultilingualValue(values.description, false)
+    // Normalizar primero para asegurar que ca y en estén presentes (aunque sean strings vacíos)
+    const normalizedDescription = typeof values.description === 'object' && values.description !== null
+      ? normalizeMultilingualValue(values.description)
+      : null;
+    const cleanedDescription = normalizedDescription
+      ? cleanMultilingualValue(normalizedDescription, false)
       : (typeof values.description === 'string' && values.description.trim() ? values.description.trim() : undefined);
     
-    const cleanedDescriptionHtml = typeof values.description_html === 'object' && values.description_html !== null
-      ? cleanMultilingualValue(values.description_html, false)
+    const normalizedDescriptionHtml = typeof values.description_html === 'object' && values.description_html !== null
+      ? normalizeMultilingualValue(values.description_html)
+      : null;
+    const cleanedDescriptionHtml = normalizedDescriptionHtml
+      ? cleanMultilingualValue(normalizedDescriptionHtml, false)
       : (typeof values.description_html === 'string' && values.description_html.trim() ? values.description_html.trim() : undefined);
 
     const payload: Partial<Event> = {
