@@ -5,7 +5,6 @@ import { toInt, toDateOrNull } from '../utils/parsers.js';
 import { findEventOr404 } from '../utils/finders.js';
 import { successResponse, badRequestResponse, notFoundResponse, conflictResponse } from '../utils/response.js';
 import { resolveAssetMarkers, resolveYouTubeUrls } from '../services/content.service.js';
-import { sanitizeMultilingualHtml, sanitizeHtmlContent } from '../utils/html-sanitizer.js';
 import { copyEventAsset } from '../services/tenant-assets.service.js';
 
 /**
@@ -60,11 +59,33 @@ function normalizeMultilingualText(value) {
 
 /**
  * Normaliza un campo multiidioma HTML (description_html, intro_html)
- * Aplica sanitización para eliminar código malicioso antes de guardar
+ * Guarda el HTML tal cual sin sanitizar
  */
 function normalizeMultilingualHtml(value) {
-  // Sanitizar el HTML antes de normalizar
-  return sanitizeMultilingualHtml(value);
+  // Guardar el HTML tal cual sin sanitizar
+  if (value === null || value === undefined) {
+    return null;
+  }
+  
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? { es: trimmed } : null;
+  }
+  
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const cleaned = {};
+    for (const [lang, val] of Object.entries(value)) {
+      if (val && typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed.length > 0) {
+          cleaned[lang] = trimmed;
+        }
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : null;
+  }
+  
+  return null;
 }
 
 function normalizeEventPayload(body) {
@@ -551,8 +572,6 @@ export class EventsController {
               if (content && typeof content === 'string') {
                 let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                 langHtml = resolveYouTubeUrls(langHtml);
-                // Sanitizar antes de enviar al frontend
-                langHtml = sanitizeHtmlContent(langHtml);
                 if (langHtml) {
                   processed[lang] = langHtml;
                 }
@@ -564,8 +583,7 @@ export class EventsController {
           } else if (typeof processedHtml === 'string') {
             processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
             processedHtml = resolveYouTubeUrls(processedHtml);
-            // Sanitizar antes de enviar al frontend
-            eventJson.description_html = sanitizeHtmlContent(processedHtml);
+            eventJson.description_html = processedHtml;
           }
         }
         
@@ -584,8 +602,6 @@ export class EventsController {
                     if (/<[a-z][\s\S]*>/i.test(content)) {
                       let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                       langHtml = resolveYouTubeUrls(langHtml);
-                      // Sanitizar antes de enviar al frontend
-                      langHtml = sanitizeHtmlContent(langHtml);
                       if (langHtml) {
                         processed[lang] = langHtml;
                       }
@@ -602,8 +618,7 @@ export class EventsController {
                 // Si es string HTML, procesarlo
                 processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
                 processedDesc = resolveYouTubeUrls(processedDesc);
-                // Sanitizar antes de enviar al frontend
-                phaseJson.description = sanitizeHtmlContent(processedDesc);
+                phaseJson.description = processedDesc;
               }
             }
             
@@ -617,8 +632,6 @@ export class EventsController {
                   if (content && typeof content === 'string') {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -630,8 +643,7 @@ export class EventsController {
               } else if (typeof processedHtml === 'string') {
                 processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
                 processedHtml = resolveYouTubeUrls(processedHtml);
-                // Sanitizar antes de enviar al frontend
-                phaseJson.intro_html = sanitizeHtmlContent(processedHtml);
+                phaseJson.intro_html = processedHtml;
               }
             }
           }
@@ -652,8 +664,6 @@ export class EventsController {
                     if (/<[a-z][\s\S]*>/i.test(content)) {
                       let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                       langHtml = resolveYouTubeUrls(langHtml);
-                      // Sanitizar antes de enviar al frontend
-                      langHtml = sanitizeHtmlContent(langHtml);
                       if (langHtml) {
                         processed[lang] = langHtml;
                       }
@@ -670,8 +680,7 @@ export class EventsController {
                 // Si es string HTML, procesarlo
                 processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
                 processedDesc = resolveYouTubeUrls(processedDesc);
-                // Sanitizar antes de enviar al frontend
-                taskJson.description = sanitizeHtmlContent(processedDesc);
+                taskJson.description = processedDesc;
               }
             }
             
@@ -685,8 +694,6 @@ export class EventsController {
                   if (content && typeof content === 'string') {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -708,19 +715,7 @@ export class EventsController {
                   htmlSample: processedHtml.substring(0, 500)
                 });
                 
-                // Sanitizar antes de enviar al frontend
-                const sanitized = sanitizeHtmlContent(processedHtml);
-                
-                // Log para debug: verificar HTML después de sanitizar
-                logger.debug('HTML de task intro_html después de sanitizar', {
-                  eventId: event.id,
-                  taskId: taskJson.id,
-                  htmlLength: sanitized?.length || 0,
-                  hasSvg: sanitized?.includes('<svg') || false,
-                  htmlSample: sanitized?.substring(0, 500) || null
-                });
-                
-                taskJson.intro_html = sanitized;
+                taskJson.intro_html = processedHtml;
               }
             }
           }
@@ -799,8 +794,6 @@ export class EventsController {
                   if (/<[a-z][\s\S]*>/i.test(content)) {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -817,8 +810,7 @@ export class EventsController {
               // Si es string HTML, procesarlo
               processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
               processedDesc = resolveYouTubeUrls(processedDesc);
-              // Sanitizar antes de enviar al frontend
-              phaseJson.description = sanitizeHtmlContent(processedDesc);
+              phaseJson.description = processedDesc;
             }
           }
           
@@ -832,8 +824,6 @@ export class EventsController {
                 if (content && typeof content === 'string') {
                   let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                   langHtml = resolveYouTubeUrls(langHtml);
-                  // Sanitizar antes de enviar al frontend
-                  langHtml = sanitizeHtmlContent(langHtml);
                   if (langHtml) {
                     processed[lang] = langHtml;
                   }
@@ -845,8 +835,7 @@ export class EventsController {
             } else if (typeof processedHtml === 'string') {
               processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
               processedHtml = resolveYouTubeUrls(processedHtml);
-              // Sanitizar antes de enviar al frontend
-              phaseJson.intro_html = sanitizeHtmlContent(processedHtml);
+              phaseJson.intro_html = processedHtml;
             }
           }
         }
@@ -1028,8 +1017,6 @@ export class EventsController {
                 if (content && typeof content === 'string') {
                   let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                   langHtml = resolveYouTubeUrls(langHtml);
-                  // Sanitizar antes de enviar al frontend
-                  langHtml = sanitizeHtmlContent(langHtml);
                   if (langHtml) {
                     processed[lang] = langHtml;
                   }
@@ -1041,8 +1028,7 @@ export class EventsController {
             } else if (typeof processedHtml === 'string') {
               processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
               processedHtml = resolveYouTubeUrls(processedHtml);
-              // Sanitizar antes de enviar al frontend
-              taskJson.intro_html = sanitizeHtmlContent(processedHtml);
+              taskJson.intro_html = processedHtml;
             }
           }
         }

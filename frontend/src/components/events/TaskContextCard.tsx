@@ -94,14 +94,14 @@ export function TaskContextCard({
         <div className="space-y-3 mt-3">
           {taskDescription ? (
             <div className="mx-auto w-full max-w-4xl">
-              <div className="prose prose-sm max-w-none">
+              <div className="html-content">
                 <div dangerouslySetInnerHTML={{ __html: formatDescriptionAsHtml(taskDescription) }} />
               </div>
             </div>
           ) : null}
           {introHtml ? (
             <div className="mx-auto w-full max-w-4xl">
-              <div className="prose prose-sm max-w-none">
+              <div className="html-content">
                 <div dangerouslySetInnerHTML={{ __html: introHtml }} />
               </div>
             </div>

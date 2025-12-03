@@ -73,3 +73,210 @@
 .cm-scroller {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
+
+/* Estilos para renderizar HTML correctamente (reemplaza la clase prose de Tailwind Typography) */
+.html-content {
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  line-height: 1.7142857;
+}
+
+.html-content h1 {
+  font-size: 2.25em;
+  margin-top: 0;
+  margin-bottom: 0.8888889em;
+  line-height: 1.1111111;
+  font-weight: 800;
+}
+
+.html-content h2 {
+  font-size: 1.5em;
+  margin-top: 2em;
+  margin-bottom: 1em;
+  line-height: 1.3333333;
+  font-weight: 700;
+}
+
+.html-content h3 {
+  font-size: 1.25em;
+  margin-top: 1.6em;
+  margin-bottom: 0.6em;
+  line-height: 1.6;
+  font-weight: 600;
+}
+
+.html-content h4 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.html-content h5 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.html-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.html-content p {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+}
+
+.html-content ul,
+.html-content ol {
+  margin-top: 1.25em;
+  margin-bottom: 1.25em;
+  padding-left: 1.625em;
+}
+
+.html-content ul {
+  list-style-type: disc;
+}
+
+.html-content ol {
+  list-style-type: decimal;
+}
+
+.html-content li {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.html-content strong {
+  font-weight: 600;
+}
+
+.html-content em {
+  font-style: italic;
+}
+
+.html-content a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.html-content a:hover {
+  color: hsl(var(--primary) / 0.8);
+}
+
+.html-content hr {
+  border-color: hsl(var(--border));
+  border-top-width: 1px;
+  margin-top: 3em;
+  margin-bottom: 3em;
+}
+
+.html-content blockquote {
+  font-weight: 500;
+  font-style: italic;
+  color: hsl(var(--foreground));
+  border-left-width: 0.25rem;
+  border-left-color: hsl(var(--border));
+  quotes: "\201C""\201D""\2018""\2019";
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+  padding-left: 1em;
+}
+
+.html-content code {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  font-size: 0.875em;
+  background-color: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.html-content pre {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--muted));
+  overflow-x: auto;
+  font-weight: 400;
+  font-size: 0.875em;
+  line-height: 1.7142857;
+  margin-top: 1.7142857em;
+  margin-bottom: 1.7142857em;
+  border-radius: 0.375rem;
+  padding-top: 0.8571429em;
+  padding-right: 1.1428571em;
+  padding-bottom: 0.8571429em;
+  padding-left: 1.1428571em;
+}
+
+.html-content pre code {
+  background-color: transparent;
+  border-width: 0;
+  border-radius: 0;
+  padding: 0;
+  font-weight: inherit;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: inherit;
+}
+
+.html-content table {
+  width: 100%;
+  table-layout: auto;
+  text-align: left;
+  margin-top: 2em;
+  margin-bottom: 2em;
+  font-size: 0.875em;
+  line-height: 1.7142857;
+}
+
+.html-content thead {
+  border-bottom-width: 1px;
+  border-bottom-color: hsl(var(--border));
+}
+
+.html-content thead th {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  vertical-align: bottom;
+  padding-right: 0.5714286em;
+  padding-bottom: 0.5714286em;
+  padding-left: 0.5714286em;
+}
+
+.html-content tbody tr {
+  border-bottom-width: 1px;
+  border-bottom-color: hsl(var(--border));
+}
+
+.html-content tbody td {
+  vertical-align: baseline;
+  padding-top: 0.5714286em;
+  padding-right: 0.5714286em;
+  padding-bottom: 0.5714286em;
+  padding-left: 0.5714286em;
+}
+
+.html-content img {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  max-width: 100%;
+  height: auto;
+}
+
+.html-content video {
+  margin-top: 2em;
+  margin-bottom: 2em;
+  max-width: 100%;
+}
+
+.html-content br {
+  display: block;
+  content: "";
+  margin-top: 0.5em;
+}

@@ -17,7 +17,7 @@ export function EventDescriptionTab({ event }: EventDescriptionTabProps) {
   if (!descriptionHtml) {
     return (
       <div className="mx-auto w-full max-w-4xl">
-        <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
+        <div className="rounded-2xl border border-border/70 bg-card/80 p-6">
           <p className="text-muted-foreground">No hay descripción disponible para este evento.</p>
         </div>
       </div>
@@ -26,8 +26,11 @@ export function EventDescriptionTab({ event }: EventDescriptionTabProps) {
 
   return (
     <div className="mx-auto w-full max-w-4xl">
-      <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
-        <div dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+      <div className="rounded-2xl border border-border/70 bg-card/80 p-6">
+        <div 
+          className="html-content"
+          dangerouslySetInnerHTML={{ __html: descriptionHtml }} 
+        />
       </div>
     </div>
   );
