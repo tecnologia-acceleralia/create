@@ -478,9 +478,9 @@ export type PhaseTaskExportData = {
   event_name: string;
   exported_at: string;
   phases: Array<{
-    name: string;
-    description?: string | null;
-    intro_html?: string | null;
+    name: MultilingualText;
+    description?: MultilingualText | null;
+    intro_html?: MultilingualText | null;
     start_date?: string | null;
     end_date?: string | null;
     view_start_date?: string | null;
@@ -488,9 +488,9 @@ export type PhaseTaskExportData = {
     order_index: number;
     is_elimination: boolean;
     tasks: Array<{
-      title: string;
-      description?: string | null;
-      intro_html?: string | null;
+      title: MultilingualText;
+      description?: MultilingualText | null;
+      intro_html?: MultilingualText | null;
       delivery_type: string;
       is_required: boolean;
       due_date?: string | null;

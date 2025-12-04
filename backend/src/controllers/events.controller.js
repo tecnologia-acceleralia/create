@@ -1087,7 +1087,7 @@ export class EventsController {
 
   static async updateTask(req, res, next) {
     try {
-      const { Task, PhaseRubric } = getModels();
+      const { Task, Phase, PhaseRubric } = getModels();
       const task = await Task.findOne({
         where: { id: toInt(req.params.taskId), event_id: toInt(req.params.eventId) }
       });
@@ -1097,6 +1097,26 @@ export class EventsController {
       }
 
       let updates = { ...req.body };
+      
+      // Validar cambio de fase si se proporciona
+      let newPhaseId = task.phase_id; // Mantener la fase actual por defecto
+      if (Object.hasOwn(req.body, 'phase_id') && req.body.phase_id !== undefined) {
+        newPhaseId = toInt(req.body.phase_id);
+        
+        // Validar que la nueva fase pertenezca al mismo evento
+        if (newPhaseId !== task.phase_id) {
+          const newPhase = await Phase.findOne({
+            where: { id: newPhaseId, event_id: task.event_id }
+          });
+          
+          if (!newPhase) {
+            return badRequestResponse(res, 'La fase especificada no pertenece a este evento');
+          }
+          
+          updates.phase_id = newPhaseId;
+        }
+      }
+      
       // Normalizar campos multiidioma
       if (Object.hasOwn(req.body, 'title')) {
         updates.title = normalizeMultilingualField(req.body.title);
@@ -1108,21 +1128,38 @@ export class EventsController {
         updates.intro_html = normalizeMultilingualHtml(req.body.intro_html);
       }
 
+      // Validar phase_rubric_id contra la fase correcta (nueva si se cambió, antigua si no)
+      const phaseIdForRubric = updates.phase_id ?? task.phase_id;
       if (Object.hasOwn(req.body, 'phase_rubric_id')) {
-        if (req.body.phase_rubric_id === null) {
+        if (req.body.phase_rubric_id === null || req.body.phase_rubric_id === '') {
           updates.phase_rubric_id = null;
         } else {
           const rubric = await PhaseRubric.findOne({
             where: {
               id: Number(req.body.phase_rubric_id),
               event_id: task.event_id,
-              phase_id: task.phase_id
+              phase_id: phaseIdForRubric // Usar la fase correcta (nueva o antigua)
             }
           });
           if (!rubric) {
-            return badRequestResponse(res, 'Rúbrica inválida para la fase');
+            return badRequestResponse(res, 'Rúbrica inválida para la fase especificada');
           }
           updates.phase_rubric_id = Number(req.body.phase_rubric_id);
+        }
+      } else if (updates.phase_id && updates.phase_id !== task.phase_id) {
+        // Si se cambió la fase pero no se especificó phase_rubric_id, limpiar la rúbrica si no es válida para la nueva fase
+        if (task.phase_rubric_id) {
+          const currentRubric = await PhaseRubric.findOne({
+            where: {
+              id: task.phase_rubric_id,
+              event_id: task.event_id,
+              phase_id: phaseIdForRubric
+            }
+          });
+          if (!currentRubric) {
+            // La rúbrica actual no es válida para la nueva fase, limpiarla
+            updates.phase_rubric_id = null;
+          }
         }
       }
 
@@ -1185,29 +1222,62 @@ export class EventsController {
           const phaseJson = phase.toJSON();
           const tasks = phaseJson.tasks || [];
           
+          // Asegurar que los campos multilingües se exporten como objetos JSON completos
+          // Los getters de Sequelize deberían devolver objetos, pero nos aseguramos aquí
+          const phaseName = typeof phaseJson.name === 'object' && phaseJson.name !== null 
+            ? phaseJson.name 
+            : { es: phaseJson.name || '' };
+          const phaseDescription = phaseJson.description 
+            ? (typeof phaseJson.description === 'object' && phaseJson.description !== null
+                ? phaseJson.description
+                : { es: phaseJson.description })
+            : null;
+          const phaseIntroHtml = phaseJson.intro_html
+            ? (typeof phaseJson.intro_html === 'object' && phaseJson.intro_html !== null
+                ? phaseJson.intro_html
+                : { es: phaseJson.intro_html })
+            : null;
+          
           return {
-            name: phaseJson.name,
-            description: phaseJson.description || null,
-            intro_html: phaseJson.intro_html || null,
+            name: phaseName,
+            description: phaseDescription,
+            intro_html: phaseIntroHtml,
             start_date: phaseJson.start_date ? new Date(phaseJson.start_date).toISOString() : null,
             end_date: phaseJson.end_date ? new Date(phaseJson.end_date).toISOString() : null,
             view_start_date: phaseJson.view_start_date ? new Date(phaseJson.view_start_date).toISOString() : null,
             view_end_date: phaseJson.view_end_date ? new Date(phaseJson.view_end_date).toISOString() : null,
             order_index: phaseJson.order_index,
             is_elimination: phaseJson.is_elimination,
-            tasks: tasks.map(task => ({
-              title: task.title,
-              description: task.description || null,
-              intro_html: task.intro_html || null,
-              delivery_type: task.delivery_type,
-              is_required: task.is_required,
-              due_date: task.due_date ? new Date(task.due_date).toISOString() : null,
-              status: task.status,
-              order_index: task.order_index || 1,
-              max_files: task.max_files || 1,
-              max_file_size_mb: task.max_file_size_mb || null,
-              allowed_mime_types: task.allowed_mime_types || null
-            }))
+            tasks: tasks.map(task => {
+              // Asegurar que los campos multilingües de las tareas también se exporten como objetos JSON
+              const taskTitle = typeof task.title === 'object' && task.title !== null
+                ? task.title
+                : { es: task.title || '' };
+              const taskDescription = task.description
+                ? (typeof task.description === 'object' && task.description !== null
+                    ? task.description
+                    : { es: task.description })
+                : null;
+              const taskIntroHtml = task.intro_html
+                ? (typeof task.intro_html === 'object' && task.intro_html !== null
+                    ? task.intro_html
+                    : { es: task.intro_html })
+                : null;
+              
+              return {
+                title: taskTitle,
+                description: taskDescription,
+                intro_html: taskIntroHtml,
+                delivery_type: task.delivery_type,
+                is_required: task.is_required,
+                due_date: task.due_date ? new Date(task.due_date).toISOString() : null,
+                status: task.status,
+                order_index: task.order_index || 1,
+                max_files: task.max_files || 1,
+                max_file_size_mb: task.max_file_size_mb || null,
+                allowed_mime_types: task.allowed_mime_types || null
+              };
+            })
           };
         })
       };
