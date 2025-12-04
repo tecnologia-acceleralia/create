@@ -27,7 +27,8 @@
     },
     "viewAll": "View all",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "continue": "Continue"
   },
   "navigation": {
     "brand": "Create",
@@ -404,6 +405,11 @@
     "invalidImportFormat": "Invalid import format. An array of phases is required.",
     "invalidJsonFile": "The JSON file is not valid",
     "importReplaceConfirm": "Do you want to replace all existing phases and tasks?\n\n- Yes: All current phases and tasks will be deleted and the file's phases and tasks will be imported.\n- No: The file's phases and tasks will be added to the existing ones.",
+    "confirmImport": "Confirm import",
+    "confirmImportDescription": "Do you want to import the phases and tasks from the selected file?",
+    "importReplaceTitle": "Import mode",
+    "addToExisting": "Add",
+    "replaceAll": "Replace",
     "phasesTasksReplaced": "All phases and tasks have been replaced. {{phases}} phases and {{tasks}} tasks imported successfully",
     "tracking": {
       "title": "Event tracking",

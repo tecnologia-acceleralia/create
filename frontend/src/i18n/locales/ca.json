@@ -27,7 +27,8 @@
     },
     "viewAll": "Veure tots",
     "showPassword": "Mostrar contrasenya",
-    "hidePassword": "Ocultar contrasenya"
+    "hidePassword": "Ocultar contrasenya",
+    "continue": "Continuar"
   },
   "navigation": {
     "brand": "Create",
@@ -404,6 +405,11 @@
     "invalidImportFormat": "Format d'importació invàlid. Es requereix un array de fases.",
     "invalidJsonFile": "El fitxer JSON no és vàlid",
     "importReplaceConfirm": "Vols reemplaçar totes les fases i tasques existents?\n\n- Sí: S'eliminaran totes les fases i tasques actuals i s'importaran les del fitxer.\n- No: S'afegiran les fases i tasques del fitxer a les existents.",
+    "confirmImport": "Confirmar importació",
+    "confirmImportDescription": "Vols importar les fases i tasques del fitxer seleccionat?",
+    "importReplaceTitle": "Mode d'importació",
+    "addToExisting": "Afegir",
+    "replaceAll": "Reemplaçar",
     "phasesTasksReplaced": "Totes les fases i tasques han estat reemplaçades. {{phases}} fases i {{tasks}} tasques importades correctament",
     "tracking": {
       "title": "Seguiment de l'esdeveniment",

@@ -473,10 +473,11 @@ eventsRouter.post(
   authorizeRoles('tenant_admin'),
   [
     param('eventId').isInt(),
-    body('title').isString().notEmpty(),
+    body('title').custom(validateRequiredMultilingual),
+    body('description').optional({ nullable: true }).custom(validateOptionalMultilingual),
     body('phase_id').isInt(),
     body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']),
-    body('intro_html').optional({ nullable: true }).isString(),
+    body('intro_html').optional({ nullable: true }).custom(validateOptionalMultilingual),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
       .optional({ nullable: true, checkFalsy: true })
@@ -504,10 +505,11 @@ eventsRouter.put(
   [
     param('eventId').isInt(),
     param('taskId').isInt(),
-    body('title').optional().isString().notEmpty(),
+    body('title').optional().custom(validateRequiredMultilingual),
+    body('description').optional({ nullable: true }).custom(validateOptionalMultilingual),
     body('phase_id').optional().isInt(),
     body('delivery_type').optional().isIn(['text', 'file', 'url', 'video', 'audio', 'zip', 'none']),
-    body('intro_html').optional({ nullable: true }).isString(),
+    body('intro_html').optional({ nullable: true }).custom(validateOptionalMultilingual),
     body('is_required').optional().isBoolean(),
     body('phase_rubric_id')
       .optional({ nullable: true, checkFalsy: true })

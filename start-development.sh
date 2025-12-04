@@ -1035,32 +1035,35 @@ main() {
     
     # Asegura que el array exista aun si SKIP_GIT=true o si el shell ignora la
     # declaracion previa (evita errores con set -u en zsh).
-    if [[ -z ${local_changes_raw+x} ]]; then
+    if [[ -z ${local_changes_raw+x} ]] || [[ ${#local_changes_raw[@]} -eq 0 ]]; then
         local_changes_raw=()
     fi
     if [[ "$SKIP_GIT" != true ]]; then
         local_changes_raw=($(invoke_cli_output git status --porcelain 2>/dev/null || echo ""))
     fi
     
-    for line in "${local_changes_raw[@]}"; do
-        if [[ -z "$line" ]]; then
-            continue
-        fi
-        if [[ "$line" =~ ^R.*-\>.* ]]; then
-            # Archivo renombrado
-            local parts=(${line//->/ })
-            for part in "${parts[@]}"; do
-                part=$(echo "$part" | xargs)
-                if [[ -n "$part" && ${#part} -gt 3 ]]; then
-                    local_changes+=("${part:3}")
-                fi
-            done
-        elif [[ ${#line} -gt 3 ]]; then
-            local_changes+=("${line:3}")
-        else
-            local_changes+=("$line")
-        fi
-    done
+    # Verificar que el array tenga elementos antes de iterar
+    if [[ ${#local_changes_raw[@]} -gt 0 ]]; then
+        for line in "${local_changes_raw[@]}"; do
+            if [[ -z "$line" ]]; then
+                continue
+            fi
+            if [[ "$line" =~ ^R.*-\>.* ]]; then
+                # Archivo renombrado
+                local parts=(${line//->/ })
+                for part in "${parts[@]}"; do
+                    part=$(echo "$part" | xargs)
+                    if [[ -n "$part" && ${#part} -gt 3 ]]; then
+                        local_changes+=("${part:3}")
+                    fi
+                done
+            elif [[ ${#line} -gt 3 ]]; then
+                local_changes+=("${line:3}")
+            else
+                local_changes+=("$line")
+            fi
+        done
+    fi
     
     local all_changes=()
     [[ ${#pending_remote_changes[@]} -gt 0 ]] && all_changes+=("${pending_remote_changes[@]}")

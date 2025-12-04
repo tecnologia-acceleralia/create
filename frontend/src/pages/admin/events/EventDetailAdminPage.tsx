@@ -65,6 +65,16 @@ import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { EventAssetsManager } from '@/components/events/EventAssetsManager';
 import EventStatisticsTab from '@/components/events/EventStatisticsTab';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 
@@ -220,6 +230,9 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const [editingRubric, setEditingRubric] = useState<PhaseRubric | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [showImportConfirmDialog, setShowImportConfirmDialog] = useState(false);
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false);
 
   // Formularios
   const eventForm = useForm<EventFormValues>({
@@ -885,184 +898,208 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
-      // Preguntar al usuario si quiere reemplazar todo o añadir
-      const replace = confirm(
-        safeTranslate(t, 'events.importReplaceConfirm', {
-          defaultValue: '¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.'
-        })
-      );
-
-      try {
-        setIsImporting(true);
-        const text = await file.text();
-        const importData = JSON.parse(text) as PhaseTaskExportData;
-
-        if (!importData.phases || !Array.isArray(importData.phases)) {
-          toast.error(safeTranslate(t, 'events.invalidImportFormat'));
-          return;
-        }
-
-        // Normalizar los datos: convertir objetos multilingües a strings
-        const normalizeMultilingual = (value: unknown): string | null => {
-          if (value === null || value === undefined) return null;
-          if (typeof value === 'string') return value;
-          if (typeof value === 'object' && !Array.isArray(value)) {
-            // Es un objeto multilingüe, extraer español o el primer valor
-            const obj = value as Record<string, unknown>;
-            return (obj.es || obj.ca || obj.en || Object.values(obj)[0] || '') as string;
-          }
-          return String(value);
-        };
-
-        const normalizedData: PhaseTaskExportData = {
-          ...importData,
-          event_name: typeof importData.event_name === 'string' 
-            ? importData.event_name 
-            : normalizeMultilingual(importData.event_name) || '',
-          phases: importData.phases.map(phase => {
-            const normalizedPhase: any = {
-              name: normalizeMultilingual(phase.name) || '',
-              order_index: phase.order_index,
-              is_elimination: phase.is_elimination,
-              tasks: phase.tasks?.map(task => {
-                const normalizedTask: any = {
-                  title: normalizeMultilingual(task.title) || '',
-                  delivery_type: task.delivery_type,
-                  is_required: task.is_required,
-                  status: task.status,
-                  order_index: task.order_index,
-                  max_files: task.max_files
-                };
-                
-                // Solo agregar campos opcionales si no son null
-                const taskDescription = phase.description !== undefined ? normalizeMultilingual(task.description) : undefined;
-                if (taskDescription !== null && taskDescription !== undefined) {
-                  normalizedTask.description = taskDescription;
-                }
-                
-                const taskIntroHtml = task.intro_html !== undefined ? normalizeMultilingual(task.intro_html) : undefined;
-                if (taskIntroHtml !== null && taskIntroHtml !== undefined) {
-                  normalizedTask.intro_html = taskIntroHtml;
-                }
-                
-                if (task.due_date !== null && task.due_date !== undefined) {
-                  normalizedTask.due_date = task.due_date;
-                }
-                
-                if (task.max_file_size_mb !== null && task.max_file_size_mb !== undefined) {
-                  normalizedTask.max_file_size_mb = task.max_file_size_mb;
-                }
-                
-                if (task.allowed_mime_types !== null && task.allowed_mime_types !== undefined) {
-                  normalizedTask.allowed_mime_types = task.allowed_mime_types;
-                }
-                
-                return normalizedTask;
-              }) || []
-            };
-            
-            // Solo agregar campos opcionales de fase si no son null
-            const phaseDescription = phase.description !== undefined ? normalizeMultilingual(phase.description) : undefined;
-            if (phaseDescription !== null && phaseDescription !== undefined) {
-              normalizedPhase.description = phaseDescription;
-            }
-            
-            const phaseIntroHtml = phase.intro_html !== undefined ? normalizeMultilingual(phase.intro_html) : undefined;
-            if (phaseIntroHtml !== null && phaseIntroHtml !== undefined) {
-              normalizedPhase.intro_html = phaseIntroHtml;
-            }
-            
-            if (phase.start_date !== null && phase.start_date !== undefined) {
-              normalizedPhase.start_date = phase.start_date;
-            }
-            
-            if (phase.end_date !== null && phase.end_date !== undefined) {
-              normalizedPhase.end_date = phase.end_date;
-            }
-            
-            if (phase.view_start_date !== null && phase.view_start_date !== undefined) {
-              normalizedPhase.view_start_date = phase.view_start_date;
-            }
-            
-            if (phase.view_end_date !== null && phase.view_end_date !== undefined) {
-              normalizedPhase.view_end_date = phase.view_end_date;
-            }
-            
-            return normalizedPhase;
-          })
-        };
-
-        // Log temporal para debugging
-        if (import.meta.env.DEV) {
-          console.log('[Import] Datos normalizados:', {
-            phasesCount: normalizedData.phases.length,
-            firstPhase: normalizedData.phases[0] ? {
-              name: normalizedData.phases[0].name,
-              nameType: typeof normalizedData.phases[0].name,
-              description: normalizedData.phases[0].description,
-              descriptionType: typeof normalizedData.phases[0].description,
-              tasksCount: normalizedData.phases[0].tasks?.length || 0,
-              firstTask: normalizedData.phases[0].tasks?.[0] ? {
-                title: normalizedData.phases[0].tasks[0].title,
-                titleType: typeof normalizedData.phases[0].tasks[0].title
-              } : null
-            } : null
-          });
-        }
-
-        const result = await importPhasesAndTasks(eventId, normalizedData, replace);
-        
-        if (!result) {
-          console.error('[Import] Result es undefined');
-          toast.error(safeTranslate(t, 'common.error'));
-          return;
-        }
-        
-        if (result.success) {
-          if (replace) {
-            toast.success(
-              safeTranslate(t, 'events.phasesTasksReplaced', {
-                phases: result.imported.phases,
-                tasks: result.imported.tasks
-              })
-            );
-          } else {
-            toast.success(
-              safeTranslate(t, 'events.phasesTasksImported', {
-                phases: result.imported.phases,
-                tasks: result.imported.tasks
-              })
-            );
-          }
-          void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
-        } else if (result.errors && result.errors.length > 0) {
-          toast.warning(
-            safeTranslate(t, 'events.phasesTasksImportedPartial', {
-              phases: result.imported.phases,
-              tasks: result.imported.tasks,
-              errors: result.errors.length
-            })
-          );
-          console.warn('Errores de importación:', result.errors);
-          void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
-        }
-      } catch (error: any) {
-        console.error('[Import] Error completo:', error);
-        console.error('[Import] Error response:', error?.response);
-        console.error('[Import] Error data:', error?.response?.data);
-        
-        if (error instanceof SyntaxError) {
-          toast.error(safeTranslate(t, 'events.invalidJsonFile'));
-        } else {
-          const errorMessage = error?.response?.data?.message || error?.message || safeTranslate(t, 'common.error');
-          console.error('[Import] Mostrando error al usuario:', errorMessage);
-          toast.error(errorMessage);
-        }
-      } finally {
-        setIsImporting(false);
-      }
+      // Guardar el archivo y mostrar el diálogo de confirmación
+      setImportFile(file);
+      setShowImportConfirmDialog(true);
     };
     input.click();
+  };
+
+  const handleCancelImport = () => {
+    setShowImportConfirmDialog(false);
+    setImportFile(null);
+  };
+
+  const handleConfirmImport = () => {
+    setShowImportConfirmDialog(false);
+    // Ahora preguntar si quiere reemplazar o añadir
+    setShowReplaceDialog(true);
+  };
+
+  const handleCancelReplace = () => {
+    setShowReplaceDialog(false);
+    setImportFile(null);
+  };
+
+  const handleProcessImport = async (replace: boolean) => {
+    setShowReplaceDialog(false);
+    
+    if (!importFile) return;
+
+    try {
+      setIsImporting(true);
+      const text = await importFile.text();
+      const importData = JSON.parse(text) as PhaseTaskExportData;
+
+      if (!importData.phases || !Array.isArray(importData.phases)) {
+        toast.error(safeTranslate(t, 'events.invalidImportFormat'));
+        setImportFile(null);
+        return;
+      }
+
+      // Normalizar los datos: convertir objetos multilingües a strings
+      const normalizeMultilingual = (value: unknown): string | null => {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Es un objeto multilingüe, extraer español o el primer valor
+          const obj = value as Record<string, unknown>;
+          return (obj.es || obj.ca || obj.en || Object.values(obj)[0] || '') as string;
+        }
+        return String(value);
+      };
+
+      const normalizedData: PhaseTaskExportData = {
+        ...importData,
+        event_name: typeof importData.event_name === 'string' 
+          ? importData.event_name 
+          : normalizeMultilingual(importData.event_name) || '',
+        phases: importData.phases.map(phase => {
+          const normalizedPhase: any = {
+            name: normalizeMultilingual(phase.name) || '',
+            order_index: phase.order_index,
+            is_elimination: phase.is_elimination,
+            tasks: phase.tasks?.map(task => {
+              const normalizedTask: any = {
+                title: normalizeMultilingual(task.title) || '',
+                delivery_type: task.delivery_type,
+                is_required: task.is_required,
+                status: task.status,
+                order_index: task.order_index,
+                max_files: task.max_files
+              };
+              
+              // Solo agregar campos opcionales si no son null
+              const taskDescription = phase.description !== undefined ? normalizeMultilingual(task.description) : undefined;
+              if (taskDescription !== null && taskDescription !== undefined) {
+                normalizedTask.description = taskDescription;
+              }
+              
+              const taskIntroHtml = task.intro_html !== undefined ? normalizeMultilingual(task.intro_html) : undefined;
+              if (taskIntroHtml !== null && taskIntroHtml !== undefined) {
+                normalizedTask.intro_html = taskIntroHtml;
+              }
+              
+              if (task.due_date !== null && task.due_date !== undefined) {
+                normalizedTask.due_date = task.due_date;
+              }
+              
+              if (task.max_file_size_mb !== null && task.max_file_size_mb !== undefined) {
+                normalizedTask.max_file_size_mb = task.max_file_size_mb;
+              }
+              
+              if (task.allowed_mime_types !== null && task.allowed_mime_types !== undefined) {
+                normalizedTask.allowed_mime_types = task.allowed_mime_types;
+              }
+              
+              return normalizedTask;
+            }) || []
+          };
+          
+          // Solo agregar campos opcionales de fase si no son null
+          const phaseDescription = phase.description !== undefined ? normalizeMultilingual(phase.description) : undefined;
+          if (phaseDescription !== null && phaseDescription !== undefined) {
+            normalizedPhase.description = phaseDescription;
+          }
+          
+          const phaseIntroHtml = phase.intro_html !== undefined ? normalizeMultilingual(phase.intro_html) : undefined;
+          if (phaseIntroHtml !== null && phaseIntroHtml !== undefined) {
+            normalizedPhase.intro_html = phaseIntroHtml;
+          }
+          
+          if (phase.start_date !== null && phase.start_date !== undefined) {
+            normalizedPhase.start_date = phase.start_date;
+          }
+          
+          if (phase.end_date !== null && phase.end_date !== undefined) {
+            normalizedPhase.end_date = phase.end_date;
+          }
+          
+          if (phase.view_start_date !== null && phase.view_start_date !== undefined) {
+            normalizedPhase.view_start_date = phase.view_start_date;
+          }
+          
+          if (phase.view_end_date !== null && phase.view_end_date !== undefined) {
+            normalizedPhase.view_end_date = phase.view_end_date;
+          }
+          
+          return normalizedPhase;
+        })
+      };
+
+      // Log temporal para debugging
+      if (import.meta.env.DEV) {
+        console.log('[Import] Datos normalizados:', {
+          phasesCount: normalizedData.phases.length,
+          firstPhase: normalizedData.phases[0] ? {
+            name: normalizedData.phases[0].name,
+            nameType: typeof normalizedData.phases[0].name,
+            description: normalizedData.phases[0].description,
+            descriptionType: typeof normalizedData.phases[0].description,
+            tasksCount: normalizedData.phases[0].tasks?.length || 0,
+            firstTask: normalizedData.phases[0].tasks?.[0] ? {
+              title: normalizedData.phases[0].tasks[0].title,
+              titleType: typeof normalizedData.phases[0].tasks[0].title
+            } : null
+          } : null
+        });
+      }
+
+      const result = await importPhasesAndTasks(eventId, normalizedData, replace);
+      
+      if (!result) {
+        console.error('[Import] Result es undefined');
+        toast.error(safeTranslate(t, 'common.error'));
+        setImportFile(null);
+        return;
+      }
+      
+      if (result.success) {
+        if (replace) {
+          toast.success(
+            safeTranslate(t, 'events.phasesTasksReplaced', {
+              phases: result.imported.phases,
+              tasks: result.imported.tasks
+            })
+          );
+        } else {
+          toast.success(
+            safeTranslate(t, 'events.phasesTasksImported', {
+              phases: result.imported.phases,
+              tasks: result.imported.tasks
+            })
+          );
+        }
+        void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+      } else if (result.errors && result.errors.length > 0) {
+        toast.warning(
+          safeTranslate(t, 'events.phasesTasksImportedPartial', {
+            phases: result.imported.phases,
+            tasks: result.imported.tasks,
+            errors: result.errors.length
+          })
+        );
+        console.warn('Errores de importación:', result.errors);
+        void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+      }
+      
+      setImportFile(null);
+    } catch (error: any) {
+      console.error('[Import] Error completo:', error);
+      console.error('[Import] Error response:', error?.response);
+      console.error('[Import] Error data:', error?.response?.data);
+      
+      if (error instanceof SyntaxError) {
+        toast.error(safeTranslate(t, 'events.invalidJsonFile'));
+      } else {
+        const errorMessage = error?.response?.data?.message || error?.message || safeTranslate(t, 'common.error');
+        console.error('[Import] Mostrando error al usuario:', errorMessage);
+        toast.error(errorMessage);
+      }
+      setImportFile(null);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -1496,6 +1533,72 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         onOpenChange={setIsTeamDetailsModalOpen}
         team={selectedTeam}
       />
+
+      {/* Diálogo de confirmación de importación */}
+      <AlertDialog open={showImportConfirmDialog} onOpenChange={(open) => {
+        if (!open) {
+          handleCancelImport();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {safeTranslate(t, 'events.confirmImport', { defaultValue: 'Confirmar importación' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                {safeTranslate(t, 'events.confirmImportDescription', {
+                  defaultValue: '¿Deseas importar las fases y tareas del archivo seleccionado?'
+                })}
+              </p>
+              {importFile && (
+                <p className="font-medium text-sm mt-2 p-2 bg-muted rounded-md">
+                  📄 {importFile.name}
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelImport}>
+              {safeTranslate(t, 'common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmImport}>
+              {safeTranslate(t, 'common.continue', { defaultValue: 'Continuar' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo para elegir reemplazar o añadir */}
+      <AlertDialog open={showReplaceDialog} onOpenChange={(open) => {
+        if (!open) {
+          handleCancelReplace();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {safeTranslate(t, 'events.importReplaceTitle', { defaultValue: 'Modo de importación' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {safeTranslate(t, 'events.importReplaceConfirm', {
+                defaultValue: '¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.'
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelReplace}>
+              {safeTranslate(t, 'common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleProcessImport(false)}>
+              {safeTranslate(t, 'events.addToExisting', { defaultValue: 'Añadir' })}
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => handleProcessImport(true)}>
+              {safeTranslate(t, 'events.replaceAll', { defaultValue: 'Reemplazar' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

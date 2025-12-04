@@ -27,7 +27,8 @@
     },
     "viewAll": "Ver todos",
     "showPassword": "Mostrar contraseña",
-    "hidePassword": "Ocultar contraseña"
+    "hidePassword": "Ocultar contraseña",
+    "continue": "Continuar"
   },
   "navigation": {
     "brand": "Create",
@@ -404,6 +405,11 @@
     "invalidImportFormat": "Formato de importación inválido. Se requiere un array de fases.",
     "invalidJsonFile": "El archivo JSON no es válido",
     "importReplaceConfirm": "¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.",
+    "confirmImport": "Confirmar importación",
+    "confirmImportDescription": "¿Deseas importar las fases y tareas del archivo seleccionado?",
+    "importReplaceTitle": "Modo de importación",
+    "addToExisting": "Añadir",
+    "replaceAll": "Reemplazar",
     "phasesTasksReplaced": "Todas las fases y tareas han sido reemplazadas. {{phases}} fases y {{tasks}} tareas importadas correctamente",
     "tracking": {
       "title": "Seguimiento del evento",
