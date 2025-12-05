@@ -22,12 +22,18 @@ function normalizeMultilingualField(value, fieldName = 'campo') {
     return { es: value.trim() };
   }
   if (value && typeof value === 'object') {
-    // Asegurar que siempre tenga al menos español
-    const normalized = { ...value };
-    if (!normalized.es) {
-      normalized.es = '';
+    // Limpiar valores undefined, null o vacíos, similar a normalizeMultilingualText
+    const cleaned = {};
+    for (const [lang, val] of Object.entries(value)) {
+      if (val !== null && val !== undefined && typeof val === 'string' && val.trim()) {
+        cleaned[lang] = val.trim();
+      }
     }
-    return normalized;
+    // Asegurar que siempre tenga al menos español
+    if (!cleaned.es) {
+      cleaned.es = '';
+    }
+    return cleaned;
   }
   return value;
 }
@@ -1300,6 +1306,14 @@ export class EventsController {
 
       const replace = Boolean(req.body.replace);
       
+      // Si se proporciona event_name y replace es true, actualizar el nombre del evento
+      if (replace && req.body.event_name) {
+        const normalizedEventName = normalizeMultilingualField(req.body.event_name);
+        if (normalizedEventName) {
+          await event.update({ name: normalizedEventName });
+        }
+      }
+      
       // Si replace es true, eliminar todas las fases y tareas existentes del evento
       if (replace) {
         // Eliminar todas las tareas primero (por las foreign keys)
@@ -1325,7 +1339,8 @@ export class EventsController {
         
         try {
           // Validar datos básicos de la fase
-          if (!phaseData.name || typeof phaseData.name !== 'string') {
+          // name puede ser string o objeto multilingüe (ya validado por validateRequiredMultilingual)
+          if (!phaseData.name || (typeof phaseData.name !== 'string' && typeof phaseData.name !== 'object')) {
             errors.push(`Fase ${i + 1}: nombre requerido`);
             continue;
           }
@@ -1347,7 +1362,8 @@ export class EventsController {
 
           // Validar fechas
           if (phasePayload.start_date && phasePayload.end_date && phasePayload.start_date > phasePayload.end_date) {
-            errors.push(`Fase "${phaseData.name}": la fecha de fin debe ser posterior o igual a la fecha de inicio`);
+            const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+            errors.push(`Fase "${phaseName}": la fecha de fin debe ser posterior o igual a la fecha de inicio`);
             continue;
           }
 
@@ -1361,11 +1377,13 @@ export class EventsController {
               const taskData = phaseData.tasks[j];
               
               try {
-                if (!taskData.title || typeof taskData.title !== 'string') {
-                  errors.push(`Fase "${phaseData.name}", Tarea ${j + 1}: título requerido`);
+                // title puede ser string o objeto multilingüe (ya validado por validateRequiredMultilingual)
+                if (!taskData.title || (typeof taskData.title !== 'string' && typeof taskData.title !== 'object')) {
+                  const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+                  errors.push(`Fase "${phaseName}", Tarea ${j + 1}: título requerido`);
                   continue;
                 }
-
+                
                 const taskPayload = {
                   tenant_id: event.tenant_id, // Agregar tenant_id del evento
                   event_id: event.id,
@@ -1386,12 +1404,15 @@ export class EventsController {
                 const task = await Task.create(taskPayload);
                 importedTasks.push(task);
               } catch (taskError) {
-                errors.push(`Fase "${phaseData.name}", Tarea "${taskData.title || j + 1}": ${taskError.message}`);
+                const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+                const taskTitle = typeof taskData.title === 'string' ? taskData.title : (taskData.title?.es || `Tarea ${j + 1}`);
+                errors.push(`Fase "${phaseName}", Tarea "${taskTitle}": ${taskError.message}`);
               }
             }
           }
         } catch (phaseError) {
-          errors.push(`Fase "${phaseData.name || i + 1}": ${phaseError.message}`);
+          const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+          errors.push(`Fase "${phaseName}": ${phaseError.message}`);
         }
       }
 

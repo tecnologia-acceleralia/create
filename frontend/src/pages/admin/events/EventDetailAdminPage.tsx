@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useSearchParams, Navigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -233,6 +233,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showImportConfirmDialog, setShowImportConfirmDialog] = useState(false);
   const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const isContinuingToReplaceDialogRef = useRef(false);
 
   // Formularios
   const eventForm = useForm<EventFormValues>({
@@ -907,10 +908,15 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
 
   const handleCancelImport = () => {
     setShowImportConfirmDialog(false);
-    setImportFile(null);
+    if (!isContinuingToReplaceDialogRef.current) {
+      // Solo limpiar el estado si no estamos transitando al segundo diálogo
+      setImportFile(null);
+    }
+    isContinuingToReplaceDialogRef.current = false; // Reset flag
   };
 
   const handleConfirmImport = () => {
+    isContinuingToReplaceDialogRef.current = true; // Marcar que estamos transitando
     setShowImportConfirmDialog(false);
     // Ahora preguntar si quiere reemplazar o añadir
     setShowReplaceDialog(true);
@@ -919,6 +925,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const handleCancelReplace = () => {
     setShowReplaceDialog(false);
     setImportFile(null);
+    isContinuingToReplaceDialogRef.current = false; // Reset flag
   };
 
   const handleProcessImport = async (replace: boolean) => {
@@ -937,31 +944,49 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         return;
       }
 
-      // Normalizar los datos: convertir objetos multilingües a strings
-      const normalizeMultilingual = (value: unknown): string | null => {
+      // Normalizar los datos: preservar objetos multilingües si existen
+      // El backend acepta tanto strings como objetos multilingües gracias a validateRequiredMultilingual/validateOptionalMultilingual
+      const normalizeMultilingual = (value: unknown): string | Record<string, string> | null => {
         if (value === null || value === undefined) return null;
-        if (typeof value === 'string') return value;
-        if (typeof value === 'object' && !Array.isArray(value)) {
-          // Es un objeto multilingüe, extraer español o el primer valor
-          const obj = value as Record<string, unknown>;
-          return (obj.es || obj.ca || obj.en || Object.values(obj)[0] || '') as string;
+        if (typeof value === 'string') {
+          // Si es un string, mantenerlo como string (el backend lo normalizará a objeto con {es: value})
+          return value.trim() || null;
         }
-        return String(value);
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Es un objeto multilingüe, preservarlo y limpiar valores
+          const obj = value as Record<string, unknown>;
+          const normalized: Record<string, string> = {};
+          // Limpiar y validar cada idioma
+          for (const [lang, val] of Object.entries(obj)) {
+            if (val && typeof val === 'string' && val.trim()) {
+              normalized[lang] = val.trim();
+            }
+          }
+          // Si tiene al menos un idioma válido, devolver el objeto
+          if (Object.keys(normalized).length > 0) {
+            return normalized;
+          }
+          return null;
+        }
+        const str = String(value);
+        return str.trim() || null;
       };
 
       const normalizedData: PhaseTaskExportData = {
         ...importData,
         event_name: typeof importData.event_name === 'string' 
           ? importData.event_name 
-          : normalizeMultilingual(importData.event_name) || '',
+          : (normalizeMultilingual(importData.event_name) || ''),
         phases: importData.phases.map(phase => {
+          const normalizedName = normalizeMultilingual(phase.name);
           const normalizedPhase: any = {
-            name: normalizeMultilingual(phase.name) || '',
+            name: normalizedName || '',
             order_index: phase.order_index,
             is_elimination: phase.is_elimination,
             tasks: phase.tasks?.map(task => {
+              const normalizedTitle = normalizeMultilingual(task.title);
               const normalizedTask: any = {
-                title: normalizeMultilingual(task.title) || '',
+                title: normalizedTitle || '',
                 delivery_type: task.delivery_type,
                 is_required: task.is_required,
                 status: task.status,
@@ -970,7 +995,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
               };
               
               // Solo agregar campos opcionales si no son null
-              const taskDescription = phase.description !== undefined ? normalizeMultilingual(task.description) : undefined;
+              const taskDescription = task.description !== undefined ? normalizeMultilingual(task.description) : undefined;
               if (taskDescription !== null && taskDescription !== undefined) {
                 normalizedTask.description = taskDescription;
               }
@@ -1039,10 +1064,24 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
             tasksCount: normalizedData.phases[0].tasks?.length || 0,
             firstTask: normalizedData.phases[0].tasks?.[0] ? {
               title: normalizedData.phases[0].tasks[0].title,
-              titleType: typeof normalizedData.phases[0].tasks[0].title
+              titleType: typeof normalizedData.phases[0].tasks[0].title,
+              description: normalizedData.phases[0].tasks[0].description,
+              descriptionType: typeof normalizedData.phases[0].tasks[0].description
             } : null
           } : null
         });
+        // Verificar que todos los campos multilingües sean strings
+        const allFieldsAreStrings = normalizedData.phases.every(phase => {
+          const phaseNameIsString = typeof phase.name === 'string';
+          const phaseDescIsString = phase.description === undefined || typeof phase.description === 'string';
+          const tasksAreValid = phase.tasks?.every(task => {
+            const taskTitleIsString = typeof task.title === 'string';
+            const taskDescIsString = task.description === undefined || typeof task.description === 'string';
+            return taskTitleIsString && taskDescIsString;
+          }) ?? true;
+          return phaseNameIsString && phaseDescIsString && tasksAreValid;
+        });
+        console.log('[Import] Todos los campos multilingües son strings:', allFieldsAreStrings);
       }
 
       const result = await importPhasesAndTasks(eventId, normalizedData, replace);
@@ -1536,7 +1575,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
 
       {/* Diálogo de confirmación de importación */}
       <AlertDialog open={showImportConfirmDialog} onOpenChange={(open) => {
-        if (!open) {
+        if (!open && !isContinuingToReplaceDialogRef.current) {
+          // Solo cancelar si no estamos transitando al segundo diálogo
           handleCancelImport();
         }
       }}>
@@ -1545,18 +1585,18 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
             <AlertDialogTitle>
               {safeTranslate(t, 'events.confirmImport', { defaultValue: 'Confirmar importación' })}
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                {safeTranslate(t, 'events.confirmImportDescription', {
-                  defaultValue: '¿Deseas importar las fases y tareas del archivo seleccionado?'
-                })}
-              </p>
-              {importFile && (
-                <p className="font-medium text-sm mt-2 p-2 bg-muted rounded-md">
-                  📄 {importFile.name}
-                </p>
-              )}
+            <AlertDialogDescription>
+              {safeTranslate(t, 'events.confirmImportDescription', {
+                defaultValue: '¿Deseas importar las fases y tareas del archivo seleccionado?'
+              })}
             </AlertDialogDescription>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {importFile && (
+                <div className="font-medium text-sm mt-2 p-2 bg-muted rounded-md">
+                  📄 {importFile.name}
+                </div>
+              )}
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelImport}>
