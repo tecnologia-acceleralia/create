@@ -182,11 +182,24 @@ export function EventForm({ form, onSubmit, isSubmitting, hideSubmitButton, idPr
           error={translateError(errors.status?.message)}
           required
         >
-          <Select id={`${idPrefix}-status`} {...register('status')}>
-            <option value="draft">{safeTranslate(t, 'events.statusDraft')}</option>
-            <option value="published">{safeTranslate(t, 'events.statusPublished')}</option>
-            <option value="archived">{safeTranslate(t, 'events.statusArchived')}</option>
-          </Select>
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Select
+                id={`${idPrefix}-status`}
+                value={field.value}
+                onValueChange={value => field.onChange(value)}
+                onBlur={field.onBlur}
+                name={field.name}
+                ref={field.ref}
+              >
+                <option value="draft">{safeTranslate(t, 'events.statusDraft')}</option>
+                <option value="published">{safeTranslate(t, 'events.statusPublished')}</option>
+                <option value="archived">{safeTranslate(t, 'events.statusArchived')}</option>
+              </Select>
+            )}
+          />
         </FormField>
         <FormField
           label={safeTranslate(t, 'events.videoUrl')}

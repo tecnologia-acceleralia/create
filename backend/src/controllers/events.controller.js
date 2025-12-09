@@ -145,11 +145,6 @@ function normalizeEventPayload(body) {
     payload.publish_end_at = toDateOrNull(payload.publish_end_at);
   }
 
-  if (payload.is_public === false) {
-    payload.publish_start_at = null;
-    payload.publish_end_at = null;
-  }
-
   if (Object.hasOwn(payload, 'registration_schema')) {
     const rawSchema = payload.registration_schema;
     if (rawSchema === undefined) {
