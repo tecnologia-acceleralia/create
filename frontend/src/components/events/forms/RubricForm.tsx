@@ -1,4 +1,5 @@
 import type { FieldArrayWithId, UseFormReturn } from 'react-hook-form';
+import { Controller } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,12 +45,20 @@ export function RubricForm({
   const {
     handleSubmit,
     register,
+    control,
     formState: { errors }
   } = form;
 
   const translateError = (message?: string) => (message ? safeTranslate(t, message, { defaultValue: message }) : undefined);
   const showBasic = sections.includes('basic');
   const showCriteria = sections.includes('criteria');
+  const watchedPhaseId = form.watch('phase_id');
+  const phaseIdNumber = typeof watchedPhaseId === 'string' ? Number(watchedPhaseId) : watchedPhaseId;
+  const phaseOptionMissing = Boolean(
+    phaseIdNumber &&
+      !Number.isNaN(phaseIdNumber) &&
+      !phases.some(phase => phase.id === phaseIdNumber)
+  );
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -73,13 +82,32 @@ export function RubricForm({
             error={translateError(errors.phase_id?.message)}
             required
           >
-            <Select id={`${idPrefix}-phase`} {...register('phase_id', { valueAsNumber: true })} disabled={!phases.length}>
-              {phases.map(phase => (
-                <option key={phase.id} value={phase.id}>
-                  {getMultilingualText(phase.name, currentLang)}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              name="phase_id"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  id={`${idPrefix}-phase`}
+                  name={field.name}
+                  value={field.value !== null && field.value !== undefined ? String(field.value) : ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    field.onChange(value === '' ? null : Number(value));
+                  }}
+                  onBlur={field.onBlur}
+                  disabled={!phases.length}
+                >
+                  <option value="">
+                    {safeTranslate(t, 'events.selectPhase', { defaultValue: 'Selecciona una fase' })}
+                  </option>
+                  {phases.map(phase => (
+                    <option key={phase.id} value={String(phase.id)}>
+                      {getMultilingualText(phase.name, currentLang)}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            />
           </FormField>
         )}
         <FormField
@@ -153,9 +181,16 @@ export function RubricForm({
                     >
                       <Input
                         id={`${idPrefix}-criterion-weight-${index}`}
-                        type="number"
-                        step="0.1"
-                        {...register(`criteria.${index}.weight` as const, { valueAsNumber: true })}
+                        type="text"
+                        inputMode="decimal"
+                        {...register(`criteria.${index}.weight` as const, {
+                          setValueAs: (value) => {
+                            const normalized = String(value ?? '').trim().replace(',', '.');
+                            if (!normalized) return NaN;
+                            const num = Number(normalized);
+                            return Number.isNaN(num) ? NaN : num;
+                          }
+                        })}
                       />
                     </FormField>
                     <FormField
@@ -177,9 +212,16 @@ export function RubricForm({
                     >
                       <Input
                         id={`${idPrefix}-criterion-max-score-${index}`}
-                        type="number"
-                        step="0.1"
-                        {...register(`criteria.${index}.max_score` as const, { valueAsNumber: true })}
+                        type="text"
+                        inputMode="decimal"
+                        {...register(`criteria.${index}.max_score` as const, {
+                          setValueAs: (value) => {
+                            const normalized = String(value ?? '').trim().replace(',', '.');
+                            if (!normalized) return NaN;
+                            const num = Number(normalized);
+                            return Number.isNaN(num) ? NaN : num;
+                          }
+                        })}
                       />
                     </FormField>
                     <FormField
@@ -189,8 +231,16 @@ export function RubricForm({
                     >
                       <Input
                         id={`${idPrefix}-criterion-order-${index}`}
-                        type="number"
-                        {...register(`criteria.${index}.order_index` as const, { valueAsNumber: true })}
+                        type="text"
+                        inputMode="numeric"
+                        {...register(`criteria.${index}.order_index` as const, {
+                          setValueAs: (value) => {
+                            const normalized = String(value ?? '').trim().replace(',', '.');
+                            if (!normalized) return NaN;
+                            const num = Number(normalized);
+                            return Number.isNaN(num) ? NaN : Math.trunc(num);
+                          }
+                        })}
                       />
                     </FormField>
                   </FormGrid>

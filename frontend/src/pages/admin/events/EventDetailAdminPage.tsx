@@ -286,7 +286,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     resolver: zodResolver(rubricSchema),
     defaultValues: {
       rubric_scope: 'phase',
-      phase_id: phases[0]?.id ?? 0,
+      phase_id: phases[0]?.id ?? null,
       name: '',
       description: '',
       scale_min: 0,
@@ -309,10 +309,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     if (phases.length && !taskForm.getValues('phase_id')) {
       taskForm.setValue('phase_id', phases[0].id);
     }
-    if (phases.length && !rubricForm.getValues('phase_id')) {
-      rubricForm.setValue('phase_id', phases[0].id);
-    }
-  }, [phases, taskForm, rubricForm]);
+  }, [phases, taskForm, rubricForm, editingRubric]);
 
   // Mantener phase_id coherente con el alcance de la rúbrica
   useEffect(() => {
@@ -321,11 +318,23 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       return;
     }
 
+    // Si estamos editando una rúbrica existente con phase_id válido, no interferir
+    if (editingRubric && editingRubric.phase_id !== null && editingRubric.phase_id !== undefined) {
+      const currentPhaseId = rubricForm.getValues('phase_id');
+      // Solo actualizar si el valor actual no coincide con el de la rúbrica que estamos editando
+      if (currentPhaseId !== editingRubric.phase_id) {
+        rubricForm.setValue('phase_id', editingRubric.phase_id);
+      }
+      return;
+    }
+
     const currentPhaseId = rubricForm.getValues('phase_id');
-    const fallbackPhaseId = phases[0]?.id ?? null;
-    const nextPhaseId = currentPhaseId && !Number.isNaN(currentPhaseId) ? currentPhaseId : fallbackPhaseId;
-    rubricForm.setValue('phase_id', nextPhaseId);
-  }, [rubricScope, phases, rubricForm]);
+    const normalizedPhaseId =
+      currentPhaseId === undefined || Number.isNaN(currentPhaseId) ? null : currentPhaseId ?? null;
+    if (normalizedPhaseId !== currentPhaseId) {
+      rubricForm.setValue('phase_id', normalizedPhaseId);
+    }
+  }, [rubricScope, phases, rubricForm, editingRubric]);
 
   const criteriaArray = useFieldArray({
     control: rubricForm.control,
@@ -528,7 +537,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const resetRubricForm = () => {
     rubricForm.reset({
       rubric_scope: 'phase',
-      phase_id: phases[0]?.id ?? 0,
+      phase_id: phases[0]?.id ?? null,
       name: '',
       description: '',
       scale_min: 0,
@@ -616,10 +625,11 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
 
   const handleOpenRubricModal = (rubric?: PhaseRubric) => {
     if (rubric) {
+      // En edición, respetamos la fase almacenada y evitamos forzar fallback a la primera
       setEditingRubric(rubric);
       rubricForm.reset({
         rubric_scope: rubric.rubric_scope ?? 'phase',
-        phase_id: rubric.phase_id ?? (phases[0]?.id ?? 0),
+        phase_id: rubric.phase_id ?? null,
         name: rubric.name,
         description: rubric.description ?? '',
         scale_min: rubric.scale_min ?? 0,
@@ -758,6 +768,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       scale_min: Number.isNaN(values.scale_min) ? undefined : values.scale_min,
       scale_max: Number.isNaN(values.scale_max) ? undefined : values.scale_max,
       model_preference: values.model_preference || undefined,
+      // Incluir phase_id para permitir mover la rúbrica entre fases cuando aplica
+      phase_id: values.rubric_scope === 'project' ? null : (values.phase_id ?? null),
       criteria: values.criteria.map((criterion, index) => ({
         title: criterion.title,
         description: criterion.description || undefined,
@@ -770,6 +782,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     const isProject = values.rubric_scope === 'project';
 
     if (editingRubric) {
+      // Usar el phase_id original para el endpoint y enviar el nuevo phase_id en payload
+      const phaseIdForUrl = editingRubric.phase_id ?? values.phase_id ?? 0;
       if (isProject) {
         updateProjectRubricMutation.mutate({
           rubricId: editingRubric.id,
@@ -778,7 +792,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         return;
       }
       updateRubricMutation.mutate({
-        phaseId: values.phase_id ?? 0,
+        phaseId: phaseIdForUrl,
         rubricId: editingRubric.id,
         payload
       });

@@ -21,10 +21,19 @@ async function ensureRubric(eventId, phaseId, rubricId) {
     whereClause.phase_id = null;
   }
   
-  const rubric = await PhaseRubric.findOne({
+  let rubric = await PhaseRubric.findOne({
     where: whereClause,
     include: [{ association: 'criteria' }]
   });
+
+  // Si no se encuentra por la fase proporcionada (ej. al mover la rúbrica de fase),
+  // intentar buscar por id + evento sin filtrar por phase_id
+  if (!rubric && phaseId !== null && phaseId !== undefined) {
+    rubric = await PhaseRubric.findOne({
+      where: { id: rubricId, event_id: eventId },
+      include: [{ association: 'criteria' }]
+    });
+  }
 
   if (!rubric) {
     const error = new Error('Rúbrica no encontrada');
@@ -187,7 +196,12 @@ export class RubricsController {
         }
       }
 
-      const updateData = {
+    // Validar fase destino si se envía phase_id (mover rúbrica de fase)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'phase_id') && req.body.phase_id !== undefined && req.body.phase_id !== null) {
+      await ensurePhase(eventId, Number(req.body.phase_id));
+    }
+
+    const updateData = {
         name: req.body.name ?? rubric.name,
         description: req.body.description ?? rubric.description,
         scale_min: req.body.scale_min ?? rubric.scale_min,
@@ -200,8 +214,8 @@ export class RubricsController {
         updateData.rubric_scope = newScope;
       }
 
-      if (req.body.phase_id !== undefined) {
-        updateData.phase_id = newScope === 'project' ? null : req.body.phase_id;
+    if (req.body.phase_id !== undefined) {
+      updateData.phase_id = (newScope ?? rubric.rubric_scope) === 'project' ? null : req.body.phase_id;
       }
 
       await rubric.update(updateData, { transaction });

@@ -95,9 +95,30 @@ export const taskSchema = z.object({
 export const rubricCriterionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  weight: z.union([z.number().min(0), z.nan()]).optional(),
-  max_score: z.union([z.number().min(0), z.nan(), z.null()]).optional(),
-  order_index: z.union([z.number().int().min(1), z.nan()]).optional()
+  weight: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return num;
+    },
+    z.union([z.number().min(0), z.nan()])
+  ).optional(),
+  max_score: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return num;
+    },
+    z.union([z.number().min(0), z.nan(), z.null()])
+  ).optional(),
+  order_index: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return Number.isNaN(num) ? num : Math.trunc(num);
+    },
+    z.union([z.number().int().min(1), z.nan()])
+  ).optional()
 });
 
 export const rubricSchema = z
