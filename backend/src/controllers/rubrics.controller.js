@@ -104,8 +104,14 @@ export class RubricsController {
         throw Object.assign(new Error('Las rúbricas de proyecto no deben tener phase_id'), { statusCode: 400 });
       }
 
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
+
       const rubric = await PhaseRubric.create(
         {
+          tenant_id: tenantId,
           event_id: eventId,
           phase_id: rubricScope === 'phase' ? phaseId : null,
           rubric_scope: rubricScope,
@@ -128,6 +134,7 @@ export class RubricsController {
         criteria.map(criterion =>
           PhaseRubricCriterion.create(
             {
+              tenant_id: tenantId,
               rubric_id: rubric.id,
               title: criterion.title,
               description: criterion.description,
@@ -164,6 +171,10 @@ export class RubricsController {
 
       await ensureEvent(eventId);
       const rubric = await ensureRubric(eventId, phaseId, rubricId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
 
       // Validar cambios de scope si se proporciona
       const newScope = req.body.rubric_scope;
@@ -207,6 +218,7 @@ export class RubricsController {
           criteria.map(criterion =>
             PhaseRubricCriterion.create(
               {
+                tenant_id: tenantId,
                 rubric_id: rubric.id,
                 title: criterion.title,
                 description: criterion.description,
@@ -295,8 +307,14 @@ export class RubricsController {
 
       await ensureEvent(eventId);
 
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
+
       const rubric = await PhaseRubric.create(
         {
+          tenant_id: tenantId,
           event_id: eventId,
           phase_id: null,
           rubric_scope: 'project',
@@ -319,6 +337,7 @@ export class RubricsController {
         criteria.map(criterion =>
           PhaseRubricCriterion.create(
             {
+              tenant_id: tenantId,
               rubric_id: rubric.id,
               title: criterion.title,
               description: criterion.description,
@@ -354,6 +373,10 @@ export class RubricsController {
 
       await ensureEvent(eventId);
       const rubric = await ensureRubric(eventId, null, rubricId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
 
       if (rubric.rubric_scope !== 'project') {
         throw Object.assign(new Error('Esta rúbrica no es de proyecto'), { statusCode: 400 });
@@ -383,6 +406,7 @@ export class RubricsController {
           criteria.map(criterion =>
             PhaseRubricCriterion.create(
               {
+                tenant_id: tenantId,
                 rubric_id: rubric.id,
                 title: criterion.title,
                 description: criterion.description,

@@ -303,6 +303,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       ]
     }
   });
+  const rubricScope = rubricForm.watch('rubric_scope');
 
   useEffect(() => {
     if (phases.length && !taskForm.getValues('phase_id')) {
@@ -312,6 +313,19 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       rubricForm.setValue('phase_id', phases[0].id);
     }
   }, [phases, taskForm, rubricForm]);
+
+  // Mantener phase_id coherente con el alcance de la rúbrica
+  useEffect(() => {
+    if (rubricScope === 'project') {
+      rubricForm.setValue('phase_id', null);
+      return;
+    }
+
+    const currentPhaseId = rubricForm.getValues('phase_id');
+    const fallbackPhaseId = phases[0]?.id ?? null;
+    const nextPhaseId = currentPhaseId && !Number.isNaN(currentPhaseId) ? currentPhaseId : fallbackPhaseId;
+    rubricForm.setValue('phase_id', nextPhaseId);
+  }, [rubricScope, phases, rubricForm]);
 
   const criteriaArray = useFieldArray({
     control: rubricForm.control,
