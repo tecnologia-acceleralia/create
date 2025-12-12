@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { logger } from '../utils/logger.js';
+import { extractFilesContent } from './file-content-extractor.service.js';
 
 let cachedClient = null;
 let clientOverride = null;
@@ -43,7 +44,7 @@ function buildRubricSnapshot(rubric) {
   };
 }
 
-function buildEvaluationPrompt({ rubricSnapshot, submission, task, locale, customPrompt }) {
+function buildEvaluationPrompt({ rubricSnapshot, submission, task, locale, customPrompt, extractedFilesContent = [] }) {
   const localeMap = {
     'es-ES': 'español',
     'ca-ES': 'catalán',
@@ -67,15 +68,29 @@ function buildEvaluationPrompt({ rubricSnapshot, submission, task, locale, custo
       )
       .join('\n\n');
 
+    // Construir contenido de archivos extraído
+    const filesContentText = extractedFilesContent
+      .map(fileContent => {
+        if (fileContent.error) {
+          return `[Archivo: ${fileContent.original_name}]\n⚠️ Error al extraer contenido: ${fileContent.error}`;
+        }
+        if (fileContent.content) {
+          return `[Archivo: ${fileContent.original_name} (${fileContent.mime_type})]\n${fileContent.content}`;
+        }
+        return `[Archivo: ${fileContent.original_name}]\n(Sin contenido extraíble)`;
+      })
+      .join('\n\n---\n\n');
+
     const submissionContent = [
       task?.title ? `Tarea: ${task.title}` : null,
       task?.description ? `Descripción de la tarea: ${task.description}` : null,
       `Contenido enviado:\n${submission.content ?? 'Sin texto proporcionado'}`,
       submission.files?.length
-        ? `Archivos adjuntos:\n${submission.files
-          .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes) -> ${file.url}`)
+        ? `Archivos adjuntos (${submission.files.length} archivo${submission.files.length > 1 ? 's' : ''}):\n${submission.files
+          .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes)`)
           .join('\n')}`
-        : 'Sin archivos adjuntos.'
+        : 'Sin archivos adjuntos.',
+      extractedFilesContent.length > 0 ? `\nCONTENIDO EXTRAÍDO DE ARCHIVOS:\n${filesContentText}` : null
     ]
       .filter(Boolean)
       .join('\n\n');
@@ -114,14 +129,15 @@ Idioma requerido para la respuesta: ${language}.`;
     '   - Impacto social.',
     '   - Documentación entregada (memoria, presentaciones, etc.).',
     '   - Información sobre el equipo.',
+    '   - Si hay más entregables de los que son opcionales, identifica estos entregables opcionales adicionales y tenlos en cuenta en tu evaluación global.',
     '',
     '2. Recorre TODOS los criterios definidos en la rúbrica. Para cada criterio:',
     '   - Ten en cuenta su descripción para entender qué aspecto del proyecto evalúa.',
     '   - Compara el contenido del proyecto con los niveles posibles de ese criterio.',
-    '   - Selecciona un score dentro del rango permitido (según scaleMin, scaleMax o maxScore del criterio), eligiendo el nivel que mejor se ajuste al proyecto.',
-    '   - Identifica, de forma breve:',
-    '       - 1–3 fortalezas relacionadas con ese criterio (si las hay).',
-    '       - 1–3 aspectos de mejora concretos (si procede).',
+    '   - Asigna una puntuación (score) dentro del rango permitido (scaleMin, scaleMax o maxScore del criterio).',
+    '   - Identifica 1-3 fortalezas relacionadas con ese criterio (si las hay).',
+    '   - Identifica 1-3 aspectos de mejora concretos (si procede).',
+    '   - Realiza un análisis exhaustivo alineando el criterio de la rúbrica con el contenido concreto de los entregables, explicando detalladamente cómo el contenido cumple o no cumple con cada aspecto del criterio y por qué asignas esa puntuación.',
     '',
     '3. Cálculo de la nota global:',
     '   - La nota global se calcula como la **media ponderada** de los criterios:',
@@ -131,8 +147,8 @@ Idioma requerido para la respuesta: ${language}.`;
     '',
     '4. Manejo de información insuficiente:',
     '   - Si para algún criterio la información del proyecto es claramente insuficiente:',
-    '       - Asigna el nivel que mejor se ajuste, pero deja claro en la justificación que la información es limitada.',
-    '       - Si realmente no puedes evaluar, indica `score: null` y explícalo en la justificación.',
+    '       - Deja claro en la justificación que la información es limitada.',
+    '       - Si realmente no puedes evaluar, indica que no hay información suficiente para ese criterio.',
     '   - Nunca inventes datos que el proyecto no proporcione.',
     '',
     '5. Tono y estilo:',
@@ -147,30 +163,8 @@ Idioma requerido para la respuesta: ${language}.`;
     '',
     '{',
     '  "resumen": {',
-    '    "nombre_rubrica": "<texto>",',
-    '    "nota_global": <número>,',
-    '    "comentario_global": "<comentario general de máximo 8-10 líneas, resumiendo puntos fuertes y principales áreas de mejora del proyecto>"',
-    '  },',
-    '  "criterios": [',
-    '    {',
-    '      "criterionId": <número, id del criterio>,',
-    '      "nombre": "<nombre legible del criterio>",',
-    '      "peso_porcentaje": <número>,',
-    '      "score": <número dentro del rango permitido o null si no se puede evaluar>,',
-    '      "justificacion": "<explicación breve de por qué has asignado ese nivel, máximo 4-6 líneas>",',
-    '      "fortalezas": [',
-    '        "<fortaleza 1 relacionada con este criterio>",',
-    '        "<fortaleza 2 (opcional)>",',
-    '        "<fortaleza 3 (opcional)>"',
-    '      ],',
-    '      "mejoras": [',
-    '        "<mejora concreta 1 relacionada con este criterio>",',
-    '        "<mejora concreta 2 (opcional)>",',
-    '        "<mejora concreta 3 (opcional)>"',
-    '      ]',
-    '    }',
-    '    // ... repetir un objeto por cada criterio de la rúbrica en el mismo orden en el que aparecen',
-    '  ]',
+    '    "comentario_global": "<texto estructurado en TEXTO PLANO (sin asteriscos, sin markdown, sin negrita) que incluya para CADA criterio de la rúbrica (en orden, usando el nombre exacto del criterio):\\n\\nCRITERIO X: [Nombre exacto del criterio según la rúbrica]\\nNota: [X puntos] (debe estar dentro del rango permitido)\\n\\nAnálisis:\\n[Análisis exhaustivo (8-12 líneas) alineando específicamente este criterio de la rúbrica con el contenido concreto de los entregables. Explica detalladamente:\\n- Cómo el contenido entregado se relaciona con la descripción y los niveles del criterio\\n- Qué elementos específicos del contenido cumplen o no cumplen con cada aspecto del criterio\\n- Citas o referencias concretas al contenido (texto, documentos, presentaciones) que justifican la puntuación asignada\\n- La relación entre lo que la rúbrica pide y lo que realmente se ha entregado\\nSé exhaustivo, específico y detallado, citando ejemplos concretos del contenido]\\n\\nFortalezas:\\n- [Fortaleza 1 relacionada específicamente con este criterio, con referencia concreta al contenido]\\n- [Fortaleza 2 si aplica]\\n- [Fortaleza 3 si aplica]\\n\\nMejoras:\\n- [Mejora concreta 1 relacionada específicamente con este criterio, con referencia a qué parte del contenido necesita mejorarse]\\n- [Mejora concreta 2 si aplica]\\n- [Mejora concreta 3 si aplica]\\n\\n---\\n\\n[Repetir este formato para TODOS los criterios de la rúbrica en el mismo orden en que aparecen]\\n\\n---\\n\\nRESUMEN GLOBAL\\n\\n[Resumen general del proyecto de 8-12 líneas, analizando en profundidad los puntos fuertes globales, áreas de mejora principales, coherencia general del proyecto y conclusiones principales. Sé específico y detallado, refiriéndote a aspectos concretos del contenido entregado. Si se han entregado más entregables de los que son opcionales, identifica y analiza también estos entregables opcionales adicionales en el resumen, explicando su valor y cómo complementan o enriquecen el proyecto.]\\n\\nNOTA GLOBAL: [Z puntos]\\n\\nIMPORTANTE: Todo el texto debe estar en TEXTO PLANO, sin usar asteriscos (**), sin markdown, sin negrita. Usa solo texto simple y saltos de línea para la estructura. El comentario debe ser exhaustivo, específico y detallado, alineando cada criterio de la rúbrica con el contenido concreto de los entregables. Usa el nombre exacto de cada criterio tal como aparece en la rúbrica. Las notas deben respetar los rangos definidos en la rúbrica. La NOTA GLOBAL DEBE estar al final del comentario, después del RESUMEN GLOBAL.>"',
+    '  }',
     '}',
     '',
     'REGLAS IMPORTANTES',
@@ -178,6 +172,8 @@ Idioma requerido para la respuesta: ${language}.`;
     '',
     '- Usa SIEMPRE los criterios, pesos y niveles del archivo de rúbrica proporcionado.',
     '- No modifiques ni inventes nuevos criterios o pesos.',
+    '- El comentario_global DEBE incluir TODOS los criterios de la rúbrica, cada uno con su nota, análisis exhaustivo alineando la rúbrica con el contenido de los entregables, fortalezas y mejoras.',
+    '- El comentario_global DEBE terminar con un RESUMEN GLOBAL y la NOTA GLOBAL (media ponderada) después del resumen.',
     '- No des consejos genéricos que no estén vinculados al contenido concreto del proyecto.',
     '- No salgas nunca del formato JSON especificado.',
     '- Si el usuario no proporciona ningún contenido de proyecto, responde con `nota_global = null` y justifica en cada criterio que no hay información suficiente para evaluar.',
@@ -195,18 +191,32 @@ Idioma requerido para la respuesta: ${language}.`;
     )
     .join('\n\n');
 
-  const submissionContent = [
-    task?.title ? `Tarea: ${task.title}` : null,
-    task?.description ? `Descripción de la tarea: ${task.description}` : null,
-    `Contenido enviado:\n${submission.content ?? 'Sin texto proporcionado'}`,
-    submission.files?.length
-      ? `Archivos adjuntos:\n${submission.files
-        .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes) -> ${file.url}`)
-        .join('\n')}`
-      : 'Sin archivos adjuntos.'
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+    // Construir contenido de archivos extraído
+    const filesContentText = extractedFilesContent
+      .map(fileContent => {
+        if (fileContent.error) {
+          return `[Archivo: ${fileContent.original_name}]\n⚠️ Error al extraer contenido: ${fileContent.error}`;
+        }
+        if (fileContent.content) {
+          return `[Archivo: ${fileContent.original_name} (${fileContent.mime_type})]\n${fileContent.content}`;
+        }
+        return `[Archivo: ${fileContent.original_name}]\n(Sin contenido extraíble)`;
+      })
+      .join('\n\n---\n\n');
+
+    const submissionContent = [
+      task?.title ? `Tarea: ${task.title}` : null,
+      task?.description ? `Descripción de la tarea: ${task.description}` : null,
+      `Contenido enviado:\n${submission.content ?? 'Sin texto proporcionado'}`,
+      submission.files?.length
+        ? `Archivos adjuntos (${submission.files.length} archivo${submission.files.length > 1 ? 's' : ''}):\n${submission.files
+          .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes)`)
+          .join('\n')}`
+        : 'Sin archivos adjuntos.',
+      extractedFilesContent.length > 0 ? `\nCONTENIDO EXTRAÍDO DE ARCHIVOS:\n${filesContentText}` : null
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
   return `${instructions}
 
@@ -241,12 +251,101 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
     ? Number(aiConfig.presence_penalty) 
     : null;
 
+  // Función auxiliar para extraer la nota global del texto del comentario
+  function extractFinalScoreFromComment(comment) {
+    if (!comment) return null;
+    
+    // Buscar específicamente la nota global que aparece después del RESUMEN GLOBAL
+    // Primero, buscar el índice del RESUMEN GLOBAL para asegurarnos de que buscamos la nota global
+    const resumenIndex = comment.toLowerCase().indexOf('resumen global');
+    
+    // Buscar "NOTA GLOBAL" en texto plano (sin asteriscos, que debería estar después del resumen) o con asteriscos como fallback
+    // Usar regex global para encontrar todas las ocurrencias y tomar la última
+    const patterns = [
+      // Primero buscar formato plano (sin asteriscos) - formato preferido
+      /NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\s*puntos?/gi,
+      /NOTA GLOBAL:\s*(\d+(?:\.\d+)?)/gi,
+      // Fallback: también buscar con asteriscos por compatibilidad
+      /\*\*NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\s*puntos?\*\*/gi,
+      /\*\*NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\*\*/gi,
+      // Fallback: también buscar "NOTA FINAL" por compatibilidad
+      /NOTA FINAL:\s*(\d+(?:\.\d+)?)\s*puntos?/gi,
+      /NOTA FINAL:\s*(\d+(?:\.\d+)?)/gi,
+      /\*\*NOTA FINAL:\s*(\d+(?:\.\d+)?)\s*puntos?\*\*/gi,
+      /\*\*NOTA FINAL:\s*(\d+(?:\.\d+)?)\*\*/gi
+    ];
+    
+    // Buscar todas las coincidencias y tomar la última (que debería ser la nota final)
+    let lastMatch = null;
+    let lastIndex = -1;
+    
+    for (const pattern of patterns) {
+      const matches = [...comment.matchAll(pattern)];
+      if (matches.length > 0) {
+        // Tomar la última coincidencia
+        const match = matches[matches.length - 1];
+        const matchIndex = match.index;
+        // Preferir la que esté después del RESUMEN GLOBAL, o la última si no hay resumen
+        if (resumenIndex === -1 || matchIndex > resumenIndex) {
+          if (matchIndex > lastIndex) {
+            lastMatch = match;
+            lastIndex = matchIndex;
+          }
+        }
+      }
+    }
+    
+    // Si no encontramos una después del resumen, usar la última de todas
+    if (!lastMatch) {
+      for (const pattern of patterns) {
+        const matches = [...comment.matchAll(pattern)];
+        if (matches.length > 0) {
+          lastMatch = matches[matches.length - 1];
+          break;
+        }
+      }
+    }
+    
+    if (lastMatch && lastMatch[1]) {
+      const score = parseFloat(lastMatch[1]);
+      if (!isNaN(score)) {
+        return score;
+      }
+    }
+    
+    return null;
+  }
+
+  // Extraer contenido de archivos si existen
+  let extractedFilesContent = [];
+  if (submission.files && Array.isArray(submission.files) && submission.files.length > 0) {
+    try {
+      logger.info('Extrayendo contenido de archivos para evaluación', {
+        fileCount: submission.files.length,
+        files: submission.files.map(f => ({ name: f.original_name, type: f.mime_type }))
+      });
+      extractedFilesContent = await extractFilesContent(submission.files);
+      logger.info('Contenido de archivos extraído', {
+        successCount: extractedFilesContent.filter(f => f.success).length,
+        errorCount: extractedFilesContent.filter(f => !f.success).length
+      });
+    } catch (error) {
+      logger.error('Error al extraer contenido de archivos, continuando sin contenido de archivos', {
+        error: error.message,
+        stack: error.stack
+      });
+      // Continuar sin contenido de archivos en caso de error
+      extractedFilesContent = [];
+    }
+  }
+
   const prompt = buildEvaluationPrompt({
     rubricSnapshot,
     submission,
     task,
     locale: locale ?? 'es-ES',
-    customPrompt
+    customPrompt,
+    extractedFilesContent
   });
 
   const requestOptions = {
@@ -302,37 +401,19 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
   let overallFeedback = '';
 
   if (parsed.resumen) {
-    // Formato nuevo mejorado
-    overallScore = parsed.resumen.nota_global ?? null;
+    // Formato nuevo: solo comentario_global estructurado por criterio
     overallFeedback = parsed.resumen.comentario_global ?? '';
+    // La nota global está dentro del texto del comentario, al final después del RESUMEN GLOBAL, extraerla
+    overallScore = extractFinalScoreFromComment(overallFeedback);
   } else {
     // Formato antiguo (compatibilidad hacia atrás)
     overallScore = parsed.overallScore ?? null;
     overallFeedback = parsed.overallFeedback ?? '';
   }
 
-  // Procesar criterios: el formato nuevo incluye fortalezas y mejoras
-  const criteria = Array.isArray(parsed.criterios) 
-    ? parsed.criterios.map(c => ({
-        criterionId: c.criterionId ?? c.id ?? null,
-        score: c.score ?? null,
-        feedback: c.justificacion ?? c.feedback ?? '',
-        fortalezas: Array.isArray(c.fortalezas) ? c.fortalezas : [],
-        mejoras: Array.isArray(c.mejoras) ? c.mejoras : [],
-        nombre: c.nombre ?? null,
-        peso_porcentaje: c.peso_porcentaje ?? null
-      }))
-    : Array.isArray(parsed.criteria)
-      ? parsed.criteria.map(c => ({
-          criterionId: c.criterionId ?? c.id ?? null,
-          score: c.score ?? null,
-          feedback: c.feedback ?? '',
-          fortalezas: [],
-          mejoras: [],
-          nombre: null,
-          peso_porcentaje: null
-        }))
-      : [];
+  // Ya no procesamos criterios por separado, todo está en el comentario_global
+  // Mantenemos criteria como array vacío para compatibilidad con código existente
+  const criteria = [];
 
   return {
     rubricSnapshot,
@@ -344,7 +425,7 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
   };
 }
 
-function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale }) {
+function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale, extractedFilesContentBySubmission = {} }) {
   const localeMap = {
     'es-ES': 'español',
     'ca-ES': 'catalán',
@@ -363,15 +444,15 @@ function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale
     'INSTRUCCIONES DE EVALUACIÓN',
     '---------------------------',
     '',
-    '1. Lee atentamente todas las entregas proporcionadas. Evalúa el trabajo completo de la fase/proyecto considerando todas las entregas en conjunto.',
+    '1. Lee atentamente todas las entregas proporcionadas. Evalúa el trabajo completo de la fase/proyecto considerando todas las entregas en conjunto. Si hay más entregables de los que son opcionales, identifica estos entregables opcionales adicionales y tenlos en cuenta en tu evaluación global.',
     '',
     '2. Recorre TODOS los criterios definidos en la rúbrica. Para cada criterio:',
     '   - Ten en cuenta su descripción para entender qué aspecto del proyecto evalúa.',
     '   - Compara el contenido de todas las entregas con los niveles posibles de ese criterio.',
-    '   - Selecciona un score dentro del rango permitido, eligiendo el nivel que mejor se ajuste al conjunto de entregas.',
-    '   - Identifica, de forma breve:',
-    '       - 1–3 fortalezas relacionadas con ese criterio (si las hay).',
-    '       - 1–3 aspectos de mejora concretos (si procede).',
+    '   - Asigna una puntuación (score) dentro del rango permitido (scaleMin, scaleMax o maxScore del criterio).',
+    '   - Identifica 1-3 fortalezas relacionadas con ese criterio (si las hay).',
+    '   - Identifica 1-3 aspectos de mejora concretos (si procede).',
+    '   - Realiza un análisis exhaustivo alineando el criterio de la rúbrica con el contenido concreto de los entregables, explicando detalladamente cómo el contenido cumple o no cumple con cada aspecto del criterio y por qué asignas esa puntuación.',
     '',
     '3. Cálculo de la nota global:',
     '   - La nota global se calcula como la **media ponderada** de los criterios:',
@@ -390,21 +471,8 @@ function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale
     '',
     '{',
     '  "resumen": {',
-    '    "nombre_rubrica": "<texto>",',
-    '    "nota_global": <número>,',
-    '    "comentario_global": "<comentario general resumiendo puntos fuertes y principales áreas de mejora>"',
-    '  },',
-    '  "criterios": [',
-    '    {',
-    '      "criterionId": <número>,',
-    '      "nombre": "<nombre del criterio>",',
-    '      "peso_porcentaje": <número>,',
-    '      "score": <número o null>,',
-    '      "justificacion": "<explicación breve, máximo 4-6 líneas>",',
-    '      "fortalezas": ["<fortaleza 1>", "<fortaleza 2 (opcional)>"],',
-    '      "mejoras": ["<mejora 1>", "<mejora 2 (opcional)>"]',
-    '    }',
-    '  ]',
+    '    "comentario_global": "<texto estructurado en TEXTO PLANO (sin asteriscos, sin markdown, sin negrita) que incluya para CADA criterio de la rúbrica (en orden, usando el nombre exacto del criterio):\\n\\nCRITERIO X: [Nombre exacto del criterio según la rúbrica]\\nNota: [X puntos] (debe estar dentro del rango permitido)\\n\\nAnálisis:\\n[Análisis exhaustivo (8-12 líneas) alineando específicamente este criterio de la rúbrica con el contenido concreto de los entregables. Explica detalladamente:\\n- Cómo el contenido entregado se relaciona con la descripción y los niveles del criterio\\n- Qué elementos específicos del contenido cumplen o no cumplen con cada aspecto del criterio\\n- Citas o referencias concretas al contenido (texto, documentos, presentaciones) que justifican la puntuación asignada\\n- La relación entre lo que la rúbrica pide y lo que realmente se ha entregado\\nSé exhaustivo, específico y detallado, citando ejemplos concretos del contenido de las diferentes entregas]\\n\\nFortalezas:\\n- [Fortaleza 1 relacionada específicamente con este criterio, con referencia concreta al contenido]\\n- [Fortaleza 2 si aplica]\\n- [Fortaleza 3 si aplica]\\n\\nMejoras:\\n- [Mejora concreta 1 relacionada específicamente con este criterio, con referencia a qué parte del contenido necesita mejorarse]\\n- [Mejora concreta 2 si aplica]\\n- [Mejora concreta 3 si aplica]\\n\\n---\\n\\n[Repetir este formato para TODOS los criterios de la rúbrica en el mismo orden en que aparecen]\\n\\n---\\n\\nRESUMEN GLOBAL\\n\\n[Resumen general del conjunto de entregas de 8-12 líneas, analizando en profundidad los puntos fuertes globales, áreas de mejora principales, coherencia general del proyecto y conclusiones principales. Sé específico y detallado, refiriéndote a aspectos concretos del contenido entregado en las diferentes entregas]\\n\\nNOTA GLOBAL: [Z puntos]\\n\\nIMPORTANTE: Todo el texto debe estar en TEXTO PLANO, sin usar asteriscos (**), sin markdown, sin negrita. Usa solo texto simple y saltos de línea para la estructura. El comentario debe ser exhaustivo, específico y detallado, alineando cada criterio de la rúbrica con el contenido concreto de los entregables. Usa el nombre exacto de cada criterio tal como aparece en la rúbrica. Las notas deben respetar los rangos definidos en la rúbrica. La NOTA GLOBAL DEBE estar al final del comentario, después del RESUMEN GLOBAL.>"',
+    '  }',
     '}',
     '',
     `- Idioma requerido para la respuesta: ${language}.`
@@ -424,15 +492,41 @@ function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale
   const submissionsContent = submissions
     .map((submission, index) => {
       const task = tasks.find(t => t.id === submission.task_id);
-      return `Entrega ${index + 1} - ${task?.title ?? 'Tarea sin título'}: 
-${task?.description ? `Descripción: ${task.description}\n` : ''}Contenido: ${submission.content ?? 'Sin texto proporcionado'}
-${submission.files?.length
-  ? `Archivos:\n${submission.files
-    .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes) -> ${file.url}`)
-    .join('\n')}`
-  : 'Sin archivos adjuntos.'}
-Fecha de entrega: ${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString(locale ?? 'es-ES') : 'N/A'}
----`;
+      
+      // Obtener contenido extraído de archivos para esta submission
+      // Usamos un identificador único: submission_id o combinación de task_id + índice
+      const submissionKey = submission.submission_id || `${submission.task_id}-${index}`;
+      const extractedFiles = extractedFilesContentBySubmission[submissionKey] || [];
+      
+      // Construir contenido de archivos extraído para esta submission
+      const filesContentText = extractedFiles.length > 0
+        ? extractedFiles
+          .map(fileContent => {
+            if (fileContent.error) {
+              return `[Archivo: ${fileContent.original_name}]\n⚠️ Error al extraer contenido: ${fileContent.error}`;
+            }
+            if (fileContent.content) {
+              return `[Archivo: ${fileContent.original_name} (${fileContent.mime_type})]\n${fileContent.content}`;
+            }
+            return `[Archivo: ${fileContent.original_name}]\n(Sin contenido extraíble)`;
+          })
+          .join('\n\n---\n\n')
+        : '';
+      
+      const parts = [
+        `Entrega ${index + 1} - ${task?.title ?? 'Tarea sin título'}:`,
+        task?.description ? `Descripción: ${task.description}` : null,
+        `Contenido: ${submission.content ?? 'Sin texto proporcionado'}`,
+        submission.files?.length
+          ? `Archivos adjuntos (${submission.files.length} archivo${submission.files.length > 1 ? 's' : ''}):\n${submission.files
+            .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes)`)
+            .join('\n')}`
+          : 'Sin archivos adjuntos.',
+        filesContentText ? `CONTENIDO EXTRAÍDO DE ARCHIVOS:\n${filesContentText}` : null,
+        `Fecha de entrega: ${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString(locale ?? 'es-ES') : 'N/A'}`
+      ].filter(Boolean);
+      
+      return parts.join('\n\n') + '\n---';
     })
     .join('\n\n');
 
@@ -469,11 +563,135 @@ export async function generateMultiSubmissionAiEvaluation({ rubric, submissions,
     ? Number(aiConfig.presence_penalty) 
     : null;
 
+  // Función auxiliar para extraer la nota global del texto del comentario
+  function extractFinalScoreFromComment(comment) {
+    if (!comment) return null;
+    
+    // Buscar específicamente la nota global que aparece después del RESUMEN GLOBAL
+    // Primero, buscar el índice del RESUMEN GLOBAL para asegurarnos de que buscamos la nota global
+    const resumenIndex = comment.toLowerCase().indexOf('resumen global');
+    
+    // Buscar "NOTA GLOBAL" en texto plano (sin asteriscos, que debería estar después del resumen) o con asteriscos como fallback
+    // Usar regex global para encontrar todas las ocurrencias y tomar la última
+    const patterns = [
+      // Primero buscar formato plano (sin asteriscos) - formato preferido
+      /NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\s*puntos?/gi,
+      /NOTA GLOBAL:\s*(\d+(?:\.\d+)?)/gi,
+      // Fallback: también buscar con asteriscos por compatibilidad
+      /\*\*NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\s*puntos?\*\*/gi,
+      /\*\*NOTA GLOBAL:\s*(\d+(?:\.\d+)?)\*\*/gi,
+      // Fallback: también buscar "NOTA FINAL" por compatibilidad
+      /NOTA FINAL:\s*(\d+(?:\.\d+)?)\s*puntos?/gi,
+      /NOTA FINAL:\s*(\d+(?:\.\d+)?)/gi,
+      /\*\*NOTA FINAL:\s*(\d+(?:\.\d+)?)\s*puntos?\*\*/gi,
+      /\*\*NOTA FINAL:\s*(\d+(?:\.\d+)?)\*\*/gi
+    ];
+    
+    // Buscar todas las coincidencias y tomar la última (que debería ser la nota final)
+    let lastMatch = null;
+    let lastIndex = -1;
+    
+    for (const pattern of patterns) {
+      const matches = [...comment.matchAll(pattern)];
+      if (matches.length > 0) {
+        // Tomar la última coincidencia
+        const match = matches[matches.length - 1];
+        const matchIndex = match.index;
+        // Preferir la que esté después del RESUMEN GLOBAL, o la última si no hay resumen
+        if (resumenIndex === -1 || matchIndex > resumenIndex) {
+          if (matchIndex > lastIndex) {
+            lastMatch = match;
+            lastIndex = matchIndex;
+          }
+        }
+      }
+    }
+    
+    // Si no encontramos una después del resumen, usar la última de todas
+    if (!lastMatch) {
+      for (const pattern of patterns) {
+        const matches = [...comment.matchAll(pattern)];
+        if (matches.length > 0) {
+          lastMatch = matches[matches.length - 1];
+          break;
+        }
+      }
+    }
+    
+    if (lastMatch && lastMatch[1]) {
+      const score = parseFloat(lastMatch[1]);
+      if (!isNaN(score)) {
+        return score;
+      }
+    }
+    
+    return null;
+  }
+
+  // Extraer contenido de archivos para todas las submissions
+  const extractedFilesContentBySubmission = {};
+  const allFiles = [];
+  const fileToSubmissionMap = new Map(); // Mapa para relacionar archivos con sus submissions
+
+  for (let i = 0; i < submissions.length; i++) {
+    const submission = submissions[i];
+    const submissionKey = submission.submission_id || `${submission.task_id}-${i}`;
+    
+    if (submission.files && Array.isArray(submission.files) && submission.files.length > 0) {
+      // Mapear archivos a su submission
+      submission.files.forEach(file => {
+        allFiles.push(file);
+        if (!fileToSubmissionMap.has(file.url)) {
+          fileToSubmissionMap.set(file.url, []);
+        }
+        fileToSubmissionMap.get(file.url).push(submissionKey);
+      });
+    }
+  }
+
+  // Extraer contenido de todos los archivos únicos
+  if (allFiles.length > 0) {
+    try {
+      logger.info('Extrayendo contenido de archivos para evaluación de múltiples entregas', {
+        totalFiles: allFiles.length,
+        submissionsCount: submissions.length
+      });
+      
+      const extractedFiles = await extractFilesContent(allFiles);
+      
+      // Organizar contenido extraído por submission
+      extractedFiles.forEach((extractedFile, index) => {
+        const originalFile = allFiles[index];
+        const submissionKeys = fileToSubmissionMap.get(originalFile.url) || [];
+        
+        submissionKeys.forEach(submissionKey => {
+          if (!extractedFilesContentBySubmission[submissionKey]) {
+            extractedFilesContentBySubmission[submissionKey] = [];
+          }
+          extractedFilesContentBySubmission[submissionKey].push(extractedFile);
+        });
+      });
+      
+      logger.info('Contenido de archivos extraído y organizado por submission', {
+        submissionsWithFiles: Object.keys(extractedFilesContentBySubmission).length,
+        totalExtracted: extractedFiles.filter(f => f.success).length,
+        totalErrors: extractedFiles.filter(f => !f.success).length
+      });
+    } catch (error) {
+      logger.error('Error al extraer contenido de archivos, continuando sin contenido de archivos', {
+        error: error.message,
+        stack: error.stack
+      });
+      // Continuar sin contenido de archivos en caso de error
+    }
+  }
+
   const prompt = buildMultiSubmissionPrompt({
     rubricSnapshot,
     submissions,
     tasks,
-    locale: locale ?? 'es-ES'
+    locale: locale ?? 'es-ES',
+    extractedFilesContentBySubmission
   });
 
   const requestOptions = {
@@ -529,37 +747,19 @@ export async function generateMultiSubmissionAiEvaluation({ rubric, submissions,
   let overallFeedback = '';
 
   if (parsed.resumen) {
-    // Formato nuevo mejorado
-    overallScore = parsed.resumen.nota_global ?? null;
+    // Formato nuevo: solo comentario_global estructurado por criterio
     overallFeedback = parsed.resumen.comentario_global ?? '';
+    // La nota global está dentro del texto del comentario, al final después del RESUMEN GLOBAL, extraerla
+    overallScore = extractFinalScoreFromComment(overallFeedback);
   } else {
     // Formato antiguo (compatibilidad hacia atrás)
     overallScore = parsed.overallScore ?? null;
     overallFeedback = parsed.overallFeedback ?? '';
   }
 
-  // Procesar criterios: el formato nuevo incluye fortalezas y mejoras
-  const criteria = Array.isArray(parsed.criterios) 
-    ? parsed.criterios.map(c => ({
-        criterionId: c.criterionId ?? c.id ?? null,
-        score: c.score ?? null,
-        feedback: c.justificacion ?? c.feedback ?? '',
-        fortalezas: Array.isArray(c.fortalezas) ? c.fortalezas : [],
-        mejoras: Array.isArray(c.mejoras) ? c.mejoras : [],
-        nombre: c.nombre ?? null,
-        peso_porcentaje: c.peso_porcentaje ?? null
-      }))
-    : Array.isArray(parsed.criteria)
-      ? parsed.criteria.map(c => ({
-          criterionId: c.criterionId ?? c.id ?? null,
-          score: c.score ?? null,
-          feedback: c.feedback ?? '',
-          fortalezas: [],
-          mejoras: [],
-          nombre: null,
-          peso_porcentaje: null
-        }))
-      : [];
+  // Ya no procesamos criterios por separado, todo está en el comentario_global
+  // Mantenemos criteria como array vacío para compatibilidad con código existente
+  const criteria = [];
 
   return {
     rubricSnapshot,
@@ -570,4 +770,3 @@ export async function generateMultiSubmissionAiEvaluation({ rubric, submissions,
     usage: response.usage
   };
 }
-
