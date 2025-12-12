@@ -63,6 +63,7 @@ function PhaseEvaluationPage() {
 
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
   const [aiEvaluationText, setAiEvaluationText] = useState<string>('');
+  const [aiEvaluationScore, setAiEvaluationScore] = useState<number | null>(null);
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
   const [evaluationLocale, setEvaluationLocale] = useState<string>(() => {
     // Mapear idiomas de i18n a formatos esperados por el backend
@@ -205,17 +206,30 @@ function PhaseEvaluationPage() {
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
     if (existingEvaluation) {
-      form.reset({
-        comment: existingEvaluation.comment || '',
-        score: existingEvaluation.score ? Number(existingEvaluation.score) : undefined
-      });
-      if (existingEvaluation.source === 'ai_assisted' && existingEvaluation.comment) {
-        setAiEvaluationText(existingEvaluation.comment);
-        // No copiar automáticamente al campo final, el usuario lo hará con el botón de copiar
+      // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
+      // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
+      if (existingEvaluation.source === 'ai_assisted') {
+        setAiEvaluationText(existingEvaluation.comment || '');
+        // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
+        setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
+        // El form NO debe tener ni el comentario ni el score automáticamente
+        form.reset({
+          comment: '', // No copiar el comentario automáticamente
+          score: undefined // No copiar el score automáticamente
+        });
+      } else {
+        // Para evaluaciones manuales, cargar normalmente en el form
+        form.reset({
+          comment: existingEvaluation.comment || '',
+          score: existingEvaluation.score ? Number(existingEvaluation.score) : undefined
+        });
+        setAiEvaluationText('');
+        setAiEvaluationScore(null);
       }
     } else {
       form.reset({ comment: '', score: undefined });
       setAiEvaluationText('');
+      setAiEvaluationScore(null);
     }
   }, [existingEvaluation, form]);
 
@@ -242,11 +256,13 @@ function PhaseEvaluationPage() {
     },
     onSuccess: (data) => {
       toast.success(safeTranslate(t, 'evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
+      // Solo establecer en aiEvaluationText y guardar el score, NO copiar al form
       setAiEvaluationText(data.comment || '');
-      // No copiar automáticamente el comentario al campo final, el usuario lo hará con el botón de copiar
-      if (data.score) {
-        form.setValue('score', Number(data.score));
-      }
+      // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
+      setAiEvaluationScore(data.score ? Number(data.score) : null);
+      // Limpiar tanto el comentario como el score del form
+      form.setValue('comment', '');
+      form.setValue('score', undefined);
       // Limpiar badges y reasignar según las entregas evaluadas
       if (data.evaluated_submission_ids) {
         setSelectedSubmissionIds(new Set(data.evaluated_submission_ids));
@@ -365,7 +381,11 @@ function PhaseEvaluationPage() {
 
   const copyAiToFinal = () => {
     form.setValue('comment', aiEvaluationText);
-    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto copiado al campo de evaluación final' }));
+    // También copiar el score si está disponible
+    if (aiEvaluationScore !== null) {
+      form.setValue('score', aiEvaluationScore);
+    }
+    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto y puntuación copiados al campo de evaluación final' }));
   };
 
   // Obtener nombre del equipo desde las submissions (debe estar antes de los returns condicionales)
