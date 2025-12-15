@@ -147,6 +147,26 @@ export const rubricSchema = z
         path: ['phase_id']
       });
     }
+
+    // Validar que la suma de pesos de los criterios sea 100 (si se han definido pesos)
+    const criteria = data.criteria ?? [];
+    if (criteria.length > 0) {
+      const totalWeight = criteria.reduce((sum, criterion) => {
+        const value = typeof criterion.weight === 'number' ? criterion.weight : Number(criterion.weight ?? 0);
+        return sum + (Number.isNaN(value) ? 0 : value);
+      }, 0);
+
+      // Permitir pequeña tolerancia por decimales
+      const isValidTotal = Math.abs(totalWeight - 100) < 0.0001 || totalWeight === 0;
+
+      if (!isValidTotal) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'events.rubricWeightsMustSum100',
+          path: ['criteria']
+        });
+      }
+    }
   });
 
 export const eventSchema = z

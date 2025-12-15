@@ -42,6 +42,13 @@ export function RubricModal({
   onRemoveCriterion
 }: RubricModalProps) {
   const { t } = useTranslation();
+  const watchedCriteria = form.watch('criteria') ?? [];
+  const totalWeight = watchedCriteria.reduce((sum, criterion) => {
+    const value = typeof criterion?.weight === 'number' ? criterion.weight : Number(criterion?.weight ?? 0);
+    return sum + (Number.isNaN(value) ? 0 : value);
+  }, 0);
+  const hasCriteria = watchedCriteria.length > 0;
+  const weightsValid = !hasCriteria || Math.abs(totalWeight - 100) < 0.0001;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,7 +113,7 @@ export function RubricModal({
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !weightsValid}
           >
             {isSubmitting
               ? safeTranslate(t, 'common.loading')

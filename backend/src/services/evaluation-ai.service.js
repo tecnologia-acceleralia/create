@@ -27,6 +27,50 @@ function ensureClient() {
   return cachedClient;
 }
 
+function getLanguageConfig(locale) {
+  const raw = (locale || 'es-ES').toString().toLowerCase();
+  const short = raw.split('-')[0];
+
+  let code = 'es';
+  if (short === 'ca') code = 'ca';
+  if (short === 'en') code = 'en';
+
+  if (code === 'en') {
+    return {
+      code: 'en',
+      // Etiqueta en castellano para el prompt largo existente
+      languageLabel: 'inglés',
+      // Mensaje de sistema en inglés para forzar idioma de salida
+      systemMessage:
+        'You are an assistant that evaluates entrepreneurship projects for students using rubrics. You apply objective rubrics with a pedagogical, clear and constructive approach. CRITICAL: You MUST answer entirely in ENGLISH. Do not use Spanish or Catalan in your answer, even if the project content or rubric are in those languages.',
+      // Línea extra para reforzar idioma dentro del prompt de usuario
+      promptLanguageNote:
+        'REGLA CRÍTICA DE IDIOMA: TODO el comentario_global (análisis por criterios, fortalezas, mejoras y resumen global) debe estar escrito ÚNICAMENTE en ENGLISH. No escribas frases en español ni en catalán, aunque el contenido del proyecto o la rúbrica estén en esos idiomas.'
+    };
+  }
+
+  if (code === 'ca') {
+    return {
+      code: 'ca',
+      languageLabel: 'catalán',
+      systemMessage:
+        'Ets un assistent que avalua projectes d’emprenedoria per a alumnat utilitzant rúbriques objectives amb un enfocament pedagògic, clar i constructiu. CRÍTIC: Has de respondre SEMPRE íntegrament en CATALÀ. No utilitzis castellà ni anglès en la teva resposta, encara que el contingut del projecte o la rúbrica estiguin en altres idiomes.',
+      promptLanguageNote:
+        'REGLA CRÍTICA D’IDIOMA: TOT el comentari_global (anàlisi per criteris, fortaleses, millores i resum global) ha d’estar escrit ÚNICAMENT en CATALÀ. No escriguis frases en castellà ni en anglès, encara que el contingut del projecte o la rúbrica estiguin en aquests idiomes.'
+    };
+  }
+
+  // Español por defecto
+  return {
+    code: 'es',
+    languageLabel: 'español',
+    systemMessage:
+      'Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación. Aplicas rúbricas objetivas con un enfoque pedagógico, claro y constructivo. CRÍTICO: Debes responder SIEMPRE íntegramente en ESPAÑOL. No utilices catalán ni inglés en tu respuesta, aunque el contenido del proyecto o la rúbrica estén en otros idiomas.',
+    promptLanguageNote:
+      'REGLA CRÍTICA DE IDIOMA: TODO el comentario_global (análisis por criterios, fortalezas, mejoras y resumen global) debe estar escrito ÚNICAMENTE en ESPAÑOL. No escribas frases en catalán ni en inglés, aunque el contenido del proyecto o la rúbrica estén en esos idiomas.'
+  };
+}
+
 function buildRubricSnapshot(rubric) {
   return {
     id: rubric.id,
@@ -45,15 +89,7 @@ function buildRubricSnapshot(rubric) {
 }
 
 function buildEvaluationPrompt({ rubricSnapshot, submission, task, locale, customPrompt, extractedFilesContent = [] }) {
-  const localeMap = {
-    'es-ES': 'español',
-    'ca-ES': 'catalán',
-    'en-US': 'inglés',
-    'en': 'inglés',
-    'ca': 'catalán',
-    'es': 'español'
-  };
-  const language = localeMap[locale] || localeMap[locale?.split('-')[0]] || 'español';
+  const { languageLabel: language, promptLanguageNote } = getLanguageConfig(locale);
 
   // Si hay un prompt personalizado, usarlo directamente
   if (customPrompt && typeof customPrompt === 'string' && customPrompt.trim()) {
@@ -177,7 +213,8 @@ Idioma requerido para la respuesta: ${language}.`;
     '- No des consejos genéricos que no estén vinculados al contenido concreto del proyecto.',
     '- No salgas nunca del formato JSON especificado.',
     '- Si el usuario no proporciona ningún contenido de proyecto, responde con `nota_global = null` y justifica en cada criterio que no hay información suficiente para evaluar.',
-    `- Idioma requerido para la respuesta: ${language}.`
+    `- Idioma requerido para la respuesta: ${language}.`,
+    promptLanguageNote
   ].join('\n');
 
   const criteriaDescription = rubricSnapshot.criteria
@@ -204,19 +241,19 @@ Idioma requerido para la respuesta: ${language}.`;
       })
       .join('\n\n---\n\n');
 
-    const submissionContent = [
-      task?.title ? `Tarea: ${task.title}` : null,
-      task?.description ? `Descripción de la tarea: ${task.description}` : null,
-      `Contenido enviado:\n${submission.content ?? 'Sin texto proporcionado'}`,
-      submission.files?.length
+  const submissionContent = [
+    task?.title ? `Tarea: ${task.title}` : null,
+    task?.description ? `Descripción de la tarea: ${task.description}` : null,
+    `Contenido enviado:\n${submission.content ?? 'Sin texto proporcionado'}`,
+    submission.files?.length
         ? `Archivos adjuntos (${submission.files.length} archivo${submission.files.length > 1 ? 's' : ''}):\n${submission.files
           .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes)`)
-          .join('\n')}`
+        .join('\n')}`
         : 'Sin archivos adjuntos.',
       extractedFilesContent.length > 0 ? `\nCONTENIDO EXTRAÍDO DE ARCHIVOS:\n${filesContentText}` : null
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   return `${instructions}
 
@@ -348,6 +385,9 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
     extractedFilesContent
   });
 
+  const localeForLanguage = locale ?? 'es-ES';
+  const { systemMessage } = getLanguageConfig(localeForLanguage);
+
   const requestOptions = {
     model,
     temperature,
@@ -355,7 +395,7 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
     messages: [
       {
         role: 'system',
-        content: 'Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación. Aplicas rúbricas objetivas con un enfoque pedagógico, claro y constructivo.'
+        content: systemMessage
       },
       {
         role: 'user',
@@ -426,15 +466,7 @@ export async function generateAiEvaluation({ rubric, submission, task, locale, c
 }
 
 function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale, extractedFilesContentBySubmission = {} }) {
-  const localeMap = {
-    'es-ES': 'español',
-    'ca-ES': 'catalán',
-    'en-US': 'inglés',
-    'en': 'inglés',
-    'ca': 'catalán',
-    'es': 'español'
-  };
-  const language = localeMap[locale] || localeMap[locale?.split('-')[0]] || 'español';
+  const { languageLabel: language, promptLanguageNote } = getLanguageConfig(locale);
 
   const instructions = [
     'Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación.',
@@ -475,7 +507,8 @@ function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale
     '  }',
     '}',
     '',
-    `- Idioma requerido para la respuesta: ${language}.`
+    `- Idioma requerido para la respuesta: ${language}.`,
+    promptLanguageNote
   ].join('\n');
 
   const criteriaDescription = rubricSnapshot.criteria
@@ -520,7 +553,7 @@ function buildMultiSubmissionPrompt({ rubricSnapshot, submissions, tasks, locale
         submission.files?.length
           ? `Archivos adjuntos (${submission.files.length} archivo${submission.files.length > 1 ? 's' : ''}):\n${submission.files
             .map(file => `* ${file.original_name ?? file.url} (${file.mime_type}, ${file.size_bytes} bytes)`)
-            .join('\n')}`
+    .join('\n')}`
           : 'Sin archivos adjuntos.',
         filesContentText ? `CONTENIDO EXTRAÍDO DE ARCHIVOS:\n${filesContentText}` : null,
         `Fecha de entrega: ${submission.submitted_at ? new Date(submission.submitted_at).toLocaleString(locale ?? 'es-ES') : 'N/A'}`
@@ -694,6 +727,9 @@ export async function generateMultiSubmissionAiEvaluation({ rubric, submissions,
     extractedFilesContentBySubmission
   });
 
+  const localeForLanguage = locale ?? 'es-ES';
+  const { systemMessage } = getLanguageConfig(localeForLanguage);
+
   const requestOptions = {
     model,
     temperature,
@@ -701,7 +737,7 @@ export async function generateMultiSubmissionAiEvaluation({ rubric, submissions,
     messages: [
       {
         role: 'system',
-        content: 'Eres un asistente evaluador de proyectos de emprendimiento para alumnado de formación. Aplicas rúbricas objetivas con un enfoque pedagógico, claro y constructivo. Evalúa múltiples entregas como un conjunto coherente.'
+        content: systemMessage
       },
       {
         role: 'user',

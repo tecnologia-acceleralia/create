@@ -54,6 +54,13 @@ export function RubricForm({
   const showCriteria = sections.includes('criteria');
   const watchedPhaseId = form.watch('phase_id');
   const phaseIdNumber = typeof watchedPhaseId === 'string' ? Number(watchedPhaseId) : watchedPhaseId;
+  const watchedCriteria = form.watch('criteria') ?? [];
+  const totalWeight = watchedCriteria.reduce((sum, criterion) => {
+    const value = typeof criterion?.weight === 'number' ? criterion.weight : Number(criterion?.weight ?? 0);
+    return sum + (Number.isNaN(value) ? 0 : value);
+  }, 0);
+  const hasCriteria = watchedCriteria.length > 0;
+  const weightsValid = !hasCriteria || Math.abs(totalWeight - 100) < 0.0001;
   const phaseOptionMissing = Boolean(
     phaseIdNumber &&
       !Number.isNaN(phaseIdNumber) &&
@@ -181,8 +188,11 @@ export function RubricForm({
                     >
                       <Input
                         id={`${idPrefix}-criterion-weight-${index}`}
-                        type="text"
+                        type="number"
                         inputMode="decimal"
+                        min={0}
+                        max={100}
+                        step={1}
                         {...register(`criteria.${index}.weight` as const, {
                           setValueAs: (value) => {
                             const normalized = String(value ?? '').trim().replace(',', '.');
@@ -255,6 +265,25 @@ export function RubricForm({
               );
             })}
           </div>
+          {hasCriteria && (
+            <div className="text-xs mt-2">
+              {weightsValid ? (
+                <span className="text-muted-foreground">
+                  {safeTranslate(t, 'events.rubricWeightsTotalOk', {
+                    defaultValue: 'Suma de pesos: {{total}}% (correcta, debe ser 100%)',
+                    total: Number.isFinite(totalWeight) ? totalWeight.toFixed(1) : '0'
+                  })}
+                </span>
+              ) : (
+                <span className="text-destructive">
+                  {safeTranslate(t, 'events.rubricWeightsTotalError', {
+                    defaultValue: 'Suma de pesos: {{total}}% (debe ser exactamente 100%)',
+                    total: Number.isFinite(totalWeight) ? totalWeight.toFixed(1) : '0'
+                  })}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
