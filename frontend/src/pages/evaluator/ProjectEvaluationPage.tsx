@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Copy, ClipboardList, CheckCircle2 } from 'lucide-react';
+import { Copy, ClipboardList, CheckCircle2, Sparkles } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { safeTranslate } from '@/utils/i18n-helpers';
 import { getMultilingualText } from '@/utils/multilingual';
-import { getSubmissions, getProjectEvaluations, createProjectEvaluation, updateProjectEvaluation, getPhaseEvaluations, type Submission, type ProjectEvaluation, type PhaseEvaluation } from '@/services/submissions';
+import { getSubmissions, getProjectEvaluations, createProjectEvaluation, updateProjectEvaluation, createProjectAiEvaluation, getPhaseEvaluations, type Submission, type ProjectEvaluation, type PhaseEvaluation } from '@/services/submissions';
 import { getEventDetail, getProjectRubrics, type PhaseRubric, type Phase } from '@/services/events';
 import { getTeamsByEvent } from '@/services/teams';
 import { cn } from '@/utils/cn';
@@ -62,6 +63,17 @@ function ProjectEvaluationPage() {
 
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
+  const [aiEvaluationText, setAiEvaluationText] = useState<string>('');
+  const [aiEvaluationScore, setAiEvaluationScore] = useState<number | null>(null);
+  const [evaluationLocale, setEvaluationLocale] = useState<string>(() => {
+    // Mapear idiomas de i18n a formatos esperados por el backend
+    const langMap: Record<string, string> = {
+      'es': 'es-ES',
+      'ca': 'ca-ES',
+      'en': 'en-US'
+    };
+    return langMap[i18n.language] || 'es-ES';
+  });
 
   // Verificar permisos
   useEffect(() => {
@@ -246,12 +258,41 @@ function ProjectEvaluationPage() {
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
     if (existingEvaluation) {
-      form.reset({
-        comment: existingEvaluation.comment || '',
-        score: existingEvaluation.score ? Number(existingEvaluation.score) : undefined
-      });
+      // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
+      // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
+      if (existingEvaluation.source === 'ai_assisted') {
+        setAiEvaluationText(existingEvaluation.comment || '');
+        // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
+        setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
+        // El form NO debe tener ni el comentario ni el score automáticamente
+        form.reset({
+          comment: '', // No copiar el comentario automáticamente
+          score: undefined // No copiar el score automáticamente
+        });
+      } else {
+        // Para evaluaciones manuales, cargar normalmente en el form
+        const comment = existingEvaluation.comment || '';
+        const score = existingEvaluation.score ? Number(existingEvaluation.score) : undefined;
+        
+        // Resetear el formulario con los nuevos valores
+        form.reset({
+          comment: comment,
+          score: score
+        });
+        
+        // También usar setValue para asegurar que se actualice inmediatamente
+        form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
+        if (score !== undefined && !isNaN(score)) {
+          form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
+        }
+        
+        setAiEvaluationText('');
+        setAiEvaluationScore(null);
+      }
     } else {
       form.reset({ comment: '', score: undefined });
+      setAiEvaluationText('');
+      setAiEvaluationScore(null);
     }
   }, [existingEvaluation, form]);
 
@@ -265,6 +306,58 @@ function ProjectEvaluationPage() {
     setSelectedSubmissionIds(newSelected);
   };
 
+  const aiEvaluationMutation = useMutation({
+    mutationFn: () => {
+      if (!projectId) throw new Error('Project ID is required');
+      toast.info(safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando evaluación con IA...' }), {
+        duration: 3000
+      });
+      return createProjectAiEvaluation(projectId, {
+        submission_ids: Array.from(selectedSubmissionIds),
+        locale: evaluationLocale,
+        status: 'draft'
+      });
+    },
+    onSuccess: (data) => {
+      toast.success(safeTranslate(t, 'evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
+      setAiEvaluationText(data.comment || '');
+      setAiEvaluationScore(data.score ? Number(data.score) : null);
+      form.setValue('comment', '');
+      form.setValue('score', undefined);
+      if (data.evaluated_submission_ids) {
+        setSelectedSubmissionIds(new Set(data.evaluated_submission_ids));
+      }
+      void queryClient.invalidateQueries({ queryKey: ['project-evaluation', projectId] });
+    },
+    onError: (error: unknown) => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof (error as { response?: { status?: number } }).response === 'object'
+      ) {
+        const response = (error as { response: { status?: number } }).response;
+        if (response?.status === 409) {
+          toast.error(safeTranslate(t, 'evaluations.missingRubric', { defaultValue: 'No hay una rúbrica configurada para este proyecto' }));
+          return;
+        }
+        if (response?.status === 500) {
+          toast.error(safeTranslate(t, 'evaluations.aiServiceUnavailable', { defaultValue: 'Servicio de IA no disponible' }));
+          return;
+        }
+      }
+      toast.error(safeTranslate(t, 'common.error'));
+    }
+  });
+
+  const copyAiToFinal = () => {
+    form.setValue('comment', aiEvaluationText);
+    if (aiEvaluationScore !== null) {
+      form.setValue('score', aiEvaluationScore);
+    }
+    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto y puntuación copiados al campo de evaluación final' }));
+  };
+
   const saveDraftMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
       if (!projectId) throw new Error('Project ID is required');
@@ -273,10 +366,12 @@ function ProjectEvaluationPage() {
         comment: string;
         status: 'draft';
         score?: number;
+        source?: 'manual' | 'ai_assisted';
       } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
-        status: 'draft' as const
+        status: 'draft' as const,
+        source: 'manual' as const // Siempre marcar como manual cuando el usuario guarda
       };
       
       if (values.score !== undefined && !Number.isNaN(values.score)) {
@@ -317,10 +412,12 @@ function ProjectEvaluationPage() {
         comment: string;
         status: 'final';
         score?: number;
+        source?: 'manual' | 'ai_assisted';
       } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
-        status: 'final' as const
+        status: 'final' as const,
+        source: 'manual' as const // Siempre marcar como manual cuando el usuario guarda
       };
       
       if (values.score !== undefined && !Number.isNaN(values.score)) {
@@ -542,54 +639,97 @@ function ProjectEvaluationPage() {
           </CardContent>
         </Card>
 
-        {/* Rúbrica */}
+        {/* Rúbrica y Evaluación con IA */}
         <Card>
           <CardHeader>
             <CardTitle>{safeTranslate(t, 'evaluations.evaluationTools', { defaultValue: 'Herramientas de Evaluación' })}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {rubric ? (
-              <Dialog open={rubricDialogOpen} onOpenChange={setRubricDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline">
-                    <ClipboardList className="h-4 w-4 mr-2" />
-                    {safeTranslate(t, 'evaluations.viewRubric', { defaultValue: 'Consultar rúbrica' })}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>{getMultilingualText(rubric.name, currentLang)}</DialogTitle>
-                    {rubric.description && (
-                      <DialogDescription>{getMultilingualText(rubric.description, currentLang)}</DialogDescription>
-                    )}
-                  </DialogHeader>
-                  <div className="space-y-4 mt-4">
-                    <div className="text-sm">
-                      <span className="font-semibold">{safeTranslate(t, 'evaluations.scale', { defaultValue: 'Escala' })}: </span>
-                      {rubric.scale_min} - {rubric.scale_max}
-                    </div>
-                    {rubric.criteria && rubric.criteria.length > 0 && (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-sm">{safeTranslate(t, 'evaluations.criteria', { defaultValue: 'Criterios' })}</h4>
-                        {rubric.criteria.map((criterion, index) => (
-                          <div key={criterion.id || index} className="border rounded-md p-3">
-                            <div className="font-medium text-sm">{getMultilingualText(criterion.title, currentLang)}</div>
-                            {criterion.description && (
-                              <p className="text-sm text-muted-foreground mt-1">{getMultilingualText(criterion.description, currentLang)}</p>
-                            )}
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {safeTranslate(t, 'evaluations.weight', { defaultValue: 'Peso' })}: {criterion.weight || 1}
-                              {criterion.max_score !== null && criterion.max_score !== undefined && (
-                                <> · {safeTranslate(t, 'evaluations.maxScore', { defaultValue: 'Puntuación máxima' })}: {criterion.max_score}</>
-                              )}
-                            </div>
+              <>
+                <div className="flex flex-wrap gap-3">
+                  <Dialog open={rubricDialogOpen} onOpenChange={setRubricDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline">
+                        <ClipboardList className="h-4 w-4 mr-2" />
+                        {safeTranslate(t, 'evaluations.viewRubric', { defaultValue: 'Consultar rúbrica' })}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>{getMultilingualText(rubric.name, currentLang)}</DialogTitle>
+                        {rubric.description && (
+                          <DialogDescription>{getMultilingualText(rubric.description, currentLang)}</DialogDescription>
+                        )}
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
+                        <div className="text-sm">
+                          <span className="font-semibold">{safeTranslate(t, 'evaluations.scale', { defaultValue: 'Escala' })}: </span>
+                          {rubric.scale_min} - {rubric.scale_max}
+                        </div>
+                        {rubric.criteria && rubric.criteria.length > 0 && (
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm">{safeTranslate(t, 'evaluations.criteria', { defaultValue: 'Criterios' })}</h4>
+                            {rubric.criteria.map((criterion, index) => (
+                              <div key={criterion.id || index} className="border rounded-md p-3">
+                                <div className="font-medium text-sm">{getMultilingualText(criterion.title, currentLang)}</div>
+                                {criterion.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">{getMultilingualText(criterion.description, currentLang)}</p>
+                                )}
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {safeTranslate(t, 'evaluations.weight', { defaultValue: 'Peso' })}: {criterion.weight || 1}
+                                  {criterion.max_score !== null && criterion.max_score !== undefined && (
+                                    <> · {safeTranslate(t, 'evaluations.maxScore', { defaultValue: 'Puntuación máxima' })}: {criterion.max_score}</>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium whitespace-nowrap">
+                      {safeTranslate(t, 'evaluations.evaluationLanguage', { defaultValue: 'Idioma de evaluación' })}:
+                    </label>
+                    <Select
+                      value={evaluationLocale}
+                      onValueChange={setEvaluationLocale}
+                      className="w-[180px]"
+                    >
+                      <option value="es-ES">{safeTranslate(t, 'common.languages.es', { defaultValue: 'Español' })}</option>
+                      <option value="ca-ES">{safeTranslate(t, 'common.languages.ca', { defaultValue: 'Catalán' })}</option>
+                      <option value="en-US">{safeTranslate(t, 'common.languages.en', { defaultValue: 'Inglés' })}</option>
+                    </Select>
                   </div>
-                </DialogContent>
-              </Dialog>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (selectedSubmissionIds.size === 0) {
+                        toast.error(safeTranslate(t, 'evaluations.selectAtLeastOneSubmission', { defaultValue: 'Debes seleccionar al menos una entrega' }));
+                        return;
+                      }
+                      aiEvaluationMutation.mutate();
+                    }}
+                    disabled={aiEvaluationMutation.isPending || selectedSubmissionIds.size === 0}
+                  >
+                    {aiEvaluationMutation.isPending ? (
+                      <>
+                        <Spinner size="sm" className="mr-2" />
+                        {safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando...' })}
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {safeTranslate(t, 'evaluations.generateAiEvaluation', { defaultValue: 'Evaluación con IA' })}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">
                 {safeTranslate(t, 'evaluations.noRubric', { defaultValue: 'No hay rúbrica configurada para este proyecto' })}
@@ -597,6 +737,32 @@ function ProjectEvaluationPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Evaluación con IA (solo lectura) */}
+        {aiEvaluationText && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{safeTranslate(t, 'evaluations.aiEvaluation', { defaultValue: 'Evaluación generada con IA' })}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                value={aiEvaluationText}
+                readOnly
+                rows={10}
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={copyAiToFinal}
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                {safeTranslate(t, 'evaluations.copyFromAi', { defaultValue: 'Copiar a evaluación final' })}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Evaluación Final */}
         <Card>

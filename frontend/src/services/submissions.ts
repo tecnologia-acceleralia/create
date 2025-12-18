@@ -234,11 +234,24 @@ export async function updateProjectEvaluation(
     score?: number;
     comment?: string;
     status?: 'draft' | 'final';
+    source?: 'manual' | 'ai_assisted';
     rubric_snapshot?: unknown;
     metadata?: unknown;
   }
 ) {
   const response = await apiClient.put(`/projects/${projectId}/evaluations/${evaluationId}`, payload);
+  return response.data.data as ProjectEvaluation;
+}
+
+export async function createProjectAiEvaluation(
+  projectId: number,
+  payload: {
+    submission_ids: number[];
+    locale?: string;
+    status?: 'draft' | 'final';
+  }
+) {
+  const response = await apiClient.post(`/projects/${projectId}/evaluations/ai`, payload);
   return response.data.data as ProjectEvaluation;
 }
 
