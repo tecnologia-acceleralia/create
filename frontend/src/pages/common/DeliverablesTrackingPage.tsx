@@ -110,7 +110,10 @@ function PhaseEvaluationCell({
     retry: false
   });
 
-  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
+  // Verificar si hay una evaluación final manual (no de IA)
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (Array.isArray(evaluations) && evaluations.length > 0 
+    ? evaluations.some(evaluation => evaluation.status === 'final' && evaluation.source === 'manual') 
+    : false);
 
   if (!isReviewer || !hasSubmissions) {
     return null;
@@ -189,7 +192,7 @@ function ProjectEvaluationCell({
     retry: false
   });
 
-  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (Array.isArray(evaluations) && evaluations.length > 0 ? evaluations.some(evaluation => evaluation.status === 'final') : false);
 
   if (!isReviewer || !hasSubmissions) {
     return null;

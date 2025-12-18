@@ -811,6 +811,9 @@ export class EvaluationsController {
       if (req.body.status !== undefined) {
         updateData.status = req.body.status;
       }
+      if (req.body.source !== undefined) {
+        updateData.source = req.body.source;
+      }
       if (req.body.rubric_snapshot !== undefined) {
         updateData.rubric_snapshot = req.body.rubric_snapshot || null;
       }
@@ -1005,6 +1008,125 @@ export class EvaluationsController {
 
       return successResponse(res, evaluations);
     } catch (error) {
+      next(error);
+    }
+  }
+
+  // Actualizar evaluación de proyecto
+  static async updateProjectEvaluation(req, res, next) {
+    try {
+      if (!isReviewer(req)) {
+        return forbiddenResponse(res);
+      }
+
+      const { Project, Evaluation, Team, Task, Submission } = getModels();
+      const projectId = Number(req.params.projectId);
+      const evaluationId = Number(req.params.evaluationId);
+
+      const project = await Project.findOne({ where: { id: projectId } });
+      if (!project) {
+        return notFoundResponse(res, t(req, 'evaluations.projectNotFound'));
+      }
+
+      const team = await Team.findOne({ where: { id: project.team_id } });
+      if (!team) {
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
+      }
+
+      const evaluation = await Evaluation.findOne({
+        where: {
+          id: evaluationId,
+          project_id: projectId,
+          team_id: team.id,
+          evaluation_scope: 'project'
+        }
+      });
+
+      if (!evaluation) {
+        return notFoundResponse(res, t(req, 'evaluations.evaluationNotFound'));
+      }
+
+      // Guardar el estado anterior
+      const previousStatus = evaluation.status;
+
+      // Validar submission_ids si se proporcionan
+      if (req.body.submission_ids !== undefined) {
+        const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
+        
+        if (submissionIds.length > 0) {
+          // Obtener todas las tareas del evento
+          const tasks = await Task.findAll({ where: { event_id: project.event_id } });
+          const taskIds = tasks.map(t => t.id);
+
+          // Validar que todas las submissions pertenezcan al equipo y a las tareas del evento
+          const submissions = await Submission.findAll({
+            where: {
+              id: { [Op.in]: submissionIds },
+              team_id: team.id,
+              task_id: { [Op.in]: taskIds }
+            }
+          });
+
+          if (submissions.length !== submissionIds.length) {
+            return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrEvent'));
+          }
+        }
+      }
+
+      // Validar que el comentario esté presente si se proporciona
+      if (req.body.comment !== undefined && (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0))) {
+        return badRequestResponse(res, t(req, 'evaluations.commentCannotBeEmpty'));
+      }
+
+      // Validar que el score esté en el rango correcto si se proporciona
+      let scoreValue = undefined;
+      if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
+        const score = Number(req.body.score);
+        if (isNaN(score) || score < 0 || score > 10) {
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange10'));
+        }
+        scoreValue = score;
+      } else if (req.body.score === null || req.body.score === '') {
+        scoreValue = null;
+      }
+
+      // Actualizar campos permitidos
+      const updateData = {};
+      if (req.body.submission_ids !== undefined) {
+        updateData.evaluated_submission_ids = req.body.submission_ids.length > 0 ? req.body.submission_ids : null;
+      }
+      if (req.body.score !== undefined) {
+        updateData.score = scoreValue;
+      }
+      if (req.body.comment !== undefined) {
+        updateData.comment = req.body.comment ? req.body.comment.trim() : null;
+      }
+      if (req.body.status !== undefined) {
+        updateData.status = req.body.status;
+      }
+      if (req.body.rubric_snapshot !== undefined) {
+        updateData.rubric_snapshot = req.body.rubric_snapshot || null;
+      }
+      if (req.body.metadata !== undefined) {
+        updateData.metadata = req.body.metadata || null;
+      }
+
+      await evaluation.update(updateData);
+
+      // Si se cambió a final y antes no lo era, notificar
+      if (updateData.status === 'final' && previousStatus !== 'final') {
+        await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.');
+      }
+
+      return successResponse(res, evaluation);
+    } catch (error) {
+      logger.error('Error al actualizar evaluación de proyecto', {
+        error: error.message,
+        stack: error.stack,
+        projectId: req.params.projectId,
+        evaluationId: req.params.evaluationId,
+        body: req.body
+      });
       next(error);
     }
   }

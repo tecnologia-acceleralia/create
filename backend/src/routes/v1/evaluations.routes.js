@@ -123,6 +123,7 @@ evaluationsRouter.put(
     body('submission_ids.*').optional().isInt(),
     body('score').optional().isInt({ min: 0, max: 100 }),
     body('comment').optional().isString().notEmpty(),
+    body('source').optional().isIn(['manual', 'ai_assisted']),
     body('status').optional().isIn(['draft', 'final']),
     body('rubric_snapshot').optional().isObject(),
     body('metadata').optional().isObject()
@@ -157,5 +158,23 @@ evaluationsRouter.get(
   ],
   validateRequest,
   EvaluationsController.getProjectEvaluations
+);
+
+evaluationsRouter.put(
+  '/projects/:projectId/evaluations/:evaluationId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [
+    param('projectId').isInt(),
+    param('evaluationId').isInt(),
+    body('submission_ids').optional().isArray(),
+    body('submission_ids.*').optional().isInt(),
+    body('score').optional().isFloat({ min: 0, max: 10 }),
+    body('comment').optional().isString().notEmpty(),
+    body('status').optional().isIn(['draft', 'final']),
+    body('rubric_snapshot').optional().isObject(),
+    body('metadata').optional().isObject()
+  ],
+  validateRequest,
+  EvaluationsController.updateProjectEvaluation
 );
 

@@ -142,7 +142,9 @@ export type PhaseEvaluation = Evaluation & {
 
 export async function getPhaseEvaluations(phaseId: number, teamId: number) {
   const response = await apiClient.get(`/phases/${phaseId}/teams/${teamId}/evaluations`);
-  return response.data.data as PhaseEvaluation[];
+  // Asegurar que siempre devolvemos un array
+  const data = response.data.data;
+  return Array.isArray(data) ? data : [] as PhaseEvaluation[];
 }
 
 export async function createPhaseEvaluation(
@@ -184,6 +186,7 @@ export async function updatePhaseEvaluation(
     score?: number;
     comment?: string;
     status?: 'draft' | 'final';
+    source?: 'manual' | 'ai_assisted';
     rubric_snapshot?: unknown;
     metadata?: unknown;
   }
@@ -202,6 +205,40 @@ export type ProjectEvaluation = Evaluation & {
 
 export async function getProjectEvaluations(projectId: number) {
   const response = await apiClient.get(`/projects/${projectId}/evaluations`);
-  return response.data.data as ProjectEvaluation[];
+  // Asegurar que siempre devolvemos un array
+  const data = response.data.data;
+  return Array.isArray(data) ? data : [] as ProjectEvaluation[];
+}
+
+export async function createProjectEvaluation(
+  projectId: number,
+  payload: {
+    submission_ids?: number[];
+    score?: number;
+    comment: string;
+    source?: 'manual' | 'ai_assisted';
+    status?: 'draft' | 'final';
+    rubric_snapshot?: unknown;
+    metadata?: unknown;
+  }
+) {
+  const response = await apiClient.post(`/projects/${projectId}/evaluations`, payload);
+  return response.data.data as ProjectEvaluation;
+}
+
+export async function updateProjectEvaluation(
+  projectId: number,
+  evaluationId: number,
+  payload: {
+    submission_ids?: number[];
+    score?: number;
+    comment?: string;
+    status?: 'draft' | 'final';
+    rubric_snapshot?: unknown;
+    metadata?: unknown;
+  }
+) {
+  const response = await apiClient.put(`/projects/${projectId}/evaluations/${evaluationId}`, payload);
+  return response.data.data as ProjectEvaluation;
 }
 

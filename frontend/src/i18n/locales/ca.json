@@ -757,6 +757,7 @@
     "commentRequired": "El comentari és requerit",
     "commentCannotBeEmpty": "El comentari no pot estar buit",
     "scoreRange10": "La puntuació ha d'estar entre 0 i 10",
+    "scoreMax10": "La puntuació màxima és 10",
     "scoreRange100": "La puntuació ha d'estar entre 0 i 100",
     "atLeastOneSubmissionRequired": "Has de proporcionar almenys un lliurament per avaluar",
     "teamNotInSameEvent": "L'equip no pertany al mateix esdeveniment que la fase",
@@ -774,6 +775,7 @@
     "aiServiceNotConfigured": "Servei d'IA no configurat",
     "taskNotAvailable": "La tasca associada al lliurament no està disponible",
     "phaseEvaluationTitle": "Avaluació de Fase",
+    "projectEvaluationTitle": "Avaluació de Projecte",
     "selectSubmissions": "Seleccionar lliuraments per avaluar",
     "selectSubmissionsDescription": "Selecciona els lliuraments que vols incloure en l'avaluació. Per defecte es seleccionen tots els lliuraments finals i l'últim lliurament de cada tasca.",
     "noSubmissionsForTask": "No hi ha lliuraments per a aquesta tasca",
@@ -786,6 +788,7 @@
     "evaluateProjectButton": "Avaluar projecte",
     "viewProjectEvaluationButton": "Veure avaluació",
     "projectEvaluation": "Projecte",
+    "finalPhaseEvaluation": "Avaluació Final de la Fase",
     "evaluation": "Avaluació",
     "evaluationLanguage": "Idioma d'avaluació"
   },

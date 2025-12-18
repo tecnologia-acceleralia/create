@@ -117,19 +117,33 @@ function PhaseEvaluationPage() {
   });
 
   // Cargar evaluación existente de fase
-  const { data: existingEvaluation, isLoading: evaluationLoading } = useQuery<PhaseEvaluation | null>({
+  const { data: existingEvaluation, isLoading: evaluationLoading, refetch: refetchEvaluation } = useQuery<PhaseEvaluation | null>({
     queryKey: ['phase-evaluation', numericPhaseId, numericTeamId],
     queryFn: async () => {
       try {
+        console.log('[PhaseEvaluationPage] Cargando evaluaciones para fase:', numericPhaseId, 'equipo:', numericTeamId);
         const evaluations = await getPhaseEvaluations(numericPhaseId, numericTeamId);
-        // Retornar la evaluación final o la más reciente
-        return evaluations.find(e => e.status === 'final') || evaluations[0] || null;
+        console.log('[PhaseEvaluationPage] Evaluaciones recibidas:', evaluations);
+        // Retornar la evaluación final o la más reciente (incluyendo borradores)
+        // Priorizar la final, pero si no hay, mostrar la más reciente (que puede ser un borrador)
+        const finalEvaluation = evaluations.find(e => e.status === 'final');
+        if (finalEvaluation) {
+          console.log('[PhaseEvaluationPage] Evaluación final encontrada:', finalEvaluation);
+          return finalEvaluation;
+        }
+        // Si no hay final, retornar la más reciente (ordenadas por created_at DESC desde el backend)
+        const mostRecent = evaluations.length > 0 ? evaluations[0] : null;
+        console.log('[PhaseEvaluationPage] Evaluación más reciente:', mostRecent);
+        return mostRecent;
       } catch (error) {
+        console.error('[PhaseEvaluationPage] Error al cargar evaluación de fase:', error);
         return null;
       }
     },
     enabled: Number.isInteger(numericPhaseId) && Number.isInteger(numericTeamId),
-    retry: false
+    retry: false,
+    refetchOnWindowFocus: true, // Permitir refetch cuando se vuelve a la página
+    refetchOnMount: true // Refetch al montar el componente
   });
 
   // Obtener rúbrica de fase
@@ -198,17 +212,28 @@ function PhaseEvaluationPage() {
   const form = useForm<EvaluationFormValues>({
     resolver: zodResolver(evaluationSchema),
     defaultValues: {
-      comment: existingEvaluation?.comment || '',
-      score: existingEvaluation?.score ? Number(existingEvaluation.score) : undefined
+      comment: '',
+      score: undefined
     }
   });
 
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
+    console.log('[PhaseEvaluationPage] existingEvaluation cambió:', existingEvaluation);
     if (existingEvaluation) {
+      console.log('[PhaseEvaluationPage] Cargando evaluación existente:', {
+        id: existingEvaluation.id,
+        status: existingEvaluation.status,
+        source: existingEvaluation.source,
+        hasComment: !!existingEvaluation.comment,
+        commentLength: existingEvaluation.comment?.length || 0,
+        score: existingEvaluation.score
+      });
+      
       // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
       // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
       if (existingEvaluation.source === 'ai_assisted') {
+        console.log('[PhaseEvaluationPage] Evaluación de IA, mostrando en aiEvaluationText');
         setAiEvaluationText(existingEvaluation.comment || '');
         // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
         setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
@@ -219,14 +244,34 @@ function PhaseEvaluationPage() {
         });
       } else {
         // Para evaluaciones manuales, cargar normalmente en el form
-        form.reset({
-          comment: existingEvaluation.comment || '',
-          score: existingEvaluation.score ? Number(existingEvaluation.score) : undefined
+        console.log('[PhaseEvaluationPage] Evaluación manual, cargando en formulario');
+        const comment = existingEvaluation.comment || '';
+        const score = existingEvaluation.score ? Number(existingEvaluation.score) : undefined;
+        console.log('[PhaseEvaluationPage] Valores a cargar:', { 
+          commentLength: comment.length, 
+          commentPreview: comment.substring(0, 100) + (comment.length > 100 ? '...' : ''), 
+          score 
         });
+        
+        // Resetear el formulario con los nuevos valores
+        form.reset({
+          comment: comment,
+          score: score
+        });
+        
+        // También usar setValue para asegurar que se actualice inmediatamente
+        form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
+        if (score !== undefined && !isNaN(score)) {
+          form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
+        }
+        
+        console.log('[PhaseEvaluationPage] Formulario actualizado. Valor actual del comentario:', form.getValues('comment')?.substring(0, 50) || '(vacío)');
+        
         setAiEvaluationText('');
         setAiEvaluationScore(null);
       }
     } else {
+      console.log('[PhaseEvaluationPage] No hay evaluación existente, limpiando formulario');
       form.reset({ comment: '', score: undefined });
       setAiEvaluationText('');
       setAiEvaluationScore(null);
@@ -292,88 +337,284 @@ function PhaseEvaluationPage() {
 
   const saveDraftMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
+      console.log('[saveDraftMutation] Iniciando guardado de borrador');
+      console.log('[saveDraftMutation] Valores del formulario:', values);
+      
       const payload: {
         submission_ids: number[];
         comment: string;
         status: 'draft';
         score?: number;
+        source?: 'manual' | 'ai_assisted';
       } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
-        status: 'draft' as const
+        status: 'draft' as const,
+        source: 'manual' as const // Siempre marcar como manual cuando el usuario guarda
       };
       
       if (values.score !== undefined && !Number.isNaN(values.score)) {
         payload.score = values.score;
       }
 
-      if (existingEvaluation) {
-        return updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
-      } else {
-        return createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
+      console.log('[saveDraftMutation] Payload a enviar:', payload);
+
+      try {
+        let result;
+        if (existingEvaluation) {
+          console.log('[saveDraftMutation] Actualizando evaluación existente:', existingEvaluation.id);
+          result = await updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
+        } else {
+          console.log('[saveDraftMutation] Creando nueva evaluación');
+          result = await createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
+        }
+        console.log('[saveDraftMutation] Respuesta del servidor:', result);
+        return result;
+      } catch (error) {
+        console.error('[saveDraftMutation] Error en mutationFn:', error);
+        throw error;
       }
     },
-    onSuccess: () => {
-      toast.success(safeTranslate(t, 'evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
-      void queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] });
+    onSuccess: async (data) => {
+      console.log('[saveDraftMutation] onSuccess - Borrador guardado correctamente:', data);
+      
+      try {
+        toast.success(safeTranslate(t, 'evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
+        
+        // Actualizar el cache directamente con la respuesta
+        if (data) {
+          queryClient.setQueryData(['phase-evaluation', numericPhaseId, numericTeamId], data);
+          console.log('[saveDraftMutation] Cache actualizado');
+        }
+        
+        // Invalidar para que se refresque en el próximo acceso
+        queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] }).catch(err => {
+          console.error('[saveDraftMutation] Error al invalidar query:', err);
+        });
+        
+        if (refetchEvaluation) {
+          await refetchEvaluation();
+        }
+      } catch (error) {
+        console.error('[saveDraftMutation] Error en onSuccess:', error);
+        console.error('[saveDraftMutation] Stack trace:', error instanceof Error ? error.stack : 'No stack available');
+        // No mostrar error al usuario, ya se guardó correctamente
+      }
     },
     onError: (error: unknown) => {
+      console.error('========================================');
+      console.error('[saveDraftMutation] ERROR AL GUARDAR BORRADOR');
+      console.error('========================================');
+      console.error('Tipo de error:', typeof error);
+      console.error('Error completo:', error);
+      
+      if (error instanceof Error) {
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+      }
+      
       if (
         typeof error === 'object' &&
         error !== null &&
-        'response' in error &&
-        typeof (error as { response: { data?: { message?: string } } }).response === 'object'
+        'response' in error
       ) {
-        const response = (error as { response: { data?: { message?: string } } }).response;
-        const message = response.data?.message || safeTranslate(t, 'common.error');
-        toast.error(message);
-      } else {
-        toast.error(safeTranslate(t, 'common.error'));
+        const axiosError = error as { response?: { status?: number; data?: { message?: string; errors?: unknown } }; message?: string };
+        console.error('Es un error de Axios');
+        console.error('Status:', axiosError.response?.status);
+        console.error('Response data:', axiosError.response?.data);
+        console.error('Mensaje del error:', axiosError.message);
+        
+        if (axiosError.response?.data) {
+          const responseData = axiosError.response.data;
+          console.error('Mensaje del backend:', responseData.message);
+          if (responseData.errors) {
+            console.error('Errores de validación:', responseData.errors);
+          }
+        }
+      }
+      
+      console.error('========================================');
+      
+      // Mostrar error al usuario
+      try {
+        let errorMessage = safeTranslate(t, 'common.error', { defaultValue: 'Error al guardar el borrador' });
+        
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'response' in error &&
+          typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
+        ) {
+          const response = (error as { response?: { data?: { message?: string } } }).response;
+          if (response?.data?.message) {
+            errorMessage = response.data.message;
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
+        toast.error(errorMessage, {
+          duration: 5000,
+          description: 'Revisa la consola para más detalles'
+        });
+      } catch (toastError) {
+        console.error('[saveDraftMutation] Error al mostrar toast:', toastError);
+        alert('Error al guardar el borrador. Revisa la consola del navegador para más detalles.');
       }
     }
   });
 
   const saveFinalMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
+      console.log('[saveFinalMutation] Iniciando guardado de evaluación final');
+      console.log('[saveFinalMutation] Valores del formulario:', values);
+      console.log('[saveFinalMutation] Submission IDs seleccionados:', Array.from(selectedSubmissionIds));
+      
       const payload: {
         submission_ids: number[];
         comment: string;
         status: 'final';
         score?: number;
+        source?: 'manual' | 'ai_assisted';
       } = {
         submission_ids: Array.from(selectedSubmissionIds),
         comment: values.comment,
-        status: 'final' as const
+        status: 'final' as const,
+        source: 'manual' as const // Siempre marcar como manual cuando el usuario guarda
       };
       
       if (values.score !== undefined && !Number.isNaN(values.score)) {
         payload.score = values.score;
       }
 
-      if (existingEvaluation) {
-        return updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
-      } else {
-        return createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
+      console.log('[saveFinalMutation] Payload a enviar:', payload);
+
+      try {
+        let result;
+        if (existingEvaluation) {
+          console.log('[saveFinalMutation] Actualizando evaluación existente:', existingEvaluation.id);
+          result = await updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
+        } else {
+          console.log('[saveFinalMutation] Creando nueva evaluación');
+          result = await createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
+        }
+        console.log('[saveFinalMutation] Respuesta del servidor:', result);
+        return result;
+      } catch (error) {
+        console.error('[saveFinalMutation] Error en mutationFn:', error);
+        throw error; // Re-lanzar para que onError lo capture
       }
     },
-    onSuccess: () => {
-      toast.success(safeTranslate(t, 'evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
-      void queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] });
-      void queryClient.invalidateQueries({ queryKey: ['events', numericEventId, 'deliverables-tracking'] });
-      navigate(tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`));
+    onSuccess: (data) => {
+      console.log('[saveFinalMutation] onSuccess - Evaluación guardada correctamente:', data);
+      
+      try {
+        toast.success(safeTranslate(t, 'evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
+        
+        // Actualizar el cache directamente con la respuesta
+        if (data) {
+          queryClient.setQueryData(['phase-evaluation', numericPhaseId, numericTeamId], data);
+          console.log('[saveFinalMutation] Cache actualizado');
+        }
+        
+        // Invalidar queries de forma asíncrona
+        queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] }).catch(err => {
+          console.error('[saveFinalMutation] Error al invalidar query de evaluación:', err);
+        });
+        queryClient.invalidateQueries({ queryKey: ['events', numericEventId, 'deliverables-tracking'] }).catch(err => {
+          console.error('[saveFinalMutation] Error al invalidar query de tracking:', err);
+        });
+        
+        // Navegar después de un pequeño delay
+        const targetPath = tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`);
+        console.log('[saveFinalMutation] Navegando a:', targetPath);
+        
+        setTimeout(() => {
+          try {
+            navigate(targetPath);
+            console.log('[saveFinalMutation] Navegación exitosa');
+          } catch (navError) {
+            console.error('[saveFinalMutation] Error en navigate:', navError);
+            console.error('[saveFinalMutation] Usando window.location como fallback');
+            window.location.href = targetPath;
+          }
+        }, 500);
+      } catch (error) {
+        console.error('[saveFinalMutation] Error en onSuccess:', error);
+        console.error('[saveFinalMutation] Stack trace:', error instanceof Error ? error.stack : 'No stack available');
+        
+        // Mostrar error al usuario
+        toast.error(safeTranslate(t, 'common.error', { defaultValue: 'Error al procesar la evaluación guardada' }));
+        
+        // Aún así intentar navegar
+        const targetPath = tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`);
+        try {
+          navigate(targetPath);
+        } catch {
+          window.location.href = targetPath;
+        }
+      }
     },
     onError: (error: unknown) => {
+      console.error('========================================');
+      console.error('[saveFinalMutation] ERROR AL GUARDAR EVALUACIÓN FINAL');
+      console.error('========================================');
+      console.error('Tipo de error:', typeof error);
+      console.error('Error completo:', error);
+      
+      if (error instanceof Error) {
+        console.error('Mensaje:', error.message);
+        console.error('Stack:', error.stack);
+      }
+      
       if (
         typeof error === 'object' &&
         error !== null &&
-        'response' in error &&
-        typeof (error as { response: { data?: { message?: string } } }).response === 'object'
+        'response' in error
       ) {
-        const response = (error as { response: { data?: { message?: string } } }).response;
-        const message = response.data?.message || safeTranslate(t, 'common.error');
-        toast.error(message);
-      } else {
-        toast.error(safeTranslate(t, 'common.error'));
+        const axiosError = error as { response?: { status?: number; data?: { message?: string; errors?: unknown } }; message?: string };
+        console.error('Es un error de Axios');
+        console.error('Status:', axiosError.response?.status);
+        console.error('Response data:', axiosError.response?.data);
+        console.error('Mensaje del error:', axiosError.message);
+        
+        if (axiosError.response?.data) {
+          const responseData = axiosError.response.data;
+          console.error('Mensaje del backend:', responseData.message);
+          if (responseData.errors) {
+            console.error('Errores de validación:', responseData.errors);
+          }
+        }
+      }
+      
+      console.error('========================================');
+      
+      // Mostrar error al usuario
+      try {
+        let errorMessage = safeTranslate(t, 'common.error', { defaultValue: 'Error al guardar la evaluación' });
+        
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'response' in error &&
+          typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
+        ) {
+          const response = (error as { response?: { data?: { message?: string } } }).response;
+          if (response?.data?.message) {
+            errorMessage = response.data.message;
+          }
+        } else if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
+        toast.error(errorMessage, {
+          duration: 5000, // Mostrar por más tiempo
+          description: 'Revisa la consola para más detalles'
+        });
+      } catch (toastError) {
+        console.error('[saveFinalMutation] Error al mostrar toast:', toastError);
+        // Fallback: alert nativo
+        alert('Error al guardar la evaluación. Revisa la consola del navegador para más detalles.');
       }
     }
   });
@@ -642,9 +883,19 @@ function PhaseEvaluationPage() {
         {/* Evaluación Final */}
         <Card>
           <CardHeader>
-            <CardTitle>{safeTranslate(t, 'evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              {safeTranslate(t, 'evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}
+              {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual' && (
+                <Badge variant="default" className="bg-green-600">
+                  {safeTranslate(t, 'evaluations.saved', { defaultValue: 'Guardada' })}
+                </Badge>
+              )}
+            </CardTitle>
             <CardDescription>
-              {safeTranslate(t, 'evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })}
+              {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual'
+                ? safeTranslate(t, 'evaluations.finalEvaluationSaved', { defaultValue: 'Esta evaluación está guardada y visible para los miembros del equipo' })
+                : safeTranslate(t, 'evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })
+              }
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -660,6 +911,21 @@ function PhaseEvaluationPage() {
                 />
                 {form.formState.errors.comment && (
                   <p className="text-xs text-destructive">{form.formState.errors.comment.message}</p>
+                )}
+                {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual' && existingEvaluation.comment && existingEvaluation.created_at && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {safeTranslate(t, 'evaluations.savedAt', { defaultValue: 'Guardada el' })}: {(() => {
+                      try {
+                        const date = new Date(existingEvaluation.created_at);
+                        if (isNaN(date.getTime())) {
+                          return safeTranslate(t, 'common.dateNotAvailable', { defaultValue: 'Fecha no disponible' });
+                        }
+                        return date.toLocaleString(locale);
+                      } catch {
+                        return safeTranslate(t, 'common.dateNotAvailable', { defaultValue: 'Fecha no disponible' });
+                      }
+                    })()}
+                  </p>
                 )}
               </div>
               <div className="space-y-2">

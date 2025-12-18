@@ -757,6 +757,7 @@
     "commentRequired": "El comentario es requerido",
     "commentCannotBeEmpty": "El comentario no puede estar vacío",
     "scoreRange10": "La puntuación debe estar entre 0 y 10",
+    "scoreMax10": "La puntuación máxima es 10",
     "scoreRange100": "La puntuación debe estar entre 0 y 100",
     "atLeastOneSubmissionRequired": "Debe proporcionar al menos una entrega para evaluar",
     "teamNotInSameEvent": "El equipo no pertenece al mismo evento que la fase",
@@ -774,6 +775,7 @@
     "aiServiceNotConfigured": "Servicio de IA no configurado",
     "taskNotAvailable": "La tarea asociada a la entrega no está disponible",
     "phaseEvaluationTitle": "Evaluación de Fase",
+    "projectEvaluationTitle": "Evaluación de Proyecto",
     "selectSubmissions": "Seleccionar entregas para evaluar",
     "selectSubmissionsDescription": "Selecciona las entregas que deseas incluir en la evaluación. Por defecto se seleccionan todas las entregas finales y la última entrega de cada tarea.",
     "noSubmissionsForTask": "No hay entregas para esta tarea",
@@ -786,6 +788,7 @@
     "evaluateProjectButton": "Evaluar proyecto",
     "viewProjectEvaluationButton": "Ver evaluación",
     "projectEvaluation": "Proyecto",
+    "finalPhaseEvaluation": "Evaluación Final de la Fase",
     "evaluation": "Evaluación",
     "evaluationLanguage": "Idioma de evaluación"
   },
