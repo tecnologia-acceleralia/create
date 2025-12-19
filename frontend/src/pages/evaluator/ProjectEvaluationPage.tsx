@@ -45,9 +45,11 @@ const evaluationSchema = z.object({
 type EvaluationFormValues = z.infer<typeof evaluationSchema>;
 
 function ProjectEvaluationPage() {
+  console.log('[ProjectEvaluationPage] ========== COMPONENTE MONTADO ==========');
   const { eventId, teamId } = useParams();
   const numericEventId = Number(eventId);
   const numericTeamId = Number(teamId);
+  console.log('[ProjectEvaluationPage] Parámetros:', { eventId, teamId, numericEventId, numericTeamId });
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
   const { t, i18n } = useTranslation();
@@ -123,18 +125,77 @@ function ProjectEvaluationPage() {
   const { data: existingEvaluation, isLoading: evaluationLoading } = useQuery<ProjectEvaluation | null>({
     queryKey: ['project-evaluation', projectId],
     queryFn: async () => {
-      if (!projectId) return null;
+      if (!projectId) {
+        console.log('[ProjectEvaluationPage] ❌ No hay projectId, retornando null');
+        return null;
+      }
       try {
+        console.log('[ProjectEvaluationPage] ========== INICIANDO QUERY ==========');
+        console.log('[ProjectEvaluationPage] Cargando evaluaciones para proyecto:', projectId);
         const evaluations = await getProjectEvaluations(projectId);
+        console.log('[ProjectEvaluationPage] Evaluaciones recibidas del API (raw):', evaluations);
+        console.log('[ProjectEvaluationPage] Tipo de datos:', Array.isArray(evaluations) ? 'Array' : typeof evaluations);
+        console.log('[ProjectEvaluationPage] Número de evaluaciones:', Array.isArray(evaluations) ? evaluations.length : 'No es array');
+        
+        // Validar que sea un array
+        if (!Array.isArray(evaluations)) {
+          console.error('[ProjectEvaluationPage] ❌ ERROR: Las evaluaciones no son un array:', evaluations);
+          return null;
+        }
+        
         // Retornar la evaluación final o la más reciente
-        return evaluations.find(e => e.status === 'final') || evaluations[0] || null;
+        const finalEvaluation = evaluations.find(e => e && e.status === 'final');
+        if (finalEvaluation) {
+          console.log('[ProjectEvaluationPage] ✅ Evaluación final encontrada:', {
+            id: finalEvaluation.id,
+            status: finalEvaluation.status,
+            source: finalEvaluation.source,
+            commentLength: finalEvaluation.comment?.length || 0,
+            hasComment: !!finalEvaluation.comment,
+            score: finalEvaluation.score,
+            fullObject: finalEvaluation
+          });
+          return finalEvaluation;
+        }
+        const mostRecent = evaluations.length > 0 && evaluations[0] ? evaluations[0] : null;
+        console.log('[ProjectEvaluationPage] 📝 Evaluación más reciente (puede ser borrador):', mostRecent ? {
+          id: mostRecent.id,
+          status: mostRecent.status,
+          source: mostRecent.source,
+          commentLength: mostRecent.comment?.length || 0,
+          hasComment: !!mostRecent.comment,
+          score: mostRecent.score,
+          fullObject: mostRecent
+        } : null);
+        return mostRecent;
       } catch (error) {
+        console.error('[ProjectEvaluationPage] ❌ Error al cargar evaluación de proyecto:', error);
         return null;
       }
     },
     enabled: projectId !== null && projectId !== undefined && Number.isFinite(projectId),
-    retry: false
+    retry: false,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+    staleTime: 0, // Forzar que siempre se considere stale
+    cacheTime: 0 // No cachear los datos
   });
+
+  // Log del estado de la query
+  useEffect(() => {
+    console.log('[ProjectEvaluationPage] 📊 Estado de la query de evaluación:', {
+      evaluationLoading,
+      hasExistingEvaluation: !!existingEvaluation,
+      existingEvaluationId: existingEvaluation?.id,
+      existingEvaluationStatus: existingEvaluation?.status,
+      existingEvaluationSource: existingEvaluation?.source,
+      existingEvaluationCommentLength: existingEvaluation?.comment?.length || 0,
+      existingEvaluationType: typeof existingEvaluation,
+      existingEvaluationIsArray: Array.isArray(existingEvaluation),
+      existingEvaluationKeys: existingEvaluation ? Object.keys(existingEvaluation) : [],
+      existingEvaluationFull: existingEvaluation
+    });
+  }, [evaluationLoading, existingEvaluation]);
 
   // Obtener rúbrica de proyecto
   const { data: rubrics, isLoading: rubricsLoading } = useQuery<PhaseRubric[]>({
@@ -250,17 +311,60 @@ function ProjectEvaluationPage() {
   const form = useForm<EvaluationFormValues>({
     resolver: zodResolver(evaluationSchema),
     defaultValues: {
-      comment: existingEvaluation?.comment || '',
-      score: existingEvaluation?.score ? Number(existingEvaluation.score) : undefined
+      comment: '',
+      score: undefined
     }
   });
 
+  // Log del estado inicial del formulario
+  useEffect(() => {
+    console.log('[ProjectEvaluationPage] 📋 Formulario inicializado con valores:', {
+      comment: form.getValues('comment'),
+      commentLength: form.getValues('comment')?.length || 0,
+      score: form.getValues('score'),
+      isDirty: form.formState.isDirty,
+      isValid: form.formState.isValid
+    });
+  }, []); // Solo al montar
+
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
-    if (existingEvaluation) {
+    console.log('[ProjectEvaluationPage] ========== useEffect: existingEvaluation cambió ==========');
+    console.log('[ProjectEvaluationPage] Estado actual:', {
+      existingEvaluation: existingEvaluation ? {
+        id: existingEvaluation.id,
+        status: existingEvaluation.status,
+        source: existingEvaluation.source,
+        hasComment: !!existingEvaluation.comment,
+        commentLength: existingEvaluation.comment?.length || 0,
+        score: existingEvaluation.score,
+        fullObject: existingEvaluation
+      } : null,
+      evaluationLoading,
+      formValuesBefore: {
+        comment: form.getValues('comment'),
+        commentLength: form.getValues('comment')?.length || 0,
+        score: form.getValues('score')
+      }
+    });
+
+    // Validar que existingEvaluation tenga las propiedades necesarias
+    if (existingEvaluation && typeof existingEvaluation === 'object' && 'id' in existingEvaluation) {
+      console.log('[ProjectEvaluationPage] ✅ Hay evaluación existente, procesando...');
+      console.log('[ProjectEvaluationPage] Detalles de la evaluación:', {
+        id: existingEvaluation.id,
+        status: existingEvaluation.status,
+        source: existingEvaluation.source,
+        hasComment: !!existingEvaluation.comment,
+        commentLength: existingEvaluation.comment?.length || 0,
+        commentPreview: existingEvaluation.comment?.substring(0, 150) || '(vacío)',
+        score: existingEvaluation.score
+      });
+      
       // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
       // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
       if (existingEvaluation.source === 'ai_assisted') {
+        console.log('[ProjectEvaluationPage] 🤖 Evaluación de IA detectada, mostrando en aiEvaluationText');
         setAiEvaluationText(existingEvaluation.comment || '');
         // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
         setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
@@ -269,32 +373,95 @@ function ProjectEvaluationPage() {
           comment: '', // No copiar el comentario automáticamente
           score: undefined // No copiar el score automáticamente
         });
+        console.log('[ProjectEvaluationPage] Formulario limpiado (evaluación de IA)');
       } else {
         // Para evaluaciones manuales, cargar normalmente en el form
+        console.log('[ProjectEvaluationPage] ✍️ Evaluación manual detectada, cargando en formulario');
         const comment = existingEvaluation.comment || '';
         const score = existingEvaluation.score ? Number(existingEvaluation.score) : undefined;
-        
-        // Resetear el formulario con los nuevos valores
-        form.reset({
-          comment: comment,
-          score: score
+        console.log('[ProjectEvaluationPage] Valores extraídos para cargar:', { 
+          commentLength: comment.length, 
+          commentPreview: comment.substring(0, 150) + (comment.length > 150 ? '...' : ''), 
+          score,
+          scoreType: typeof score,
+          scoreIsNaN: score !== undefined ? isNaN(score) : 'N/A'
         });
         
-        // También usar setValue para asegurar que se actualice inmediatamente
-        form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
-        if (score !== undefined && !isNaN(score)) {
-          form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
-        }
+        // Usar setTimeout para asegurar que el formulario esté completamente montado
+        // y que React haya procesado todos los cambios de estado
+        console.log('[ProjectEvaluationPage] Programando actualización del formulario con setTimeout...');
+        setTimeout(() => {
+          console.log('[ProjectEvaluationPage] ⏰ setTimeout ejecutado, actualizando formulario...');
+          console.log('[ProjectEvaluationPage] Valores del formulario ANTES de reset:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score')
+          });
+
+          // Resetear el formulario con los nuevos valores y opciones explícitas
+          console.log('[ProjectEvaluationPage] Ejecutando form.reset() con valores:', { comment, score });
+          form.reset({
+            comment: comment,
+            score: score
+          }, {
+            keepDefaultValues: false,
+            keepValues: false,
+            keepDirty: false,
+            keepIsSubmitted: false,
+            keepTouched: false,
+            keepIsValid: false,
+            keepSubmitCount: false
+          });
+          
+          console.log('[ProjectEvaluationPage] Valores del formulario DESPUÉS de reset:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score')
+          });
+          
+          // También usar setValue para asegurar que se actualice inmediatamente
+          console.log('[ProjectEvaluationPage] Ejecutando form.setValue() para forzar actualización...');
+          form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
+          if (score !== undefined && !isNaN(score)) {
+            form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
+          }
+          
+          console.log('[ProjectEvaluationPage] Valores del formulario DESPUÉS de setValue:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score'),
+            formState: {
+              isDirty: form.formState.isDirty,
+              isValid: form.formState.isValid,
+              isSubmitted: form.formState.isSubmitted
+            }
+          });
+          
+          console.log('[ProjectEvaluationPage] ✅ Formulario actualizado completamente');
+        }, 0);
         
         setAiEvaluationText('');
         setAiEvaluationScore(null);
       }
     } else {
-      form.reset({ comment: '', score: undefined });
-      setAiEvaluationText('');
-      setAiEvaluationScore(null);
+      console.log('[ProjectEvaluationPage] ❌ No hay evaluación existente o no tiene propiedades válidas');
+      console.log('[ProjectEvaluationPage] existingEvaluation es:', existingEvaluation);
+      console.log('[ProjectEvaluationPage] Tipo:', typeof existingEvaluation);
+      console.log('[ProjectEvaluationPage] Tiene id?:', existingEvaluation && 'id' in existingEvaluation);
+      
+      // Solo limpiar si realmente no hay evaluación (no durante la carga inicial)
+      if (evaluationLoading === false) {
+        console.log('[ProjectEvaluationPage] evaluationLoading es false, limpiando formulario');
+        form.reset({ comment: '', score: undefined });
+        setAiEvaluationText('');
+        setAiEvaluationScore(null);
+        console.log('[ProjectEvaluationPage] Formulario limpiado');
+      } else {
+        console.log('[ProjectEvaluationPage] evaluationLoading es true, NO limpiando (aún cargando)');
+      }
     }
-  }, [existingEvaluation, form]);
+    console.log('[ProjectEvaluationPage] ========== Fin del useEffect ==========');
+  }, [existingEvaluation, evaluationLoading]); // Remover 'form' de las dependencias ya que es estable
 
   const toggleSubmissionSelection = (submissionId: number) => {
     const newSelected = new Set(selectedSubmissionIds);
@@ -778,10 +945,26 @@ function ProjectEvaluationPage() {
                 <label className="text-sm font-medium">
                   {safeTranslate(t, 'evaluations.comment', { defaultValue: 'Comentario' })} *
                 </label>
+                {(() => {
+                  const currentComment = form.getValues('comment');
+                  const watchComment = form.watch('comment');
+                  console.log('[ProjectEvaluationPage] 🎨 RENDER: Campo comentario - valores:', {
+                    getValues: currentComment,
+                    getValuesLength: currentComment?.length || 0,
+                    watch: watchComment,
+                    watchLength: watchComment?.length || 0,
+                    formState: {
+                      isDirty: form.formState.isDirty,
+                      isValid: form.formState.isValid
+                    }
+                  });
+                  return null;
+                })()}
                 <Textarea
                   {...form.register('comment')}
                   rows={10}
                   placeholder={safeTranslate(t, 'evaluations.commentPlaceholder', { defaultValue: 'Escribe tu evaluación aquí...' })}
+                  value={form.watch('comment') || ''}
                 />
                 {form.formState.errors.comment && (
                   <p className="text-xs text-destructive">{form.formState.errors.comment.message}</p>
@@ -791,6 +974,19 @@ function ProjectEvaluationPage() {
                 <label className="text-sm font-medium block mb-2">
                   {safeTranslate(t, 'evaluations.score', { defaultValue: 'Puntuación' })} (0-10)
                 </label>
+                {(() => {
+                  const currentScore = form.getValues('score');
+                  const watchScore = form.watch('score');
+                  console.log('[ProjectEvaluationPage] 🎨 RENDER: Campo score - valores:', {
+                    getValues: currentScore,
+                    watch: watchScore,
+                    formState: {
+                      isDirty: form.formState.isDirty,
+                      isValid: form.formState.isValid
+                    }
+                  });
+                  return null;
+                })()}
                 <input
                   type="number"
                   step="0.1"
@@ -801,6 +997,7 @@ function ProjectEvaluationPage() {
                     min: { value: 0, message: safeTranslate(t, 'evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
                     max: { value: 10, message: safeTranslate(t, 'evaluations.scoreMax10', { defaultValue: 'La puntuación máxima es 10' }) }
                   })}
+                  value={form.watch('score') || ''}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
                 {form.formState.errors.score && (

@@ -44,10 +44,12 @@ const evaluationSchema = z.object({
 type EvaluationFormValues = z.infer<typeof evaluationSchema>;
 
 function PhaseEvaluationPage() {
+  console.log('[PhaseEvaluationPage] ========== COMPONENTE MONTADO ==========');
   const { eventId, phaseId, teamId } = useParams();
   const numericEventId = Number(eventId);
   const numericPhaseId = Number(phaseId);
   const numericTeamId = Number(teamId);
+  console.log('[PhaseEvaluationPage] Parámetros:', { eventId, phaseId, teamId, numericEventId, numericPhaseId, numericTeamId });
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
   const { t, i18n } = useTranslation();
@@ -121,30 +123,74 @@ function PhaseEvaluationPage() {
     queryKey: ['phase-evaluation', numericPhaseId, numericTeamId],
     queryFn: async () => {
       try {
+        console.log('[PhaseEvaluationPage] ========== INICIANDO QUERY ==========');
         console.log('[PhaseEvaluationPage] Cargando evaluaciones para fase:', numericPhaseId, 'equipo:', numericTeamId);
         const evaluations = await getPhaseEvaluations(numericPhaseId, numericTeamId);
-        console.log('[PhaseEvaluationPage] Evaluaciones recibidas:', evaluations);
+        console.log('[PhaseEvaluationPage] Evaluaciones recibidas del API (raw):', evaluations);
+        console.log('[PhaseEvaluationPage] Tipo de datos:', Array.isArray(evaluations) ? 'Array' : typeof evaluations);
+        console.log('[PhaseEvaluationPage] Número de evaluaciones:', Array.isArray(evaluations) ? evaluations.length : 'No es array');
+        
+        // Validar que sea un array
+        if (!Array.isArray(evaluations)) {
+          console.error('[PhaseEvaluationPage] ❌ ERROR: Las evaluaciones no son un array:', evaluations);
+          return null;
+        }
+        
         // Retornar la evaluación final o la más reciente (incluyendo borradores)
         // Priorizar la final, pero si no hay, mostrar la más reciente (que puede ser un borrador)
-        const finalEvaluation = evaluations.find(e => e.status === 'final');
+        const finalEvaluation = evaluations.find(e => e && e.status === 'final');
         if (finalEvaluation) {
-          console.log('[PhaseEvaluationPage] Evaluación final encontrada:', finalEvaluation);
+          console.log('[PhaseEvaluationPage] ✅ Evaluación final encontrada:', {
+            id: finalEvaluation.id,
+            status: finalEvaluation.status,
+            source: finalEvaluation.source,
+            commentLength: finalEvaluation.comment?.length || 0,
+            hasComment: !!finalEvaluation.comment,
+            score: finalEvaluation.score,
+            fullObject: finalEvaluation
+          });
           return finalEvaluation;
         }
         // Si no hay final, retornar la más reciente (ordenadas por created_at DESC desde el backend)
-        const mostRecent = evaluations.length > 0 ? evaluations[0] : null;
-        console.log('[PhaseEvaluationPage] Evaluación más reciente:', mostRecent);
+        const mostRecent = evaluations.length > 0 && evaluations[0] ? evaluations[0] : null;
+        console.log('[PhaseEvaluationPage] 📝 Evaluación más reciente (puede ser borrador):', mostRecent ? {
+          id: mostRecent.id,
+          status: mostRecent.status,
+          source: mostRecent.source,
+          commentLength: mostRecent.comment?.length || 0,
+          hasComment: !!mostRecent.comment,
+          score: mostRecent.score,
+          fullObject: mostRecent
+        } : null);
         return mostRecent;
       } catch (error) {
-        console.error('[PhaseEvaluationPage] Error al cargar evaluación de fase:', error);
+        console.error('[PhaseEvaluationPage] ❌ Error al cargar evaluación de fase:', error);
         return null;
       }
     },
     enabled: Number.isInteger(numericPhaseId) && Number.isInteger(numericTeamId),
     retry: false,
     refetchOnWindowFocus: true, // Permitir refetch cuando se vuelve a la página
-    refetchOnMount: true // Refetch al montar el componente
+    refetchOnMount: true, // Refetch al montar el componente
+    staleTime: 0, // Forzar que siempre se considere stale
+    cacheTime: 0 // No cachear los datos
   });
+
+  // Log del estado de la query
+  useEffect(() => {
+    console.log('[PhaseEvaluationPage] 📊 Estado de la query de evaluación:', {
+      evaluationLoading,
+      hasExistingEvaluation: !!existingEvaluation,
+      existingEvaluationId: existingEvaluation?.id,
+      existingEvaluationStatus: existingEvaluation?.status,
+      existingEvaluationSource: existingEvaluation?.source,
+      existingEvaluationCommentLength: existingEvaluation?.comment?.length || 0,
+      existingEvaluationType: typeof existingEvaluation,
+      existingEvaluationIsArray: Array.isArray(existingEvaluation),
+      existingEvaluationKeys: existingEvaluation ? Object.keys(existingEvaluation) : [],
+      existingEvaluationFull: existingEvaluation
+    });
+  }, [evaluationLoading, existingEvaluation]);
 
   // Obtener rúbrica de fase
   const { data: rubrics, isLoading: rubricsLoading } = useQuery<PhaseRubric[]>({
@@ -217,23 +263,55 @@ function PhaseEvaluationPage() {
     }
   });
 
+  // Log del estado inicial del formulario
+  useEffect(() => {
+    console.log('[PhaseEvaluationPage] 📋 Formulario inicializado con valores:', {
+      comment: form.getValues('comment'),
+      commentLength: form.getValues('comment')?.length || 0,
+      score: form.getValues('score'),
+      isDirty: form.formState.isDirty,
+      isValid: form.formState.isValid
+    });
+  }, []); // Solo al montar
+
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
-    console.log('[PhaseEvaluationPage] existingEvaluation cambió:', existingEvaluation);
-    if (existingEvaluation) {
-      console.log('[PhaseEvaluationPage] Cargando evaluación existente:', {
+    console.log('[PhaseEvaluationPage] ========== useEffect: existingEvaluation cambió ==========');
+    console.log('[PhaseEvaluationPage] Estado actual:', {
+      existingEvaluation: existingEvaluation ? {
         id: existingEvaluation.id,
         status: existingEvaluation.status,
         source: existingEvaluation.source,
         hasComment: !!existingEvaluation.comment,
         commentLength: existingEvaluation.comment?.length || 0,
+        score: existingEvaluation.score,
+        fullObject: existingEvaluation
+      } : null,
+      evaluationLoading,
+      formValuesBefore: {
+        comment: form.getValues('comment'),
+        commentLength: form.getValues('comment')?.length || 0,
+        score: form.getValues('score')
+      }
+    });
+
+    // Validar que existingEvaluation tenga las propiedades necesarias
+    if (existingEvaluation && typeof existingEvaluation === 'object' && 'id' in existingEvaluation) {
+      console.log('[PhaseEvaluationPage] ✅ Hay evaluación existente, procesando...');
+      console.log('[PhaseEvaluationPage] Detalles de la evaluación:', {
+        id: existingEvaluation.id,
+        status: existingEvaluation.status,
+        source: existingEvaluation.source,
+        hasComment: !!existingEvaluation.comment,
+        commentLength: existingEvaluation.comment?.length || 0,
+        commentPreview: existingEvaluation.comment?.substring(0, 150) || '(vacío)',
         score: existingEvaluation.score
       });
       
       // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
       // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
       if (existingEvaluation.source === 'ai_assisted') {
-        console.log('[PhaseEvaluationPage] Evaluación de IA, mostrando en aiEvaluationText');
+        console.log('[PhaseEvaluationPage] 🤖 Evaluación de IA detectada, mostrando en aiEvaluationText');
         setAiEvaluationText(existingEvaluation.comment || '');
         // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
         setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
@@ -242,41 +320,95 @@ function PhaseEvaluationPage() {
           comment: '', // No copiar el comentario automáticamente
           score: undefined // No copiar el score automáticamente
         });
+        console.log('[PhaseEvaluationPage] Formulario limpiado (evaluación de IA)');
       } else {
         // Para evaluaciones manuales, cargar normalmente en el form
-        console.log('[PhaseEvaluationPage] Evaluación manual, cargando en formulario');
+        console.log('[PhaseEvaluationPage] ✍️ Evaluación manual detectada, cargando en formulario');
         const comment = existingEvaluation.comment || '';
         const score = existingEvaluation.score ? Number(existingEvaluation.score) : undefined;
-        console.log('[PhaseEvaluationPage] Valores a cargar:', { 
+        console.log('[PhaseEvaluationPage] Valores extraídos para cargar:', { 
           commentLength: comment.length, 
-          commentPreview: comment.substring(0, 100) + (comment.length > 100 ? '...' : ''), 
-          score 
+          commentPreview: comment.substring(0, 150) + (comment.length > 150 ? '...' : ''), 
+          score,
+          scoreType: typeof score,
+          scoreIsNaN: score !== undefined ? isNaN(score) : 'N/A'
         });
         
-        // Resetear el formulario con los nuevos valores
-        form.reset({
-          comment: comment,
-          score: score
-        });
-        
-        // También usar setValue para asegurar que se actualice inmediatamente
-        form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
-        if (score !== undefined && !isNaN(score)) {
-          form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
-        }
-        
-        console.log('[PhaseEvaluationPage] Formulario actualizado. Valor actual del comentario:', form.getValues('comment')?.substring(0, 50) || '(vacío)');
+        // Usar setTimeout para asegurar que el formulario esté completamente montado
+        // y que React haya procesado todos los cambios de estado
+        console.log('[PhaseEvaluationPage] Programando actualización del formulario con setTimeout...');
+        setTimeout(() => {
+          console.log('[PhaseEvaluationPage] ⏰ setTimeout ejecutado, actualizando formulario...');
+          console.log('[PhaseEvaluationPage] Valores del formulario ANTES de reset:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score')
+          });
+
+          // Resetear el formulario con los nuevos valores y opciones explícitas
+          console.log('[PhaseEvaluationPage] Ejecutando form.reset() con valores:', { comment, score });
+          form.reset({
+            comment: comment,
+            score: score
+          }, {
+            keepDefaultValues: false,
+            keepValues: false,
+            keepDirty: false,
+            keepIsSubmitted: false,
+            keepTouched: false,
+            keepIsValid: false,
+            keepSubmitCount: false
+          });
+          
+          console.log('[PhaseEvaluationPage] Valores del formulario DESPUÉS de reset:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score')
+          });
+          
+          // También usar setValue para asegurar que se actualice inmediatamente
+          console.log('[PhaseEvaluationPage] Ejecutando form.setValue() para forzar actualización...');
+          form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
+          if (score !== undefined && !isNaN(score)) {
+            form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
+          }
+          
+          console.log('[PhaseEvaluationPage] Valores del formulario DESPUÉS de setValue:', {
+            comment: form.getValues('comment'),
+            commentLength: form.getValues('comment')?.length || 0,
+            score: form.getValues('score'),
+            formState: {
+              isDirty: form.formState.isDirty,
+              isValid: form.formState.isValid,
+              isSubmitted: form.formState.isSubmitted
+            }
+          });
+          
+          console.log('[PhaseEvaluationPage] ✅ Formulario actualizado completamente');
+        }, 0);
         
         setAiEvaluationText('');
         setAiEvaluationScore(null);
       }
     } else {
-      console.log('[PhaseEvaluationPage] No hay evaluación existente, limpiando formulario');
-      form.reset({ comment: '', score: undefined });
-      setAiEvaluationText('');
-      setAiEvaluationScore(null);
+      console.log('[PhaseEvaluationPage] ❌ No hay evaluación existente o no tiene propiedades válidas');
+      console.log('[PhaseEvaluationPage] existingEvaluation es:', existingEvaluation);
+      console.log('[PhaseEvaluationPage] Tipo:', typeof existingEvaluation);
+      console.log('[PhaseEvaluationPage] Tiene id?:', existingEvaluation && 'id' in existingEvaluation);
+      
+      // Solo limpiar si realmente no hay evaluación (no durante la carga inicial)
+      if (evaluationLoading === false) {
+        console.log('[PhaseEvaluationPage] evaluationLoading es false, limpiando formulario');
+        form.reset({ comment: '', score: undefined });
+        setAiEvaluationText('');
+        setAiEvaluationScore(null);
+        console.log('[PhaseEvaluationPage] Formulario limpiado');
+      } else {
+        console.log('[PhaseEvaluationPage] evaluationLoading es true, NO limpiando (aún cargando)');
+      }
     }
-  }, [existingEvaluation, form]);
+    console.log('[PhaseEvaluationPage] ========== Fin del useEffect ==========');
+  }, [existingEvaluation, evaluationLoading]); // Remover 'form' de las dependencias ya que es estable
 
   const toggleSubmissionSelection = (submissionId: number) => {
     const newSelected = new Set(selectedSubmissionIds);
@@ -904,10 +1036,26 @@ function PhaseEvaluationPage() {
                 <label className="text-sm font-medium">
                   {safeTranslate(t, 'evaluations.comment', { defaultValue: 'Comentario' })} *
                 </label>
+                {(() => {
+                  const currentComment = form.getValues('comment');
+                  const watchComment = form.watch('comment');
+                  console.log('[PhaseEvaluationPage] 🎨 RENDER: Campo comentario - valores:', {
+                    getValues: currentComment,
+                    getValuesLength: currentComment?.length || 0,
+                    watch: watchComment,
+                    watchLength: watchComment?.length || 0,
+                    formState: {
+                      isDirty: form.formState.isDirty,
+                      isValid: form.formState.isValid
+                    }
+                  });
+                  return null;
+                })()}
                 <Textarea
                   {...form.register('comment')}
                   rows={10}
                   placeholder={safeTranslate(t, 'evaluations.commentPlaceholder', { defaultValue: 'Escribe tu evaluación aquí...' })}
+                  value={form.watch('comment') || ''}
                 />
                 {form.formState.errors.comment && (
                   <p className="text-xs text-destructive">{form.formState.errors.comment.message}</p>
@@ -932,6 +1080,19 @@ function PhaseEvaluationPage() {
                 <label className="text-sm font-medium block mb-2">
                   {safeTranslate(t, 'evaluations.score', { defaultValue: 'Puntuación' })}
                 </label>
+                {(() => {
+                  const currentScore = form.getValues('score');
+                  const watchScore = form.watch('score');
+                  console.log('[PhaseEvaluationPage] 🎨 RENDER: Campo score - valores:', {
+                    getValues: currentScore,
+                    watch: watchScore,
+                    formState: {
+                      isDirty: form.formState.isDirty,
+                      isValid: form.formState.isValid
+                    }
+                  });
+                  return null;
+                })()}
                 <input
                   type="number"
                   step="1"
@@ -942,6 +1103,7 @@ function PhaseEvaluationPage() {
                     min: { value: 0, message: safeTranslate(t, 'evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
                     max: { value: 100, message: safeTranslate(t, 'evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 100' }) }
                   })}
+                  value={form.watch('score') || ''}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
                 />
                 {form.formState.errors.score && (
