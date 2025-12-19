@@ -792,7 +792,14 @@
     "projectEvaluation": "Project",
     "finalPhaseEvaluation": "Final Phase Evaluation",
     "evaluation": "Evaluation",
-    "evaluationLanguage": "Evaluation language"
+    "evaluationLanguage": "Evaluation language",
+    "scoreBreakdown": "Score Breakdown",
+    "calculatedScore": "Calculated score (weighted average)",
+    "finalScoreFromComment": "Final score (from comment)",
+    "finalScore": "Final Score",
+    "saved": "Saved",
+    "finalEvaluationSaved": "This evaluation is saved and visible to team members",
+    "savedAt": "Saved on"
   },
   "notifications": {
     "title": "Notifications",

@@ -17,3 +17,4 @@ export { MultiLanguageField } from './MultiLanguageField';
 export { HeroContentField } from './HeroContentField';
 export { TeamSubmissionsSummary } from './TeamSubmissionsSummary';
 export { CompleteRegistrationModal } from './CompleteRegistrationModal';
+export { ScoreBreakdown } from './ScoreBreakdown';

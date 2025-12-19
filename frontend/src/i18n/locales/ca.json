@@ -790,7 +790,14 @@
     "projectEvaluation": "Projecte",
     "finalPhaseEvaluation": "Avaluació Final de la Fase",
     "evaluation": "Avaluació",
-    "evaluationLanguage": "Idioma d'avaluació"
+    "evaluationLanguage": "Idioma d'avaluació",
+    "scoreBreakdown": "Desglossament de Puntuació",
+    "calculatedScore": "Nota calculada (mitjana ponderada)",
+    "finalScoreFromComment": "Nota final (del comentari)",
+    "finalScore": "Nota Final",
+    "saved": "Desada",
+    "finalEvaluationSaved": "Aquesta avaluació està desada i visible per als membres de l'equip",
+    "savedAt": "Desada el"
   },
   "notifications": {
     "title": "Notificacions",

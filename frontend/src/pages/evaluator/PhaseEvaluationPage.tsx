@@ -36,7 +36,7 @@ import { cn } from '@/utils/cn';
 const evaluationSchema = z.object({
   comment: z.string().min(1, 'El comentario es requerido'),
   score: z.union([
-    z.number().int().min(0, 'La puntuación mínima es 0').max(100, 'La puntuación máxima es 100'),
+    z.number().min(0, 'La puntuación mínima es 0').max(100, 'La puntuación máxima es 100'),
     z.nan()
   ]).optional()
 });
@@ -1095,7 +1095,7 @@ function PhaseEvaluationPage() {
                 })()}
                 <input
                   type="number"
-                  step="1"
+                  step="0.1"
                   min="0"
                   max="100"
                   {...form.register('score', { 
@@ -1110,6 +1110,7 @@ function PhaseEvaluationPage() {
                   <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>
                 )}
               </div>
+              
               <div className="flex gap-3">
                 <Button
                   type="button"

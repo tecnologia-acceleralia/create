@@ -790,7 +790,14 @@
     "projectEvaluation": "Proyecto",
     "finalPhaseEvaluation": "Evaluación Final de la Fase",
     "evaluation": "Evaluación",
-    "evaluationLanguage": "Idioma de evaluación"
+    "evaluationLanguage": "Idioma de evaluación",
+    "scoreBreakdown": "Desglose de Puntuación",
+    "calculatedScore": "Nota calculada (media ponderada)",
+    "finalScoreFromComment": "Nota final (del comentario)",
+    "finalScore": "Nota Final",
+    "saved": "Guardada",
+    "finalEvaluationSaved": "Esta evaluación está guardada y visible para los miembros del equipo",
+    "savedAt": "Guardada el"
   },
   "notifications": {
     "title": "Notificaciones",
