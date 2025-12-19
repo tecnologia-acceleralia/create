@@ -837,6 +837,7 @@ export default function DeliverablesTrackingPage() {
     <DashboardLayout
       title={safeTranslate(t, 'tracking.deliverables.title')}
       subtitle={selectedEventName || safeTranslate(t, 'tracking.deliverables.subtitle')}
+      containerClassName="max-w-full"
     >
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
