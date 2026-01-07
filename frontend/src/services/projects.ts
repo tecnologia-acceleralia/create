@@ -76,6 +76,7 @@ export async function createProjectForEvent(
     image_url?: string;
     requirements?: string;
     team_name?: string;
+    logo?: string;
   }
 ) {
   const response = await apiClient.post(`/projects/events/${eventId}`, payload);
