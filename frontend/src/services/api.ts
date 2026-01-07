@@ -64,6 +64,26 @@ apiClient.interceptors.response.use(
         }
         if (responseData.errors && Array.isArray(responseData.errors)) {
           console.error('  Errores de validación:', responseData.errors);
+          // Mostrar los primeros 10 errores en detalle para debugging
+          console.error('  Primeros errores detallados:');
+          responseData.errors.slice(0, 10).forEach((err: any, index: number) => {
+            const errorDetails = {
+              path: err.path,
+              msg: err.msg,
+              value: err.value,
+              valueType: typeof err.value,
+              valueString: JSON.stringify(err.value),
+              location: err.location
+            };
+            console.error(`    Error ${index + 1}:`, errorDetails);
+            // También mostrar el valor expandido si es un objeto
+            if (typeof err.value === 'object' && err.value !== null) {
+              console.error(`      Valor expandido:`, err.value);
+            }
+          });
+          if (responseData.errors.length > 10) {
+            console.error(`    ... y ${responseData.errors.length - 10} errores más`);
+          }
         }
       }
     }

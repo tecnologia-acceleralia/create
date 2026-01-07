@@ -95,9 +95,30 @@ export const taskSchema = z.object({
 export const rubricCriterionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  weight: z.union([z.number().min(0), z.nan()]).optional(),
-  max_score: z.union([z.number().min(0), z.nan(), z.null()]).optional(),
-  order_index: z.union([z.number().int().min(1), z.nan()]).optional()
+  weight: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return num;
+    },
+    z.union([z.number().min(0), z.nan()])
+  ).optional(),
+  max_score: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return num;
+    },
+    z.union([z.number().min(0), z.nan(), z.null()])
+  ).optional(),
+  order_index: z.preprocess(
+    value => {
+      if (value === null || value === undefined || value === '') return Number.NaN;
+      const num = typeof value === 'string' ? Number(value.replace(',', '.')) : Number(value);
+      return Number.isNaN(num) ? num : Math.trunc(num);
+    },
+    z.union([z.number().int().min(1), z.nan()])
+  ).optional()
 });
 
 export const rubricSchema = z
@@ -125,6 +146,26 @@ export const rubricSchema = z
         message: 'events.rubricProjectNoPhase',
         path: ['phase_id']
       });
+    }
+
+    // Validar que la suma de pesos de los criterios sea 100 (si se han definido pesos)
+    const criteria = data.criteria ?? [];
+    if (criteria.length > 0) {
+      const totalWeight = criteria.reduce((sum, criterion) => {
+        const value = typeof criterion.weight === 'number' ? criterion.weight : Number(criterion.weight ?? 0);
+        return sum + (Number.isNaN(value) ? 0 : value);
+      }, 0);
+
+      // Permitir pequeña tolerancia por decimales
+      const isValidTotal = Math.abs(totalWeight - 100) < 0.0001 || totalWeight === 0;
+
+      if (!isValidTotal) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'events.rubricWeightsMustSum100',
+          path: ['criteria']
+        });
+      }
     }
   });
 

@@ -3,7 +3,6 @@ import jwt from 'jsonwebtoken';
 import { appConfig } from '../config/env.js';
 import { getModels } from "../models/index.js";
 import { resolveAssetMarkers, resolveYouTubeUrls } from '../services/content.service.js';
-import { sanitizeHtmlContent } from '../utils/html-sanitizer.js';
 
 /**
  * Verifica opcionalmente si hay un usuario autenticado y si es administrador
@@ -241,8 +240,6 @@ export class PublicController {
               langHtml = await resolveAssetMarkers(langHtml, event.id, tenant.id);
               // Resolver URLs de YouTube
               langHtml = resolveYouTubeUrls(langHtml);
-              // Sanitizar antes de enviar al frontend
-              langHtml = sanitizeHtmlContent(langHtml);
               if (langHtml) {
                 processed[lang] = langHtml;
               }
@@ -255,8 +252,7 @@ export class PublicController {
           // Si es string, procesar directamente
           processedHtml = await resolveAssetMarkers(processedHtml, event.id, tenant.id);
           processedHtml = resolveYouTubeUrls(processedHtml);
-          // Sanitizar antes de enviar al frontend
-          eventJson.description_html = sanitizeHtmlContent(processedHtml);
+          eventJson.description_html = processedHtml;
         }
       }
       

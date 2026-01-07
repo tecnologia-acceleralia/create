@@ -400,12 +400,15 @@ export function useSiteHeader() {
         if (createdDiff !== 0) {
           return createdDiff;
         }
-        return a.title.localeCompare(b.title);
+        // Obtener el texto del título en el idioma actual para la comparación
+        const titleA = typeof a.title === 'string' ? a.title : getMultilingualText(a.title, i18n.language);
+        const titleB = typeof b.title === 'string' ? b.title : getMultilingualText(b.title, i18n.language);
+        return titleA.localeCompare(titleB);
       });
     });
 
     return grouped;
-  }, [eventTasks]);
+  }, [eventTasks, i18n.language]);
 
   const isEventHomeActive = useMemo(() => {
     if (!eventHomePath) {

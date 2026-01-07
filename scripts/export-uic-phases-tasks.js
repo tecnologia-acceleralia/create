@@ -100,24 +100,43 @@ function loadEnv() {
 // Configuración de conexión
 function getDbConfig() {
   // Para producción, puede venir de PROD_DB_* o DB_*
-  // Para Docker, usar 'database' como host si estamos en la red Docker, o 'localhost' si estamos fuera
-  const isDocker = process.env.DOCKER === 'true' || process.env.DB_HOST === 'database';
+  const dbHost = (process.env.PROD_DB_HOST || process.env.DB_HOST || '').trim();
+  const dbPort = (process.env.PROD_DB_PORT || process.env.DB_PORT || '').trim();
+  const isDockerEnv = process.env.DOCKER === 'true';
   
-  const config = {
-    host: process.env.PROD_DB_HOST || process.env.DB_HOST || (isDocker ? 'database' : 'localhost'),
-    port: parseInt(process.env.PROD_DB_PORT || process.env.DB_PORT || '3306'),
-    user: process.env.PROD_DB_USER || process.env.DB_USER || 'root',
-    password: process.env.PROD_DB_PASSWORD || process.env.DB_PASSWORD || 'root',
-    database: process.env.PROD_DB_NAME || process.env.DB_NAME || 'create',
-    // Si estamos fuera de Docker y el puerto es 3306, intentar usar el puerto mapeado 3406
-    ...(isDocker === false && !process.env.PROD_DB_PORT && !process.env.DB_PORT ? { port: 3406 } : {})
-  };
-
-  // Si estamos fuera de Docker y el host es 'localhost', usar el puerto mapeado
-  if (config.host === 'localhost' && config.port === 3306 && !process.env.PROD_DB_PORT && !process.env.DB_PORT) {
-    config.port = 3406;
+  let host = dbHost || 'localhost';
+  let port = dbPort ? parseInt(dbPort) : 3306;
+  
+  // Si el host es 'database' (hostname de Docker), siempre cambiar a localhost
+  // a menos que estemos explícitamente en Docker (DOCKER=true)
+  if (host === 'database') {
+    if (!isDockerEnv) {
+      host = 'localhost';
+      port = 3406;
+      info('Host "database" detectado pero ejecutándose fuera de Docker. Usando localhost:3406');
+    } else {
+      info('Host "database" detectado y ejecutándose dentro de Docker. Usando database:3306');
+    }
+  }
+  // Si no hay host configurado, usar localhost con puerto mapeado por defecto
+  else if (!dbHost) {
+    host = 'localhost';
+    port = 3406;
+    info('Usando configuración por defecto: localhost:3406 (puerto mapeado de Docker)');
+  }
+  // Si el host es localhost pero no hay puerto explícito, usar puerto mapeado
+  else if (host === 'localhost' && !dbPort) {
+    port = 3406;
     info('Usando puerto mapeado de Docker: 3406');
   }
+  
+  const config = {
+    host: host,
+    port: port,
+    user: process.env.PROD_DB_USER || process.env.DB_USER || 'root',
+    password: process.env.PROD_DB_PASSWORD || process.env.DB_PASSWORD || 'root',
+    database: process.env.PROD_DB_NAME || process.env.DB_NAME || 'create'
+  };
 
   return config;
 }
@@ -130,15 +149,76 @@ function normalizeValue(value) {
   return value;
 }
 
-// Función para normalizar fechas
+// Función para extraer valor de campo multilingüe (JSON)
+// Si es un string JSON, lo parsea y extrae el valor en español
+// Si es un objeto, extrae el valor en español
+// Si es un string simple, lo devuelve tal cual
+// SIEMPRE devuelve string o null (nunca objetos)
+function extractMultilingualValue(value) {
+  if (value === null || value === undefined || value === 'NULL' || value === '') {
+    return null;
+  }
+  
+  // Si ya es un objeto (MySQL puede devolver JSON como objeto parseado), extraer el valor
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    // Es un objeto multilingüe, extraer español o el primer valor disponible
+    const extracted = value.es || value.ca || value.en || Object.values(value)[0] || null;
+    // Asegurar que siempre devolvemos string o null
+    if (extracted === null) {
+      return null;
+    }
+    // Convertir a string si no lo es
+    return typeof extracted === 'string' ? extracted : String(extracted);
+  }
+  
+  // Si es un string que parece JSON, intentar parsearlo
+  if (typeof value === 'string') {
+    // Si no parece JSON, devolverlo tal cual
+    const trimmed = value.trim();
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+      return value;
+    }
+    
+    try {
+      const parsed = JSON.parse(value);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        // Es un objeto multilingüe, extraer español o el primer valor disponible
+        const extracted = parsed.es || parsed.ca || parsed.en || Object.values(parsed)[0] || null;
+        // Asegurar que siempre devolvemos string o null
+        if (extracted === null) {
+          return null;
+        }
+        // Convertir a string si no lo es
+        return typeof extracted === 'string' ? extracted : String(extracted);
+      }
+      // Si no es un objeto, devolver el string original
+      return value;
+    } catch (e) {
+      // Si falla el parseo, devolver el string original
+      return value;
+    }
+  }
+  
+  // Si es cualquier otro tipo, convertirlo a string
+  return value !== null ? String(value) : null;
+}
+
+// Función para normalizar fechas a ISO8601 (formato esperado por el endpoint de importación)
 function normalizeDate(dateStr) {
   if (!dateStr || dateStr === 'NULL' || dateStr === '') {
     return null;
   }
   if (dateStr instanceof Date) {
-    return dateStr.toISOString().replace('T', ' ').substring(0, 19);
+    return dateStr.toISOString();
   }
-  return dateStr;
+  // Si es un string de fecha MySQL, convertir a ISO8601
+  if (typeof dateStr === 'string') {
+    const date = new Date(dateStr);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+  }
+  return null;
 }
 
 async function main() {
@@ -177,10 +257,10 @@ async function main() {
       const tenantId = tenantRows[0].id;
       info(`Tenant UIC encontrado con ID: ${tenantId}`);
 
-      // Obtener event_id del evento UIC
+      // Obtener event_id y nombre del evento UIC
       info('Obteniendo eventos del tenant UIC...');
       const [eventRows] = await connection.execute(
-        `SELECT id FROM events WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1`,
+        `SELECT id, name FROM events WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1`,
         [tenantId]
       );
 
@@ -190,7 +270,8 @@ async function main() {
       }
 
       const eventId = eventRows[0].id;
-      info(`Evento encontrado con ID: ${eventId}`);
+      const eventName = eventRows[0].name || 'UIC Event';
+      info(`Evento encontrado con ID: ${eventId}, Nombre: ${eventName}`);
 
       // Extraer fases
       info('Extrayendo fases...');
@@ -215,18 +296,43 @@ async function main() {
       info(`Fases encontradas: ${phases.length}`);
 
       // Procesar fases
-      const processedPhases = phases.map(phase => ({
-        id: phase.id,
-        name: normalizeValue(phase.name) || '',
-        description: normalizeValue(phase.description),
-        intro_html: normalizeValue(phase.intro_html),
-        order_index: phase.order_index || 1,
-        start_date: normalizeDate(phase.start_date),
-        end_date: normalizeDate(phase.end_date),
-        view_start_date: normalizeDate(phase.view_start_date),
-        view_end_date: normalizeDate(phase.view_end_date),
-        is_elimination: Boolean(phase.is_elimination)
-      }));
+      const processedPhases = phases.map(phase => {
+        // Extraer valores multilingües y asegurar que sean strings
+        const phaseName = extractMultilingualValue(phase.name);
+        const phaseDescription = extractMultilingualValue(phase.description);
+        const phaseIntroHtml = extractMultilingualValue(phase.intro_html);
+        
+        // Verificar que los valores extraídos sean strings (no objetos)
+        const finalName = (typeof phaseName === 'string' ? phaseName : 
+                          (phaseName && typeof phaseName === 'object' ? 
+                           (phaseName.es || phaseName.ca || phaseName.en || Object.values(phaseName)[0] || '') : 
+                           '')) || '';
+        
+        const finalDescription = (phaseDescription === null || phaseDescription === undefined) ? null :
+                                (typeof phaseDescription === 'string' ? phaseDescription :
+                                 (phaseDescription && typeof phaseDescription === 'object' ?
+                                  (phaseDescription.es || phaseDescription.ca || phaseDescription.en || Object.values(phaseDescription)[0] || null) :
+                                  null));
+        
+        const finalIntroHtml = (phaseIntroHtml === null || phaseIntroHtml === undefined) ? null :
+                              (typeof phaseIntroHtml === 'string' ? phaseIntroHtml :
+                               (phaseIntroHtml && typeof phaseIntroHtml === 'object' ?
+                                (phaseIntroHtml.es || phaseIntroHtml.ca || phaseIntroHtml.en || Object.values(phaseIntroHtml)[0] || null) :
+                                null));
+        
+        return {
+          id: phase.id,
+          name: finalName,
+          description: finalDescription,
+          intro_html: finalIntroHtml,
+          order_index: phase.order_index || 1,
+          start_date: normalizeDate(phase.start_date),
+          end_date: normalizeDate(phase.end_date),
+          view_start_date: normalizeDate(phase.view_start_date),
+          view_end_date: normalizeDate(phase.view_end_date),
+          is_elimination: Boolean(phase.is_elimination)
+        };
+      });
 
       // Extraer tareas
       info('Extrayendo tareas...');
@@ -273,12 +379,35 @@ async function main() {
           allowedMimeTypes = null;
         }
 
+        // Extraer valores multilingües y asegurar que sean strings
+        const taskTitle = extractMultilingualValue(task.title);
+        const taskDescription = extractMultilingualValue(task.description);
+        const taskIntroHtml = extractMultilingualValue(task.intro_html);
+        
+        // Verificar que los valores extraídos sean strings (no objetos)
+        const finalTitle = (typeof taskTitle === 'string' ? taskTitle : 
+                           (taskTitle && typeof taskTitle === 'object' ? 
+                            (taskTitle.es || taskTitle.ca || taskTitle.en || Object.values(taskTitle)[0] || '') : 
+                            '')) || '';
+        
+        const finalDescription = (taskDescription === null || taskDescription === undefined) ? null :
+                                (typeof taskDescription === 'string' ? taskDescription :
+                                 (taskDescription && typeof taskDescription === 'object' ?
+                                  (taskDescription.es || taskDescription.ca || taskDescription.en || Object.values(taskDescription)[0] || null) :
+                                  null));
+        
+        const finalIntroHtml = (taskIntroHtml === null || taskIntroHtml === undefined) ? null :
+                              (typeof taskIntroHtml === 'string' ? taskIntroHtml :
+                               (taskIntroHtml && typeof taskIntroHtml === 'object' ?
+                                (taskIntroHtml.es || taskIntroHtml.ca || taskIntroHtml.en || Object.values(taskIntroHtml)[0] || null) :
+                                null));
+        
         return {
           id: task.id,
           phase_id: task.phase_id,
-          title: normalizeValue(task.title) || '',
-          description: normalizeValue(task.description),
-          intro_html: normalizeValue(task.intro_html),
+          title: finalTitle,
+          description: finalDescription,
+          intro_html: finalIntroHtml,
           delivery_type: normalizeValue(task.delivery_type) || 'file',
           is_required: Boolean(task.is_required),
           due_date: normalizeDate(task.due_date),
@@ -290,14 +419,110 @@ async function main() {
         };
       });
 
-      // Crear objeto de exportación
+      // Crear objeto de exportación con formato compatible con el endpoint de importación
+      // El formato debe ser: { phases: [{ ..., tasks: [...] }] }
+      // donde las tareas están anidadas dentro de cada fase
+      
+      // Primero, agrupar tareas por phase_id
+      const tasksByPhaseId = {};
+      processedTasks.forEach(task => {
+        if (!tasksByPhaseId[task.phase_id]) {
+          tasksByPhaseId[task.phase_id] = [];
+        }
+        // Eliminar phase_id e id de la tarea (no se necesitan en el formato de importación)
+        const { phase_id, id, ...taskData } = task;
+        
+        // Construir objeto de tarea, omitiendo campos undefined pero manteniendo null
+        const taskPayload = {
+          title: taskData.title,
+          delivery_type: taskData.delivery_type,
+          is_required: taskData.is_required,
+          status: taskData.status,
+          order_index: taskData.order_index,
+          max_files: taskData.max_files
+        };
+        
+        // Agregar campos opcionales solo si no son undefined
+        if (taskData.description !== undefined) {
+          taskPayload.description = taskData.description;
+        }
+        if (taskData.intro_html !== undefined) {
+          taskPayload.intro_html = taskData.intro_html;
+        }
+        if (taskData.due_date !== undefined) {
+          taskPayload.due_date = taskData.due_date;
+        }
+        if (taskData.max_file_size_mb !== undefined) {
+          taskPayload.max_file_size_mb = taskData.max_file_size_mb;
+        }
+        if (taskData.allowed_mime_types !== undefined) {
+          taskPayload.allowed_mime_types = taskData.allowed_mime_types;
+        }
+        
+        tasksByPhaseId[task.phase_id].push(taskPayload);
+      });
+
+      // Crear fases con tareas anidadas (eliminar id de las fases)
+      const phasesWithTasks = processedPhases.map(phase => {
+        const { id, ...phaseData } = phase;
+        
+        // Asegurar que name sea siempre un string (no objeto)
+        const phaseName = typeof phaseData.name === 'string' ? phaseData.name : 
+                         (phaseData.name && typeof phaseData.name === 'object' ? 
+                          (phaseData.name.es || phaseData.name.ca || phaseData.name.en || Object.values(phaseData.name)[0] || '') : 
+                          '');
+        
+        // Construir objeto de fase, omitiendo campos undefined pero manteniendo null
+        const phasePayload = {
+          name: phaseName,
+          order_index: phaseData.order_index,
+          is_elimination: phaseData.is_elimination,
+          tasks: tasksByPhaseId[phase.id] || []
+        };
+        
+        // Agregar campos opcionales solo si no son undefined, asegurando que sean strings o null
+        if (phaseData.description !== undefined) {
+          if (phaseData.description === null) {
+            phasePayload.description = null;
+          } else if (typeof phaseData.description === 'string') {
+            phasePayload.description = phaseData.description;
+          } else if (typeof phaseData.description === 'object') {
+            // Si todavía es un objeto, extraer el valor
+            phasePayload.description = phaseData.description.es || phaseData.description.ca || phaseData.description.en || Object.values(phaseData.description)[0] || null;
+          }
+        }
+        if (phaseData.intro_html !== undefined) {
+          if (phaseData.intro_html === null) {
+            phasePayload.intro_html = null;
+          } else if (typeof phaseData.intro_html === 'string') {
+            phasePayload.intro_html = phaseData.intro_html;
+          } else if (typeof phaseData.intro_html === 'object') {
+            // Si todavía es un objeto, extraer el valor
+            phasePayload.intro_html = phaseData.intro_html.es || phaseData.intro_html.ca || phaseData.intro_html.en || Object.values(phaseData.intro_html)[0] || null;
+          }
+        }
+        if (phaseData.start_date !== undefined) {
+          phasePayload.start_date = phaseData.start_date;
+        }
+        if (phaseData.end_date !== undefined) {
+          phasePayload.end_date = phaseData.end_date;
+        }
+        if (phaseData.view_start_date !== undefined) {
+          phasePayload.view_start_date = phaseData.view_start_date;
+        }
+        if (phaseData.view_end_date !== undefined) {
+          phasePayload.view_end_date = phaseData.view_end_date;
+        }
+        
+        return phasePayload;
+      });
+
+      // Crear objeto de exportación en el formato esperado por el endpoint
       const exportData = {
-        export_date: new Date().toISOString(),
-        tenant_id: tenantId,
-        tenant_slug: 'uic',
-        event_id: eventId,
-        phases: processedPhases,
-        tasks: processedTasks
+        version: '1.0',
+        event_name: eventName,
+        exported_at: new Date().toISOString(),
+        phases: phasesWithTasks
       };
 
       // Generar nombre de archivo
@@ -309,8 +534,9 @@ async function main() {
 
       info('Exportación completada:');
       info(`  - Archivo: ${outputFile}`);
-      info(`  - Fases: ${processedPhases.length}`);
-      info(`  - Tareas: ${processedTasks.length}`);
+      info(`  - Fases: ${phasesWithTasks.length}`);
+      info(`  - Tareas totales: ${processedTasks.length}`);
+      info(`  - Formato: Compatible con endpoint de importación (tareas anidadas en fases)`);
 
     } finally {
       // Cerrar conexión

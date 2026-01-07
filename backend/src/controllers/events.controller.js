@@ -3,9 +3,8 @@ import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { toInt, toDateOrNull } from '../utils/parsers.js';
 import { findEventOr404 } from '../utils/finders.js';
-import { successResponse, badRequestResponse, notFoundResponse } from '../utils/response.js';
+import { successResponse, badRequestResponse, notFoundResponse, conflictResponse } from '../utils/response.js';
 import { resolveAssetMarkers, resolveYouTubeUrls } from '../services/content.service.js';
-import { sanitizeMultilingualHtml, sanitizeHtmlContent } from '../utils/html-sanitizer.js';
 import { copyEventAsset } from '../services/tenant-assets.service.js';
 
 /**
@@ -23,12 +22,18 @@ function normalizeMultilingualField(value, fieldName = 'campo') {
     return { es: value.trim() };
   }
   if (value && typeof value === 'object') {
-    // Asegurar que siempre tenga al menos español
-    const normalized = { ...value };
-    if (!normalized.es) {
-      normalized.es = '';
+    // Limpiar valores undefined, null o vacíos, similar a normalizeMultilingualText
+    const cleaned = {};
+    for (const [lang, val] of Object.entries(value)) {
+      if (val !== null && val !== undefined && typeof val === 'string' && val.trim()) {
+        cleaned[lang] = val.trim();
+      }
     }
-    return normalized;
+    // Asegurar que siempre tenga al menos español
+    if (!cleaned.es) {
+      cleaned.es = '';
+    }
+    return cleaned;
   }
   return value;
 }
@@ -60,11 +65,33 @@ function normalizeMultilingualText(value) {
 
 /**
  * Normaliza un campo multiidioma HTML (description_html, intro_html)
- * Aplica sanitización para eliminar código malicioso antes de guardar
+ * Guarda el HTML tal cual sin sanitizar
  */
 function normalizeMultilingualHtml(value) {
-  // Sanitizar el HTML antes de normalizar
-  return sanitizeMultilingualHtml(value);
+  // Guardar el HTML tal cual sin sanitizar
+  if (value === null || value === undefined) {
+    return null;
+  }
+  
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? { es: trimmed } : null;
+  }
+  
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const cleaned = {};
+    for (const [lang, val] of Object.entries(value)) {
+      if (val && typeof val === 'string') {
+        const trimmed = val.trim();
+        if (trimmed.length > 0) {
+          cleaned[lang] = trimmed;
+        }
+      }
+    }
+    return Object.keys(cleaned).length > 0 ? cleaned : null;
+  }
+  
+  return null;
 }
 
 function normalizeEventPayload(body) {
@@ -83,6 +110,25 @@ function normalizeEventPayload(body) {
     payload.description_html = normalizeMultilingualHtml(payload.description_html);
   }
 
+  // Convertir fechas a objetos Date (Sequelize requiere Date para campos DATE)
+  if (Object.hasOwn(payload, 'start_date')) {
+    payload.start_date = toDateOrNull(payload.start_date);
+    if (!payload.start_date) {
+      const error = new Error('La fecha de inicio es obligatoria y debe ser válida');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (Object.hasOwn(payload, 'end_date')) {
+    payload.end_date = toDateOrNull(payload.end_date);
+    if (!payload.end_date) {
+      const error = new Error('La fecha de fin es obligatoria y debe ser válida');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
   if (Object.hasOwn(payload, 'video_url')) {
     if (!payload.video_url || (typeof payload.video_url === 'string' && payload.video_url.trim() === '')) {
       payload.video_url = null;
@@ -92,20 +138,11 @@ function normalizeEventPayload(body) {
   }
 
   if (Object.hasOwn(payload, 'publish_start_at')) {
-    if (!payload.publish_start_at) {
-      payload.publish_start_at = null;
-    }
+    payload.publish_start_at = toDateOrNull(payload.publish_start_at);
   }
 
   if (Object.hasOwn(payload, 'publish_end_at')) {
-    if (!payload.publish_end_at) {
-      payload.publish_end_at = null;
-    }
-  }
-
-  if (payload.is_public === false) {
-    payload.publish_start_at = null;
-    payload.publish_end_at = null;
+    payload.publish_end_at = toDateOrNull(payload.publish_end_at);
   }
 
   if (Object.hasOwn(payload, 'registration_schema')) {
@@ -479,13 +516,14 @@ export class EventsController {
       const payload = normalizeEventPayload(req.body);
       const event = await Event.create({
         ...payload,
+        tenant_id: req.tenant.id,
         created_by: req.user.id
       });
 
       logger.info('Evento creado', { eventId: event.id, tenantId: req.tenant.id });
       return successResponse(res, event, 201);
     } catch (error) {
-      logger.error('Error creando evento', { error: error.message });
+      logger.error('Error creando evento', { error: error.message, stack: error.stack });
       const statusCode = error.statusCode ?? 500;
       return res.status(statusCode).json({
         success: false,
@@ -535,8 +573,6 @@ export class EventsController {
               if (content && typeof content === 'string') {
                 let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                 langHtml = resolveYouTubeUrls(langHtml);
-                // Sanitizar antes de enviar al frontend
-                langHtml = sanitizeHtmlContent(langHtml);
                 if (langHtml) {
                   processed[lang] = langHtml;
                 }
@@ -548,8 +584,7 @@ export class EventsController {
           } else if (typeof processedHtml === 'string') {
             processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
             processedHtml = resolveYouTubeUrls(processedHtml);
-            // Sanitizar antes de enviar al frontend
-            eventJson.description_html = sanitizeHtmlContent(processedHtml);
+            eventJson.description_html = processedHtml;
           }
         }
         
@@ -568,8 +603,6 @@ export class EventsController {
                     if (/<[a-z][\s\S]*>/i.test(content)) {
                       let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                       langHtml = resolveYouTubeUrls(langHtml);
-                      // Sanitizar antes de enviar al frontend
-                      langHtml = sanitizeHtmlContent(langHtml);
                       if (langHtml) {
                         processed[lang] = langHtml;
                       }
@@ -586,8 +619,7 @@ export class EventsController {
                 // Si es string HTML, procesarlo
                 processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
                 processedDesc = resolveYouTubeUrls(processedDesc);
-                // Sanitizar antes de enviar al frontend
-                phaseJson.description = sanitizeHtmlContent(processedDesc);
+                phaseJson.description = processedDesc;
               }
             }
             
@@ -601,8 +633,6 @@ export class EventsController {
                   if (content && typeof content === 'string') {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -614,8 +644,7 @@ export class EventsController {
               } else if (typeof processedHtml === 'string') {
                 processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
                 processedHtml = resolveYouTubeUrls(processedHtml);
-                // Sanitizar antes de enviar al frontend
-                phaseJson.intro_html = sanitizeHtmlContent(processedHtml);
+                phaseJson.intro_html = processedHtml;
               }
             }
           }
@@ -636,8 +665,6 @@ export class EventsController {
                     if (/<[a-z][\s\S]*>/i.test(content)) {
                       let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                       langHtml = resolveYouTubeUrls(langHtml);
-                      // Sanitizar antes de enviar al frontend
-                      langHtml = sanitizeHtmlContent(langHtml);
                       if (langHtml) {
                         processed[lang] = langHtml;
                       }
@@ -654,8 +681,7 @@ export class EventsController {
                 // Si es string HTML, procesarlo
                 processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
                 processedDesc = resolveYouTubeUrls(processedDesc);
-                // Sanitizar antes de enviar al frontend
-                taskJson.description = sanitizeHtmlContent(processedDesc);
+                taskJson.description = processedDesc;
               }
             }
             
@@ -669,8 +695,6 @@ export class EventsController {
                   if (content && typeof content === 'string') {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -692,19 +716,7 @@ export class EventsController {
                   htmlSample: processedHtml.substring(0, 500)
                 });
                 
-                // Sanitizar antes de enviar al frontend
-                const sanitized = sanitizeHtmlContent(processedHtml);
-                
-                // Log para debug: verificar HTML después de sanitizar
-                logger.debug('HTML de task intro_html después de sanitizar', {
-                  eventId: event.id,
-                  taskId: taskJson.id,
-                  htmlLength: sanitized?.length || 0,
-                  hasSvg: sanitized?.includes('<svg') || false,
-                  htmlSample: sanitized?.substring(0, 500) || null
-                });
-                
-                taskJson.intro_html = sanitized;
+                taskJson.intro_html = processedHtml;
               }
             }
           }
@@ -783,8 +795,6 @@ export class EventsController {
                   if (/<[a-z][\s\S]*>/i.test(content)) {
                     let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                     langHtml = resolveYouTubeUrls(langHtml);
-                    // Sanitizar antes de enviar al frontend
-                    langHtml = sanitizeHtmlContent(langHtml);
                     if (langHtml) {
                       processed[lang] = langHtml;
                     }
@@ -801,8 +811,7 @@ export class EventsController {
               // Si es string HTML, procesarlo
               processedDesc = await resolveAssetMarkers(processedDesc, event.id, req.tenant.id);
               processedDesc = resolveYouTubeUrls(processedDesc);
-              // Sanitizar antes de enviar al frontend
-              phaseJson.description = sanitizeHtmlContent(processedDesc);
+              phaseJson.description = processedDesc;
             }
           }
           
@@ -816,8 +825,6 @@ export class EventsController {
                 if (content && typeof content === 'string') {
                   let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                   langHtml = resolveYouTubeUrls(langHtml);
-                  // Sanitizar antes de enviar al frontend
-                  langHtml = sanitizeHtmlContent(langHtml);
                   if (langHtml) {
                     processed[lang] = langHtml;
                   }
@@ -829,8 +836,7 @@ export class EventsController {
             } else if (typeof processedHtml === 'string') {
               processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
               processedHtml = resolveYouTubeUrls(processedHtml);
-              // Sanitizar antes de enviar al frontend
-              phaseJson.intro_html = sanitizeHtmlContent(processedHtml);
+              phaseJson.intro_html = processedHtml;
             }
           }
         }
@@ -855,6 +861,7 @@ export class EventsController {
       const payload = {
         ...req.body,
         event_id: event.id,
+        tenant_id: req.tenant?.id ?? null,
         order_index: req.body.order_index ?? count + 1
       };
       // Normalizar campos multiidioma
@@ -959,13 +966,25 @@ export class EventsController {
 
   static async deletePhase(req, res, next) {
     try {
-      const { Phase } = getModels();
+      const { Phase, Task } = getModels();
       const phase = await Phase.findOne({
         where: { id: toInt(req.params.phaseId), event_id: toInt(req.params.eventId) }
       });
 
       if (!phase) {
         return notFoundResponse(res, 'Fase no encontrada');
+      }
+
+      // Verificar si hay tareas asociadas
+      const taskCount = await Task.count({
+        where: { phase_id: phase.id }
+      });
+
+      if (taskCount > 0) {
+        return conflictResponse(
+          res,
+          'No se puede eliminar la fase porque tiene tareas asociadas. Por favor, elimina primero las tareas.'
+        );
       }
 
       await phase.destroy();
@@ -999,8 +1018,6 @@ export class EventsController {
                 if (content && typeof content === 'string') {
                   let langHtml = await resolveAssetMarkers(content, event.id, req.tenant.id);
                   langHtml = resolveYouTubeUrls(langHtml);
-                  // Sanitizar antes de enviar al frontend
-                  langHtml = sanitizeHtmlContent(langHtml);
                   if (langHtml) {
                     processed[lang] = langHtml;
                   }
@@ -1012,8 +1029,7 @@ export class EventsController {
             } else if (typeof processedHtml === 'string') {
               processedHtml = await resolveAssetMarkers(processedHtml, event.id, req.tenant.id);
               processedHtml = resolveYouTubeUrls(processedHtml);
-              // Sanitizar antes de enviar al frontend
-              taskJson.intro_html = sanitizeHtmlContent(processedHtml);
+              taskJson.intro_html = processedHtml;
             }
           }
         }
@@ -1072,7 +1088,7 @@ export class EventsController {
 
   static async updateTask(req, res, next) {
     try {
-      const { Task, PhaseRubric } = getModels();
+      const { Task, Phase, PhaseRubric } = getModels();
       const task = await Task.findOne({
         where: { id: toInt(req.params.taskId), event_id: toInt(req.params.eventId) }
       });
@@ -1082,6 +1098,26 @@ export class EventsController {
       }
 
       let updates = { ...req.body };
+      
+      // Validar cambio de fase si se proporciona
+      let newPhaseId = task.phase_id; // Mantener la fase actual por defecto
+      if (Object.hasOwn(req.body, 'phase_id') && req.body.phase_id !== undefined) {
+        newPhaseId = toInt(req.body.phase_id);
+        
+        // Validar que la nueva fase pertenezca al mismo evento
+        if (newPhaseId !== task.phase_id) {
+          const newPhase = await Phase.findOne({
+            where: { id: newPhaseId, event_id: task.event_id }
+          });
+          
+          if (!newPhase) {
+            return badRequestResponse(res, 'La fase especificada no pertenece a este evento');
+          }
+          
+          updates.phase_id = newPhaseId;
+        }
+      }
+      
       // Normalizar campos multiidioma
       if (Object.hasOwn(req.body, 'title')) {
         updates.title = normalizeMultilingualField(req.body.title);
@@ -1093,21 +1129,38 @@ export class EventsController {
         updates.intro_html = normalizeMultilingualHtml(req.body.intro_html);
       }
 
+      // Validar phase_rubric_id contra la fase correcta (nueva si se cambió, antigua si no)
+      const phaseIdForRubric = updates.phase_id ?? task.phase_id;
       if (Object.hasOwn(req.body, 'phase_rubric_id')) {
-        if (req.body.phase_rubric_id === null) {
+        if (req.body.phase_rubric_id === null || req.body.phase_rubric_id === '') {
           updates.phase_rubric_id = null;
         } else {
           const rubric = await PhaseRubric.findOne({
             where: {
               id: Number(req.body.phase_rubric_id),
               event_id: task.event_id,
-              phase_id: task.phase_id
+              phase_id: phaseIdForRubric // Usar la fase correcta (nueva o antigua)
             }
           });
           if (!rubric) {
-            return badRequestResponse(res, 'Rúbrica inválida para la fase');
+            return badRequestResponse(res, 'Rúbrica inválida para la fase especificada');
           }
           updates.phase_rubric_id = Number(req.body.phase_rubric_id);
+        }
+      } else if (updates.phase_id && updates.phase_id !== task.phase_id) {
+        // Si se cambió la fase pero no se especificó phase_rubric_id, limpiar la rúbrica si no es válida para la nueva fase
+        if (task.phase_rubric_id) {
+          const currentRubric = await PhaseRubric.findOne({
+            where: {
+              id: task.phase_rubric_id,
+              event_id: task.event_id,
+              phase_id: phaseIdForRubric
+            }
+          });
+          if (!currentRubric) {
+            // La rúbrica actual no es válida para la nueva fase, limpiarla
+            updates.phase_rubric_id = null;
+          }
         }
       }
 
@@ -1170,29 +1223,62 @@ export class EventsController {
           const phaseJson = phase.toJSON();
           const tasks = phaseJson.tasks || [];
           
+          // Asegurar que los campos multilingües se exporten como objetos JSON completos
+          // Los getters de Sequelize deberían devolver objetos, pero nos aseguramos aquí
+          const phaseName = typeof phaseJson.name === 'object' && phaseJson.name !== null 
+            ? phaseJson.name 
+            : { es: phaseJson.name || '' };
+          const phaseDescription = phaseJson.description 
+            ? (typeof phaseJson.description === 'object' && phaseJson.description !== null
+                ? phaseJson.description
+                : { es: phaseJson.description })
+            : null;
+          const phaseIntroHtml = phaseJson.intro_html
+            ? (typeof phaseJson.intro_html === 'object' && phaseJson.intro_html !== null
+                ? phaseJson.intro_html
+                : { es: phaseJson.intro_html })
+            : null;
+          
           return {
-            name: phaseJson.name,
-            description: phaseJson.description || null,
-            intro_html: phaseJson.intro_html || null,
+            name: phaseName,
+            description: phaseDescription,
+            intro_html: phaseIntroHtml,
             start_date: phaseJson.start_date ? new Date(phaseJson.start_date).toISOString() : null,
             end_date: phaseJson.end_date ? new Date(phaseJson.end_date).toISOString() : null,
             view_start_date: phaseJson.view_start_date ? new Date(phaseJson.view_start_date).toISOString() : null,
             view_end_date: phaseJson.view_end_date ? new Date(phaseJson.view_end_date).toISOString() : null,
             order_index: phaseJson.order_index,
             is_elimination: phaseJson.is_elimination,
-            tasks: tasks.map(task => ({
-              title: task.title,
-              description: task.description || null,
-              intro_html: task.intro_html || null,
-              delivery_type: task.delivery_type,
-              is_required: task.is_required,
-              due_date: task.due_date ? new Date(task.due_date).toISOString() : null,
-              status: task.status,
-              order_index: task.order_index || 1,
-              max_files: task.max_files || 1,
-              max_file_size_mb: task.max_file_size_mb || null,
-              allowed_mime_types: task.allowed_mime_types || null
-            }))
+            tasks: tasks.map(task => {
+              // Asegurar que los campos multilingües de las tareas también se exporten como objetos JSON
+              const taskTitle = typeof task.title === 'object' && task.title !== null
+                ? task.title
+                : { es: task.title || '' };
+              const taskDescription = task.description
+                ? (typeof task.description === 'object' && task.description !== null
+                    ? task.description
+                    : { es: task.description })
+                : null;
+              const taskIntroHtml = task.intro_html
+                ? (typeof task.intro_html === 'object' && task.intro_html !== null
+                    ? task.intro_html
+                    : { es: task.intro_html })
+                : null;
+              
+              return {
+                title: taskTitle,
+                description: taskDescription,
+                intro_html: taskIntroHtml,
+                delivery_type: task.delivery_type,
+                is_required: task.is_required,
+                due_date: task.due_date ? new Date(task.due_date).toISOString() : null,
+                status: task.status,
+                order_index: task.order_index || 1,
+                max_files: task.max_files || 1,
+                max_file_size_mb: task.max_file_size_mb || null,
+                allowed_mime_types: task.allowed_mime_types || null
+              };
+            })
           };
         })
       };
@@ -1214,6 +1300,14 @@ export class EventsController {
       }
 
       const replace = Boolean(req.body.replace);
+      
+      // Si se proporciona event_name y replace es true, actualizar el nombre del evento
+      if (replace && req.body.event_name) {
+        const normalizedEventName = normalizeMultilingualField(req.body.event_name);
+        if (normalizedEventName) {
+          await event.update({ name: normalizedEventName });
+        }
+      }
       
       // Si replace es true, eliminar todas las fases y tareas existentes del evento
       if (replace) {
@@ -1240,13 +1334,15 @@ export class EventsController {
         
         try {
           // Validar datos básicos de la fase
-          if (!phaseData.name || typeof phaseData.name !== 'string') {
+          // name puede ser string o objeto multilingüe (ya validado por validateRequiredMultilingual)
+          if (!phaseData.name || (typeof phaseData.name !== 'string' && typeof phaseData.name !== 'object')) {
             errors.push(`Fase ${i + 1}: nombre requerido`);
             continue;
           }
 
           // Preparar payload de la fase
           const phasePayload = {
+            tenant_id: event.tenant_id, // Agregar tenant_id del evento
             event_id: event.id,
             name: normalizeMultilingualField(phaseData.name),
             description: normalizeMultilingualText(phaseData.description),
@@ -1261,6 +1357,7 @@ export class EventsController {
 
           // Validar fechas
           if (phasePayload.start_date && phasePayload.end_date && phasePayload.start_date > phasePayload.end_date) {
+            const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
             errors.push(`Fase "${phaseName}": la fecha de fin debe ser posterior o igual a la fecha de inicio`);
             continue;
           }
@@ -1275,12 +1372,15 @@ export class EventsController {
               const taskData = phaseData.tasks[j];
               
               try {
-                if (!taskData.title || typeof taskData.title !== 'string') {
-                  errors.push(`Fase "${phaseData.name}", Tarea ${j + 1}: título requerido`);
+                // title puede ser string o objeto multilingüe (ya validado por validateRequiredMultilingual)
+                if (!taskData.title || (typeof taskData.title !== 'string' && typeof taskData.title !== 'object')) {
+                  const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+                  errors.push(`Fase "${phaseName}", Tarea ${j + 1}: título requerido`);
                   continue;
                 }
-
+                
                 const taskPayload = {
+                  tenant_id: event.tenant_id, // Agregar tenant_id del evento
                   event_id: event.id,
                   phase_id: phase.id,
                   title: normalizeMultilingualField(taskData.title),
@@ -1299,12 +1399,15 @@ export class EventsController {
                 const task = await Task.create(taskPayload);
                 importedTasks.push(task);
               } catch (taskError) {
-                errors.push(`Fase "${phaseData.name}", Tarea "${taskData.title || j + 1}": ${taskError.message}`);
+                const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+                const taskTitle = typeof taskData.title === 'string' ? taskData.title : (taskData.title?.es || `Tarea ${j + 1}`);
+                errors.push(`Fase "${phaseName}", Tarea "${taskTitle}": ${taskError.message}`);
               }
             }
           }
         } catch (phaseError) {
-          errors.push(`Fase "${phaseName || i + 1}": ${phaseError.message}`);
+          const phaseName = typeof phaseData.name === 'string' ? phaseData.name : (phaseData.name?.es || `Fase ${i + 1}`);
+          errors.push(`Fase "${phaseName}": ${phaseError.message}`);
         }
       }
 

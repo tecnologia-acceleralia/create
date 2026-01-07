@@ -27,7 +27,8 @@
     },
     "viewAll": "Ver todos",
     "showPassword": "Mostrar contraseña",
-    "hidePassword": "Ocultar contraseña"
+    "hidePassword": "Ocultar contraseña",
+    "continue": "Continuar"
   },
   "navigation": {
     "brand": "Create",
@@ -387,6 +388,7 @@
     "editTask": "Editar tarea",
     "createTask": "Crear tarea",
     "taskUpdated": "Tarea actualizada correctamente",
+    "taskDeleted": "Tarea eliminada correctamente",
     "editRubric": "Editar rúbrica",
     "createRubric": "Crear rúbrica",
     "confirmDeletePhase": "¿Estás seguro de que quieres eliminar esta fase?",
@@ -403,6 +405,11 @@
     "invalidImportFormat": "Formato de importación inválido. Se requiere un array de fases.",
     "invalidJsonFile": "El archivo JSON no es válido",
     "importReplaceConfirm": "¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.",
+    "confirmImport": "Confirmar importación",
+    "confirmImportDescription": "¿Deseas importar las fases y tareas del archivo seleccionado?",
+    "importReplaceTitle": "Modo de importación",
+    "addToExisting": "Añadir",
+    "replaceAll": "Reemplazar",
     "phasesTasksReplaced": "Todas las fases y tareas han sido reemplazadas. {{phases}} fases y {{tasks}} tareas importadas correctamente",
     "tracking": {
       "title": "Seguimiento del evento",
@@ -750,6 +757,7 @@
     "commentRequired": "El comentario es requerido",
     "commentCannotBeEmpty": "El comentario no puede estar vacío",
     "scoreRange10": "La puntuación debe estar entre 0 y 10",
+    "scoreMax10": "La puntuación máxima es 10",
     "scoreRange100": "La puntuación debe estar entre 0 y 100",
     "atLeastOneSubmissionRequired": "Debe proporcionar al menos una entrega para evaluar",
     "teamNotInSameEvent": "El equipo no pertenece al mismo evento que la fase",
@@ -767,6 +775,7 @@
     "aiServiceNotConfigured": "Servicio de IA no configurado",
     "taskNotAvailable": "La tarea asociada a la entrega no está disponible",
     "phaseEvaluationTitle": "Evaluación de Fase",
+    "projectEvaluationTitle": "Evaluación de Proyecto",
     "selectSubmissions": "Seleccionar entregas para evaluar",
     "selectSubmissionsDescription": "Selecciona las entregas que deseas incluir en la evaluación. Por defecto se seleccionan todas las entregas finales y la última entrega de cada tarea.",
     "noSubmissionsForTask": "No hay entregas para esta tarea",
@@ -779,8 +788,16 @@
     "evaluateProjectButton": "Evaluar proyecto",
     "viewProjectEvaluationButton": "Ver evaluación",
     "projectEvaluation": "Proyecto",
+    "finalPhaseEvaluation": "Evaluación Final de la Fase",
     "evaluation": "Evaluación",
-    "evaluationLanguage": "Idioma de evaluación"
+    "evaluationLanguage": "Idioma de evaluación",
+    "scoreBreakdown": "Desglose de Puntuación",
+    "calculatedScore": "Nota calculada (media ponderada)",
+    "finalScoreFromComment": "Nota final (del comentario)",
+    "finalScore": "Nota Final",
+    "saved": "Guardada",
+    "finalEvaluationSaved": "Esta evaluación está guardada y visible para los miembros del equipo",
+    "savedAt": "Guardada el"
   },
   "notifications": {
     "title": "Notificaciones",

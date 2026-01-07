@@ -27,7 +27,8 @@
     },
     "viewAll": "Veure tots",
     "showPassword": "Mostrar contrasenya",
-    "hidePassword": "Ocultar contrasenya"
+    "hidePassword": "Ocultar contrasenya",
+    "continue": "Continuar"
   },
   "navigation": {
     "brand": "Create",
@@ -387,6 +388,7 @@
     "editTask": "Editar tasca",
     "createTask": "Crear tasca",
     "taskUpdated": "Tasca actualitzada correctament",
+    "taskDeleted": "Tasca eliminada correctament",
     "editRubric": "Editar rúbrica",
     "createRubric": "Crear rúbrica",
     "confirmDeletePhase": "Segur que vols eliminar aquesta fase?",
@@ -403,6 +405,11 @@
     "invalidImportFormat": "Format d'importació invàlid. Es requereix un array de fases.",
     "invalidJsonFile": "El fitxer JSON no és vàlid",
     "importReplaceConfirm": "Vols reemplaçar totes les fases i tasques existents?\n\n- Sí: S'eliminaran totes les fases i tasques actuals i s'importaran les del fitxer.\n- No: S'afegiran les fases i tasques del fitxer a les existents.",
+    "confirmImport": "Confirmar importació",
+    "confirmImportDescription": "Vols importar les fases i tasques del fitxer seleccionat?",
+    "importReplaceTitle": "Mode d'importació",
+    "addToExisting": "Afegir",
+    "replaceAll": "Reemplaçar",
     "phasesTasksReplaced": "Totes les fases i tasques han estat reemplaçades. {{phases}} fases i {{tasks}} tasques importades correctament",
     "tracking": {
       "title": "Seguiment de l'esdeveniment",
@@ -750,6 +757,7 @@
     "commentRequired": "El comentari és requerit",
     "commentCannotBeEmpty": "El comentari no pot estar buit",
     "scoreRange10": "La puntuació ha d'estar entre 0 i 10",
+    "scoreMax10": "La puntuació màxima és 10",
     "scoreRange100": "La puntuació ha d'estar entre 0 i 100",
     "atLeastOneSubmissionRequired": "Has de proporcionar almenys un lliurament per avaluar",
     "teamNotInSameEvent": "L'equip no pertany al mateix esdeveniment que la fase",
@@ -767,6 +775,7 @@
     "aiServiceNotConfigured": "Servei d'IA no configurat",
     "taskNotAvailable": "La tasca associada al lliurament no està disponible",
     "phaseEvaluationTitle": "Avaluació de Fase",
+    "projectEvaluationTitle": "Avaluació de Projecte",
     "selectSubmissions": "Seleccionar lliuraments per avaluar",
     "selectSubmissionsDescription": "Selecciona els lliuraments que vols incloure en l'avaluació. Per defecte es seleccionen tots els lliuraments finals i l'últim lliurament de cada tasca.",
     "noSubmissionsForTask": "No hi ha lliuraments per a aquesta tasca",
@@ -779,8 +788,16 @@
     "evaluateProjectButton": "Avaluar projecte",
     "viewProjectEvaluationButton": "Veure avaluació",
     "projectEvaluation": "Projecte",
+    "finalPhaseEvaluation": "Avaluació Final de la Fase",
     "evaluation": "Avaluació",
-    "evaluationLanguage": "Idioma d'avaluació"
+    "evaluationLanguage": "Idioma d'avaluació",
+    "scoreBreakdown": "Desglossament de Puntuació",
+    "calculatedScore": "Nota calculada (mitjana ponderada)",
+    "finalScoreFromComment": "Nota final (del comentari)",
+    "finalScore": "Nota Final",
+    "saved": "Desada",
+    "finalEvaluationSaved": "Aquesta avaluació està desada i visible per als membres de l'equip",
+    "savedAt": "Desada el"
   },
   "notifications": {
     "title": "Notificacions",

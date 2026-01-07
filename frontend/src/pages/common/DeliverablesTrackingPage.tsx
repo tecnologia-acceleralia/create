@@ -110,7 +110,10 @@ function PhaseEvaluationCell({
     retry: false
   });
 
-  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
+  // Verificar si hay una evaluación final manual (no de IA)
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (Array.isArray(evaluations) && evaluations.length > 0 
+    ? evaluations.some(evaluation => evaluation.status === 'final' && evaluation.source === 'manual') 
+    : false);
 
   if (!isReviewer || !hasSubmissions) {
     return null;
@@ -189,7 +192,7 @@ function ProjectEvaluationCell({
     retry: false
   });
 
-  const hasFinalEvaluation = hasFinalEvaluationProp ?? (evaluations ? evaluations.some(evaluation => evaluation.status === 'final') : false);
+  const hasFinalEvaluation = hasFinalEvaluationProp ?? (Array.isArray(evaluations) && evaluations.length > 0 ? evaluations.some(evaluation => evaluation.status === 'final') : false);
 
   if (!isReviewer || !hasSubmissions) {
     return null;
@@ -290,29 +293,44 @@ function TrackingTable({
     }
     
     return result;
-  }, [sortedPhases, columnsByPhase, selectedPhaseId]);
+  }, [sortedPhases, columnsByPhase, selectedPhaseId, currentLang]);
 
-  // Verificar si hay entregas en una fase para un equipo
-  const hasPhaseSubmissions = (phaseId: number, teamId: number) => {
-    const phaseColumns = columnsByPhase.get(phaseId) || [];
-    return phaseColumns.some(col => {
-      const key = `${teamId}:${col.taskId}`;
-      const deliverable = deliverablesMap.get(key);
-      return deliverable?.submitted ?? false;
-    });
-  };
-
-  // Verificar si hay entregas en todo el proyecto para un equipo
-  const hasProjectSubmissions = (teamId: number) => {
-    return sortedPhases.some(phase => {
+  // Memoizar la función hasPhaseSubmissions para evitar recálculos innecesarios
+  // y asegurar que se recalcule cuando deliverablesMap cambie
+  const hasPhaseSubmissions = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const phase of sortedPhases) {
       const phaseColumns = columnsByPhase.get(phase.id) || [];
-      return phaseColumns.some(col => {
-        const key = `${teamId}:${col.taskId}`;
-        const deliverable = deliverablesMap.get(key);
-        return deliverable?.submitted ?? false;
+      for (const team of sortedTeams) {
+        const key = `${phase.id}:${team.id}`;
+        const hasSubs = phaseColumns.some(col => {
+          const deliverableKey = `${team.id}:${col.taskId}`;
+          const deliverable = deliverablesMap.get(deliverableKey);
+          return deliverable?.submitted ?? false;
+        });
+        map.set(key, hasSubs);
+      }
+    }
+    return (phaseId: number, teamId: number) => map.get(`${phaseId}:${teamId}`) ?? false;
+  }, [sortedPhases, sortedTeams, columnsByPhase, deliverablesMap]);
+
+  // Memoizar la función hasProjectSubmissions para evitar recálculos innecesarios
+  // y asegurar que se recalcule cuando deliverablesMap cambie
+  const hasProjectSubmissions = useMemo(() => {
+    const map = new Map<number, boolean>();
+    for (const team of sortedTeams) {
+      const hasSubs = sortedPhases.some(phase => {
+        const phaseColumns = columnsByPhase.get(phase.id) || [];
+        return phaseColumns.some(col => {
+          const key = `${team.id}:${col.taskId}`;
+          const deliverable = deliverablesMap.get(key);
+          return deliverable?.submitted ?? false;
+        });
       });
-    });
-  };
+      map.set(team.id, hasSubs);
+    }
+    return (teamId: number) => map.get(teamId) ?? false;
+  }, [sortedPhases, sortedTeams, columnsByPhase, deliverablesMap]);
 
   // Filtrar fases para mostrar en el header según el filtro
   const phasesToShowInHeader = selectedPhaseId !== null 
@@ -819,6 +837,7 @@ export default function DeliverablesTrackingPage() {
     <DashboardLayout
       title={safeTranslate(t, 'tracking.deliverables.title')}
       subtitle={selectedEventName || safeTranslate(t, 'tracking.deliverables.subtitle')}
+      containerClassName="max-w-full"
     >
       <Card className="border-border/70 shadow-sm">
         <CardHeader>

@@ -27,7 +27,8 @@
     },
     "viewAll": "View all",
     "showPassword": "Show password",
-    "hidePassword": "Hide password"
+    "hidePassword": "Hide password",
+    "continue": "Continue"
   },
   "navigation": {
     "brand": "Create",
@@ -387,6 +388,7 @@
     "editTask": "Edit task",
     "createTask": "Create task",
     "taskUpdated": "Task updated successfully",
+    "taskDeleted": "Task deleted successfully",
     "editRubric": "Edit rubric",
     "createRubric": "Create rubric",
     "confirmDeletePhase": "Are you sure you want to delete this phase?",
@@ -403,6 +405,11 @@
     "invalidImportFormat": "Invalid import format. An array of phases is required.",
     "invalidJsonFile": "The JSON file is not valid",
     "importReplaceConfirm": "Do you want to replace all existing phases and tasks?\n\n- Yes: All current phases and tasks will be deleted and the file's phases and tasks will be imported.\n- No: The file's phases and tasks will be added to the existing ones.",
+    "confirmImport": "Confirm import",
+    "confirmImportDescription": "Do you want to import the phases and tasks from the selected file?",
+    "importReplaceTitle": "Import mode",
+    "addToExisting": "Add",
+    "replaceAll": "Replace",
     "phasesTasksReplaced": "All phases and tasks have been replaced. {{phases}} phases and {{tasks}} tasks imported successfully",
     "tracking": {
       "title": "Event tracking",
@@ -752,6 +759,7 @@
     "commentRequired": "Comment is required",
     "commentCannotBeEmpty": "Comment cannot be empty",
     "scoreRange10": "Score must be between 0 and 10",
+    "scoreMax10": "Maximum score is 10",
     "scoreRange100": "Score must be between 0 and 100",
     "atLeastOneSubmissionRequired": "You must provide at least one submission to evaluate",
     "teamNotInSameEvent": "The team does not belong to the same event as the phase",
@@ -769,6 +777,7 @@
     "aiServiceNotConfigured": "AI service not configured",
     "taskNotAvailable": "The task associated with the submission is not available",
     "phaseEvaluationTitle": "Phase Evaluation",
+    "projectEvaluationTitle": "Project Evaluation",
     "selectSubmissions": "Select submissions to evaluate",
     "selectSubmissionsDescription": "Select the submissions you want to include in the evaluation. By default, all final submissions and the last submission of each task are selected.",
     "noSubmissionsForTask": "No submissions for this task",
@@ -781,8 +790,16 @@
     "evaluateProjectButton": "Evaluate project",
     "viewProjectEvaluationButton": "View evaluation",
     "projectEvaluation": "Project",
+    "finalPhaseEvaluation": "Final Phase Evaluation",
     "evaluation": "Evaluation",
-    "evaluationLanguage": "Evaluation language"
+    "evaluationLanguage": "Evaluation language",
+    "scoreBreakdown": "Score Breakdown",
+    "calculatedScore": "Calculated score (weighted average)",
+    "finalScoreFromComment": "Final score (from comment)",
+    "finalScore": "Final Score",
+    "saved": "Saved",
+    "finalEvaluationSaved": "This evaluation is saved and visible to team members",
+    "savedAt": "Saved on"
   },
   "notifications": {
     "title": "Notifications",
