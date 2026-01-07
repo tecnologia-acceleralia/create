@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Copy, ClipboardList, Sparkles } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
-import { Spinner } from '@/components/common';
+import { Spinner, ScoreBreakdown } from '@/components/common';
 import { getFileIcon } from '@/utils/files';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -610,6 +610,16 @@ function EvaluationPage() {
                   <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>
                 )}
               </div>
+              
+              {/* Desglose de notas */}
+              {form.watch('comment') && (
+                <ScoreBreakdown
+                  comment={form.watch('comment')}
+                  rubricCriteria={rubric?.criteria}
+                  currentLang={currentLang}
+                  finalScore={form.watch('score') ? Number(form.watch('score')) : null}
+                />
+              )}
               <div className="flex gap-3">
                 <Button
                   type="button"

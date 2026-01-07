@@ -76,7 +76,7 @@ evaluationsRouter.post(
     param('teamId').isInt(),
     body('submission_ids').isArray({ min: 1 }),
     body('submission_ids.*').isInt(),
-    body('score').optional().isInt({ min: 0, max: 100 }),
+    body('score').optional().isFloat({ min: 0, max: 100 }),
     body('comment').isString().notEmpty(),
     body('source').optional().isIn(['manual', 'ai_assisted']),
     body('status').optional().isIn(['draft', 'final']),
@@ -121,8 +121,9 @@ evaluationsRouter.put(
     param('evaluationId').isInt(),
     body('submission_ids').optional().isArray({ min: 1 }),
     body('submission_ids.*').optional().isInt(),
-    body('score').optional().isInt({ min: 0, max: 100 }),
+    body('score').optional().isFloat({ min: 0, max: 100 }),
     body('comment').optional().isString().notEmpty(),
+    body('source').optional().isIn(['manual', 'ai_assisted']),
     body('status').optional().isIn(['draft', 'final']),
     body('rubric_snapshot').optional().isObject(),
     body('metadata').optional().isObject()
@@ -150,6 +151,20 @@ evaluationsRouter.post(
   EvaluationsController.createProjectEvaluation
 );
 
+evaluationsRouter.post(
+  '/projects/:projectId/evaluations/ai',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [
+    param('projectId').isInt(),
+    body('submission_ids').isArray({ min: 1 }),
+    body('submission_ids.*').isInt(),
+    body('locale').optional().isString(),
+    body('status').optional().isIn(['draft', 'final'])
+  ],
+  validateRequest,
+  EvaluationsController.createProjectAiEvaluation
+);
+
 evaluationsRouter.get(
   '/projects/:projectId/evaluations',
   [
@@ -157,5 +172,24 @@ evaluationsRouter.get(
   ],
   validateRequest,
   EvaluationsController.getProjectEvaluations
+);
+
+evaluationsRouter.put(
+  '/projects/:projectId/evaluations/:evaluationId',
+  authorizeRoles('tenant_admin', 'organizer', 'evaluator'),
+  [
+    param('projectId').isInt(),
+    param('evaluationId').isInt(),
+    body('submission_ids').optional().isArray(),
+    body('submission_ids.*').optional().isInt(),
+    body('score').optional().isFloat({ min: 0, max: 10 }),
+    body('comment').optional().isString().notEmpty(),
+    body('status').optional().isIn(['draft', 'final']),
+    body('source').optional().isIn(['manual', 'ai_assisted']),
+    body('rubric_snapshot').optional().isObject(),
+    body('metadata').optional().isObject()
+  ],
+  validateRequest,
+  EvaluationsController.updateProjectEvaluation
 );
 

@@ -478,9 +478,9 @@ export type PhaseTaskExportData = {
   event_name: string;
   exported_at: string;
   phases: Array<{
-    name: string;
-    description?: string | null;
-    intro_html?: string | null;
+    name: MultilingualText;
+    description?: MultilingualText | null;
+    intro_html?: MultilingualText | null;
     start_date?: string | null;
     end_date?: string | null;
     view_start_date?: string | null;
@@ -488,9 +488,9 @@ export type PhaseTaskExportData = {
     order_index: number;
     is_elimination: boolean;
     tasks: Array<{
-      title: string;
-      description?: string | null;
-      intro_html?: string | null;
+      title: MultilingualText;
+      description?: MultilingualText | null;
+      intro_html?: MultilingualText | null;
       delivery_type: string;
       is_required: boolean;
       due_date?: string | null;
@@ -524,6 +524,29 @@ export async function importPhasesAndTasks(eventId: number, data: PhaseTaskExpor
     ...data,
     replace
   });
-  return response.data.data as PhaseTaskImportResult;
+  
+  // El backend puede devolver los datos en dos formatos:
+  // 1. Con successResponse: { success: true, data: { success: ..., imported: ..., errors: ... } }
+  // 2. Con errores parciales (207): { success: ..., imported: ..., errors: ... }
+  
+  if (response.data) {
+    // Si hay response.data.data, es el formato con successResponse
+    if (response.data.data && typeof response.data.data === 'object') {
+      return response.data.data as PhaseTaskImportResult;
+    }
+    
+    // Si response.data tiene imported, es el formato directo (207 Multi-Status)
+    if (response.data.imported || response.data.success !== undefined) {
+      return response.data as PhaseTaskImportResult;
+    }
+  }
+  
+  // Si no hay datos, devolver un resultado por defecto
+  console.warn('[importPhasesAndTasks] Respuesta inesperada del backend:', response.data);
+  return {
+    success: false,
+    imported: { phases: 0, tasks: 0 },
+    errors: ['Respuesta inesperada del servidor']
+  };
 }
 

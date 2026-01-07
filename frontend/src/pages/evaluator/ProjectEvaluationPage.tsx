@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Copy, ClipboardList, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Copy, ClipboardList, CheckCircle2, Sparkles } from 'lucide-react';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner } from '@/components/common';
@@ -29,27 +29,27 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { safeTranslate } from '@/utils/i18n-helpers';
 import { getMultilingualText } from '@/utils/multilingual';
-import { getSubmissions, getPhaseEvaluations, createPhaseEvaluation, createPhaseAiEvaluation, updatePhaseEvaluation, type Submission, type PhaseEvaluation } from '@/services/submissions';
-import { getEventDetail, getRubrics, type PhaseRubric } from '@/services/events';
+import { getSubmissions, getProjectEvaluations, createProjectEvaluation, updateProjectEvaluation, createProjectAiEvaluation, getPhaseEvaluations, type Submission, type ProjectEvaluation, type PhaseEvaluation } from '@/services/submissions';
+import { getEventDetail, getProjectRubrics, type PhaseRubric, type Phase } from '@/services/events';
+import { getTeamsByEvent } from '@/services/teams';
 import { cn } from '@/utils/cn';
 
 const evaluationSchema = z.object({
   comment: z.string().min(1, 'El comentario es requerido'),
   score: z.union([
-    z.number().min(0, 'La puntuación mínima es 0').max(100, 'La puntuación máxima es 100'),
+    z.number().min(0, 'La puntuación mínima es 0').max(10, 'La puntuación máxima es 10'),
     z.nan()
   ]).optional()
 });
 
 type EvaluationFormValues = z.infer<typeof evaluationSchema>;
 
-function PhaseEvaluationPage() {
-  console.log('[PhaseEvaluationPage] ========== COMPONENTE MONTADO ==========');
-  const { eventId, phaseId, teamId } = useParams();
+function ProjectEvaluationPage() {
+  console.log('[ProjectEvaluationPage] ========== COMPONENTE MONTADO ==========');
+  const { eventId, teamId } = useParams();
   const numericEventId = Number(eventId);
-  const numericPhaseId = Number(phaseId);
   const numericTeamId = Number(teamId);
-  console.log('[PhaseEvaluationPage] Parámetros:', { eventId, phaseId, teamId, numericEventId, numericPhaseId, numericTeamId });
+  console.log('[ProjectEvaluationPage] Parámetros:', { eventId, teamId, numericEventId, numericTeamId });
   const navigate = useNavigate();
   const tenantPath = useTenantPath();
   const { t, i18n } = useTranslation();
@@ -64,9 +64,9 @@ function PhaseEvaluationPage() {
   const isReviewer = isSuperAdmin || roleScopes.has('evaluator') || roleScopes.has('organizer') || roleScopes.has('tenant_admin');
 
   const [rubricDialogOpen, setRubricDialogOpen] = useState(false);
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
   const [aiEvaluationText, setAiEvaluationText] = useState<string>('');
   const [aiEvaluationScore, setAiEvaluationScore] = useState<number | null>(null);
-  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
   const [evaluationLocale, setEvaluationLocale] = useState<string>(() => {
     // Mapear idiomas de i18n a formatos esperados por el backend
     const langMap: Record<string, string> = {
@@ -85,26 +85,29 @@ function PhaseEvaluationPage() {
     }
   }, [isReviewer, navigate, tenantPath, t]);
 
+  // Obtener equipo y proyecto
+  const { data: teams, isLoading: teamsLoading } = useQuery({
+    queryKey: ['teams', numericEventId],
+    queryFn: () => getTeamsByEvent(numericEventId),
+    enabled: Number.isInteger(numericEventId)
+  });
+
+  const team = teams?.find(t => t.id === numericTeamId);
+  const projectId = team?.project?.id;
+
   const { data: eventDetail, isLoading: eventLoading } = useQuery({
     queryKey: ['event', numericEventId],
     queryFn: () => getEventDetail(numericEventId),
     enabled: Number.isInteger(numericEventId)
   });
 
-  const phase = eventDetail?.phases?.find(p => p.id === numericPhaseId);
-  const phaseTasks = useMemo(() => {
-    if (!eventDetail?.tasks) return [];
-    return eventDetail.tasks
-      .filter(t => t.phase_id === numericPhaseId)
-      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-  }, [eventDetail, numericPhaseId]);
-
-  // Cargar todas las entregas de las tareas de la fase para este equipo
+  // Cargar todas las entregas del proyecto (de todas las fases)
   const { data: allSubmissions, isLoading: submissionsLoading } = useQuery<Submission[]>({
-    queryKey: ['phase-submissions', numericPhaseId, numericTeamId],
+    queryKey: ['project-submissions', numericEventId, numericTeamId],
     queryFn: async () => {
+      if (!eventDetail?.tasks) return [];
       const submissions: Submission[] = [];
-      for (const task of phaseTasks) {
+      for (const task of eventDetail.tasks) {
         try {
           const taskSubmissions = await getSubmissions(task.id);
           const teamSubmissions = taskSubmissions.filter(s => s.team_id === numericTeamId);
@@ -115,32 +118,35 @@ function PhaseEvaluationPage() {
       }
       return submissions;
     },
-    enabled: phaseTasks.length > 0
+    enabled: !!eventDetail && eventDetail.tasks && eventDetail.tasks.length > 0
   });
 
-  // Cargar evaluación existente de fase
-  const { data: existingEvaluation, isLoading: evaluationLoading, refetch: refetchEvaluation } = useQuery<PhaseEvaluation | null>({
-    queryKey: ['phase-evaluation', numericPhaseId, numericTeamId],
+  // Cargar evaluación existente de proyecto
+  const { data: existingEvaluation, isLoading: evaluationLoading } = useQuery<ProjectEvaluation | null>({
+    queryKey: ['project-evaluation', projectId],
     queryFn: async () => {
+      if (!projectId) {
+        console.log('[ProjectEvaluationPage] ❌ No hay projectId, retornando null');
+        return null;
+      }
       try {
-        console.log('[PhaseEvaluationPage] ========== INICIANDO QUERY ==========');
-        console.log('[PhaseEvaluationPage] Cargando evaluaciones para fase:', numericPhaseId, 'equipo:', numericTeamId);
-        const evaluations = await getPhaseEvaluations(numericPhaseId, numericTeamId);
-        console.log('[PhaseEvaluationPage] Evaluaciones recibidas del API (raw):', evaluations);
-        console.log('[PhaseEvaluationPage] Tipo de datos:', Array.isArray(evaluations) ? 'Array' : typeof evaluations);
-        console.log('[PhaseEvaluationPage] Número de evaluaciones:', Array.isArray(evaluations) ? evaluations.length : 'No es array');
+        console.log('[ProjectEvaluationPage] ========== INICIANDO QUERY ==========');
+        console.log('[ProjectEvaluationPage] Cargando evaluaciones para proyecto:', projectId);
+        const evaluations = await getProjectEvaluations(projectId);
+        console.log('[ProjectEvaluationPage] Evaluaciones recibidas del API (raw):', evaluations);
+        console.log('[ProjectEvaluationPage] Tipo de datos:', Array.isArray(evaluations) ? 'Array' : typeof evaluations);
+        console.log('[ProjectEvaluationPage] Número de evaluaciones:', Array.isArray(evaluations) ? evaluations.length : 'No es array');
         
         // Validar que sea un array
         if (!Array.isArray(evaluations)) {
-          console.error('[PhaseEvaluationPage] ❌ ERROR: Las evaluaciones no son un array:', evaluations);
+          console.error('[ProjectEvaluationPage] ❌ ERROR: Las evaluaciones no son un array:', evaluations);
           return null;
         }
         
-        // Retornar la evaluación final o la más reciente (incluyendo borradores)
-        // Priorizar la final, pero si no hay, mostrar la más reciente (que puede ser un borrador)
+        // Retornar la evaluación final o la más reciente
         const finalEvaluation = evaluations.find(e => e && e.status === 'final');
         if (finalEvaluation) {
-          console.log('[PhaseEvaluationPage] ✅ Evaluación final encontrada:', {
+          console.log('[ProjectEvaluationPage] ✅ Evaluación final encontrada:', {
             id: finalEvaluation.id,
             status: finalEvaluation.status,
             source: finalEvaluation.source,
@@ -151,9 +157,8 @@ function PhaseEvaluationPage() {
           });
           return finalEvaluation;
         }
-        // Si no hay final, retornar la más reciente (ordenadas por created_at DESC desde el backend)
         const mostRecent = evaluations.length > 0 && evaluations[0] ? evaluations[0] : null;
-        console.log('[PhaseEvaluationPage] 📝 Evaluación más reciente (puede ser borrador):', mostRecent ? {
+        console.log('[ProjectEvaluationPage] 📝 Evaluación más reciente (puede ser borrador):', mostRecent ? {
           id: mostRecent.id,
           status: mostRecent.status,
           source: mostRecent.source,
@@ -164,21 +169,21 @@ function PhaseEvaluationPage() {
         } : null);
         return mostRecent;
       } catch (error) {
-        console.error('[PhaseEvaluationPage] ❌ Error al cargar evaluación de fase:', error);
+        console.error('[ProjectEvaluationPage] ❌ Error al cargar evaluación de proyecto:', error);
         return null;
       }
     },
-    enabled: Number.isInteger(numericPhaseId) && Number.isInteger(numericTeamId),
+    enabled: projectId !== null && projectId !== undefined && Number.isFinite(projectId),
     retry: false,
-    refetchOnWindowFocus: true, // Permitir refetch cuando se vuelve a la página
-    refetchOnMount: true, // Refetch al montar el componente
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
     staleTime: 0, // Forzar que siempre se considere stale
     cacheTime: 0 // No cachear los datos
   });
 
   // Log del estado de la query
   useEffect(() => {
-    console.log('[PhaseEvaluationPage] 📊 Estado de la query de evaluación:', {
+    console.log('[ProjectEvaluationPage] 📊 Estado de la query de evaluación:', {
       evaluationLoading,
       hasExistingEvaluation: !!existingEvaluation,
       existingEvaluationId: existingEvaluation?.id,
@@ -192,38 +197,86 @@ function PhaseEvaluationPage() {
     });
   }, [evaluationLoading, existingEvaluation]);
 
-  // Obtener rúbrica de fase
+  // Obtener rúbrica de proyecto
   const { data: rubrics, isLoading: rubricsLoading } = useQuery<PhaseRubric[]>({
-    queryKey: ['rubrics', numericEventId, numericPhaseId],
-    queryFn: () => getRubrics(numericEventId, numericPhaseId),
-    enabled: Number.isInteger(numericEventId) && Number.isInteger(numericPhaseId)
+    queryKey: ['project-rubrics', numericEventId],
+    queryFn: () => getProjectRubrics(numericEventId),
+    enabled: Number.isInteger(numericEventId)
   });
 
   const rubric = useMemo(() => {
     if (!rubrics) return null;
-    return rubrics.find(r => r.phase_id === numericPhaseId && r.rubric_scope === 'phase') || null;
-  }, [rubrics, numericPhaseId]);
+    return rubrics.find(r => r.rubric_scope === 'project') || null;
+  }, [rubrics]);
 
-  // Preparar entregas agrupadas por tarea y ordenadas
+  // Cargar evaluaciones de fase para todas las fases
+  const { data: phaseEvaluationsMap, isLoading: phaseEvaluationsLoading } = useQuery<Map<number, PhaseEvaluation | null>>({
+    queryKey: ['phase-evaluations-for-project', numericEventId, numericTeamId],
+    queryFn: async () => {
+      if (!eventDetail?.phases || !numericTeamId) return new Map();
+      const map = new Map<number, PhaseEvaluation | null>();
+      for (const phase of eventDetail.phases) {
+        try {
+          const evaluations = await getPhaseEvaluations(phase.id, numericTeamId);
+          // Obtener la evaluación final o la más reciente
+          const finalEvaluation = evaluations.find(e => e.status === 'final') || evaluations[0] || null;
+          map.set(phase.id, finalEvaluation);
+        } catch (error) {
+          map.set(phase.id, null);
+        }
+      }
+      return map;
+    },
+    enabled: !!eventDetail && !!eventDetail.phases && eventDetail.phases.length > 0 && Number.isInteger(numericTeamId),
+    retry: false
+  });
+
+  // Preparar entregas agrupadas por fase y tarea
+  const submissionsByPhase = useMemo(() => {
+    if (!allSubmissions || !eventDetail?.tasks || !eventDetail?.phases) return new Map<number, Map<number, Submission[]>>();
+
+    const phaseMap = new Map<number, Map<number, Submission[]>>();
+    
+    // Inicializar mapas por fase
+    for (const phase of eventDetail.phases) {
+      phaseMap.set(phase.id, new Map<number, Submission[]>());
+    }
+
+    // Agrupar entregas por fase y tarea
+    for (const task of eventDetail.tasks) {
+      const phaseId = task.phase_id;
+      const phaseTasksMap = phaseMap.get(phaseId);
+      if (!phaseTasksMap) continue;
+
+      const taskSubmissions = allSubmissions
+        .filter(s => s.task_id === task.id)
+        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+      phaseTasksMap.set(task.id, taskSubmissions);
+    }
+
+    return phaseMap;
+  }, [allSubmissions, eventDetail]);
+
+  // Preparar entregas agrupadas por tarea (para compatibilidad con código existente)
   const submissionsByTask = useMemo(() => {
-    if (!allSubmissions || !phaseTasks) return new Map<number, Submission[]>();
+    if (!allSubmissions || !eventDetail?.tasks) return new Map<number, Submission[]>();
 
     const map = new Map<number, Submission[]>();
-    for (const task of phaseTasks) {
+    for (const task of eventDetail.tasks) {
       const taskSubmissions = allSubmissions
         .filter(s => s.task_id === task.id)
         .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
       map.set(task.id, taskSubmissions);
     }
     return map;
-  }, [allSubmissions, phaseTasks]);
+  }, [allSubmissions, eventDetail]);
 
   // Inicializar selección por defecto: todas las entregas finales y última entrega de cada tarea
   useEffect(() => {
-    if (allSubmissions && phaseTasks && selectedSubmissionIds.size === 0) {
+    if (allSubmissions && eventDetail?.tasks && selectedSubmissionIds.size === 0) {
       const defaultSelected = new Set<number>();
       
-      for (const task of phaseTasks) {
+      for (const task of eventDetail.tasks) {
         const taskSubmissions = submissionsByTask.get(task.id) || [];
         if (taskSubmissions.length === 0) continue;
 
@@ -245,7 +298,7 @@ function PhaseEvaluationPage() {
 
       setSelectedSubmissionIds(defaultSelected);
     }
-  }, [allSubmissions, phaseTasks, submissionsByTask, selectedSubmissionIds.size]);
+  }, [allSubmissions, eventDetail, submissionsByTask, selectedSubmissionIds.size]);
 
   // Si hay evaluación existente, marcar las entregas evaluadas
   useEffect(() => {
@@ -265,7 +318,7 @@ function PhaseEvaluationPage() {
 
   // Log del estado inicial del formulario
   useEffect(() => {
-    console.log('[PhaseEvaluationPage] 📋 Formulario inicializado con valores:', {
+    console.log('[ProjectEvaluationPage] 📋 Formulario inicializado con valores:', {
       comment: form.getValues('comment'),
       commentLength: form.getValues('comment')?.length || 0,
       score: form.getValues('score'),
@@ -276,8 +329,8 @@ function PhaseEvaluationPage() {
 
   // Cargar evaluación existente cuando esté disponible
   useEffect(() => {
-    console.log('[PhaseEvaluationPage] ========== useEffect: existingEvaluation cambió ==========');
-    console.log('[PhaseEvaluationPage] Estado actual:', {
+    console.log('[ProjectEvaluationPage] ========== useEffect: existingEvaluation cambió ==========');
+    console.log('[ProjectEvaluationPage] Estado actual:', {
       existingEvaluation: existingEvaluation ? {
         id: existingEvaluation.id,
         status: existingEvaluation.status,
@@ -297,8 +350,8 @@ function PhaseEvaluationPage() {
 
     // Validar que existingEvaluation tenga las propiedades necesarias
     if (existingEvaluation && typeof existingEvaluation === 'object' && 'id' in existingEvaluation) {
-      console.log('[PhaseEvaluationPage] ✅ Hay evaluación existente, procesando...');
-      console.log('[PhaseEvaluationPage] Detalles de la evaluación:', {
+      console.log('[ProjectEvaluationPage] ✅ Hay evaluación existente, procesando...');
+      console.log('[ProjectEvaluationPage] Detalles de la evaluación:', {
         id: existingEvaluation.id,
         status: existingEvaluation.status,
         source: existingEvaluation.source,
@@ -311,7 +364,7 @@ function PhaseEvaluationPage() {
       // Si la evaluación es generada con IA, solo mostrarla en aiEvaluationText
       // NO copiar al form automáticamente, el usuario debe usar el botón "Copiar"
       if (existingEvaluation.source === 'ai_assisted') {
-        console.log('[PhaseEvaluationPage] 🤖 Evaluación de IA detectada, mostrando en aiEvaluationText');
+        console.log('[ProjectEvaluationPage] 🤖 Evaluación de IA detectada, mostrando en aiEvaluationText');
         setAiEvaluationText(existingEvaluation.comment || '');
         // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
         setAiEvaluationScore(existingEvaluation.score ? Number(existingEvaluation.score) : null);
@@ -320,13 +373,13 @@ function PhaseEvaluationPage() {
           comment: '', // No copiar el comentario automáticamente
           score: undefined // No copiar el score automáticamente
         });
-        console.log('[PhaseEvaluationPage] Formulario limpiado (evaluación de IA)');
+        console.log('[ProjectEvaluationPage] Formulario limpiado (evaluación de IA)');
       } else {
         // Para evaluaciones manuales, cargar normalmente en el form
-        console.log('[PhaseEvaluationPage] ✍️ Evaluación manual detectada, cargando en formulario');
+        console.log('[ProjectEvaluationPage] ✍️ Evaluación manual detectada, cargando en formulario');
         const comment = existingEvaluation.comment || '';
         const score = existingEvaluation.score ? Number(existingEvaluation.score) : undefined;
-        console.log('[PhaseEvaluationPage] Valores extraídos para cargar:', { 
+        console.log('[ProjectEvaluationPage] Valores extraídos para cargar:', { 
           commentLength: comment.length, 
           commentPreview: comment.substring(0, 150) + (comment.length > 150 ? '...' : ''), 
           score,
@@ -336,17 +389,17 @@ function PhaseEvaluationPage() {
         
         // Usar setTimeout para asegurar que el formulario esté completamente montado
         // y que React haya procesado todos los cambios de estado
-        console.log('[PhaseEvaluationPage] Programando actualización del formulario con setTimeout...');
+        console.log('[ProjectEvaluationPage] Programando actualización del formulario con setTimeout...');
         setTimeout(() => {
-          console.log('[PhaseEvaluationPage] ⏰ setTimeout ejecutado, actualizando formulario...');
-          console.log('[PhaseEvaluationPage] Valores del formulario ANTES de reset:', {
+          console.log('[ProjectEvaluationPage] ⏰ setTimeout ejecutado, actualizando formulario...');
+          console.log('[ProjectEvaluationPage] Valores del formulario ANTES de reset:', {
             comment: form.getValues('comment'),
             commentLength: form.getValues('comment')?.length || 0,
             score: form.getValues('score')
           });
 
           // Resetear el formulario con los nuevos valores y opciones explícitas
-          console.log('[PhaseEvaluationPage] Ejecutando form.reset() con valores:', { comment, score });
+          console.log('[ProjectEvaluationPage] Ejecutando form.reset() con valores:', { comment, score });
           form.reset({
             comment: comment,
             score: score
@@ -360,20 +413,20 @@ function PhaseEvaluationPage() {
             keepSubmitCount: false
           });
           
-          console.log('[PhaseEvaluationPage] Valores del formulario DESPUÉS de reset:', {
+          console.log('[ProjectEvaluationPage] Valores del formulario DESPUÉS de reset:', {
             comment: form.getValues('comment'),
             commentLength: form.getValues('comment')?.length || 0,
             score: form.getValues('score')
           });
           
           // También usar setValue para asegurar que se actualice inmediatamente
-          console.log('[PhaseEvaluationPage] Ejecutando form.setValue() para forzar actualización...');
+          console.log('[ProjectEvaluationPage] Ejecutando form.setValue() para forzar actualización...');
           form.setValue('comment', comment, { shouldDirty: false, shouldValidate: false });
           if (score !== undefined && !isNaN(score)) {
             form.setValue('score', score, { shouldDirty: false, shouldValidate: false });
           }
           
-          console.log('[PhaseEvaluationPage] Valores del formulario DESPUÉS de setValue:', {
+          console.log('[ProjectEvaluationPage] Valores del formulario DESPUÉS de setValue:', {
             comment: form.getValues('comment'),
             commentLength: form.getValues('comment')?.length || 0,
             score: form.getValues('score'),
@@ -384,30 +437,30 @@ function PhaseEvaluationPage() {
             }
           });
           
-          console.log('[PhaseEvaluationPage] ✅ Formulario actualizado completamente');
+          console.log('[ProjectEvaluationPage] ✅ Formulario actualizado completamente');
         }, 0);
         
         setAiEvaluationText('');
         setAiEvaluationScore(null);
       }
     } else {
-      console.log('[PhaseEvaluationPage] ❌ No hay evaluación existente o no tiene propiedades válidas');
-      console.log('[PhaseEvaluationPage] existingEvaluation es:', existingEvaluation);
-      console.log('[PhaseEvaluationPage] Tipo:', typeof existingEvaluation);
-      console.log('[PhaseEvaluationPage] Tiene id?:', existingEvaluation && 'id' in existingEvaluation);
+      console.log('[ProjectEvaluationPage] ❌ No hay evaluación existente o no tiene propiedades válidas');
+      console.log('[ProjectEvaluationPage] existingEvaluation es:', existingEvaluation);
+      console.log('[ProjectEvaluationPage] Tipo:', typeof existingEvaluation);
+      console.log('[ProjectEvaluationPage] Tiene id?:', existingEvaluation && 'id' in existingEvaluation);
       
       // Solo limpiar si realmente no hay evaluación (no durante la carga inicial)
       if (evaluationLoading === false) {
-        console.log('[PhaseEvaluationPage] evaluationLoading es false, limpiando formulario');
+        console.log('[ProjectEvaluationPage] evaluationLoading es false, limpiando formulario');
         form.reset({ comment: '', score: undefined });
         setAiEvaluationText('');
         setAiEvaluationScore(null);
-        console.log('[PhaseEvaluationPage] Formulario limpiado');
+        console.log('[ProjectEvaluationPage] Formulario limpiado');
       } else {
-        console.log('[PhaseEvaluationPage] evaluationLoading es true, NO limpiando (aún cargando)');
+        console.log('[ProjectEvaluationPage] evaluationLoading es true, NO limpiando (aún cargando)');
       }
     }
-    console.log('[PhaseEvaluationPage] ========== Fin del useEffect ==========');
+    console.log('[ProjectEvaluationPage] ========== Fin del useEffect ==========');
   }, [existingEvaluation, evaluationLoading]); // Remover 'form' de las dependencias ya que es estable
 
   const toggleSubmissionSelection = (submissionId: number) => {
@@ -422,10 +475,11 @@ function PhaseEvaluationPage() {
 
   const aiEvaluationMutation = useMutation({
     mutationFn: () => {
+      if (!projectId) throw new Error('Project ID is required');
       toast.info(safeTranslate(t, 'evaluations.generatingAi', { defaultValue: 'Generando evaluación con IA...' }), {
         duration: 3000
       });
-      return createPhaseAiEvaluation(numericPhaseId, numericTeamId, {
+      return createProjectAiEvaluation(projectId, {
         submission_ids: Array.from(selectedSubmissionIds),
         locale: evaluationLocale,
         status: 'draft'
@@ -433,18 +487,14 @@ function PhaseEvaluationPage() {
     },
     onSuccess: (data) => {
       toast.success(safeTranslate(t, 'evaluations.aiCreated', { defaultValue: 'Evaluación con IA generada' }));
-      // Solo establecer en aiEvaluationText y guardar el score, NO copiar al form
       setAiEvaluationText(data.comment || '');
-      // Guardar el score de la IA para poder copiarlo después, pero NO copiarlo al form
       setAiEvaluationScore(data.score ? Number(data.score) : null);
-      // Limpiar tanto el comentario como el score del form
       form.setValue('comment', '');
       form.setValue('score', undefined);
-      // Limpiar badges y reasignar según las entregas evaluadas
       if (data.evaluated_submission_ids) {
         setSelectedSubmissionIds(new Set(data.evaluated_submission_ids));
       }
-      void queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] });
+      void queryClient.invalidateQueries({ queryKey: ['project-evaluation', projectId] });
     },
     onError: (error: unknown) => {
       if (
@@ -454,11 +504,11 @@ function PhaseEvaluationPage() {
         typeof (error as { response?: { status?: number } }).response === 'object'
       ) {
         const response = (error as { response: { status?: number } }).response;
-        if (response.status === 409) {
-          toast.error(safeTranslate(t, 'evaluations.missingRubric', { defaultValue: 'No hay una rúbrica configurada para esta fase' }));
+        if (response?.status === 409) {
+          toast.error(safeTranslate(t, 'evaluations.missingRubric', { defaultValue: 'No hay una rúbrica configurada para este proyecto' }));
           return;
         }
-        if (response.status === 500) {
+        if (response?.status === 500) {
           toast.error(safeTranslate(t, 'evaluations.aiServiceUnavailable', { defaultValue: 'Servicio de IA no disponible' }));
           return;
         }
@@ -467,13 +517,19 @@ function PhaseEvaluationPage() {
     }
   });
 
+  const copyAiToFinal = () => {
+    form.setValue('comment', aiEvaluationText);
+    if (aiEvaluationScore !== null) {
+      form.setValue('score', aiEvaluationScore);
+    }
+    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto y puntuación copiados al campo de evaluación final' }));
+  };
+
   const saveDraftMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
-      console.log('[saveDraftMutation] Iniciando guardado de borrador');
-      console.log('[saveDraftMutation] Valores del formulario:', values);
-      
+      if (!projectId) throw new Error('Project ID is required');
       const payload: {
-        submission_ids: number[];
+        submission_ids?: number[];
         comment: string;
         status: 'draft';
         score?: number;
@@ -489,121 +545,37 @@ function PhaseEvaluationPage() {
         payload.score = values.score;
       }
 
-      console.log('[saveDraftMutation] Payload a enviar:', payload);
-
-      try {
-        let result;
-        if (existingEvaluation) {
-          console.log('[saveDraftMutation] Actualizando evaluación existente:', existingEvaluation.id);
-          result = await updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
-        } else {
-          console.log('[saveDraftMutation] Creando nueva evaluación');
-          result = await createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
-        }
-        console.log('[saveDraftMutation] Respuesta del servidor:', result);
-        return result;
-      } catch (error) {
-        console.error('[saveDraftMutation] Error en mutationFn:', error);
-        throw error;
+      if (existingEvaluation) {
+        return updateProjectEvaluation(projectId, existingEvaluation.id, payload);
+      } else {
+        return createProjectEvaluation(projectId, payload);
       }
     },
-    onSuccess: async (data) => {
-      console.log('[saveDraftMutation] onSuccess - Borrador guardado correctamente:', data);
-      
-      try {
-        toast.success(safeTranslate(t, 'evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
-        
-        // Actualizar el cache directamente con la respuesta
-        if (data) {
-          queryClient.setQueryData(['phase-evaluation', numericPhaseId, numericTeamId], data);
-          console.log('[saveDraftMutation] Cache actualizado');
-        }
-        
-        // Invalidar para que se refresque en el próximo acceso
-        queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] }).catch(err => {
-          console.error('[saveDraftMutation] Error al invalidar query:', err);
-        });
-        
-        if (refetchEvaluation) {
-          await refetchEvaluation();
-        }
-      } catch (error) {
-        console.error('[saveDraftMutation] Error en onSuccess:', error);
-        console.error('[saveDraftMutation] Stack trace:', error instanceof Error ? error.stack : 'No stack available');
-        // No mostrar error al usuario, ya se guardó correctamente
-      }
+    onSuccess: () => {
+      toast.success(safeTranslate(t, 'evaluations.draftSaved', { defaultValue: 'Borrador guardado' }));
+      void queryClient.invalidateQueries({ queryKey: ['project-evaluation', projectId] });
     },
     onError: (error: unknown) => {
-      console.error('========================================');
-      console.error('[saveDraftMutation] ERROR AL GUARDAR BORRADOR');
-      console.error('========================================');
-      console.error('Tipo de error:', typeof error);
-      console.error('Error completo:', error);
-      
-      if (error instanceof Error) {
-        console.error('Mensaje:', error.message);
-        console.error('Stack:', error.stack);
-      }
-      
       if (
         typeof error === 'object' &&
         error !== null &&
-        'response' in error
+        'response' in error &&
+        typeof (error as { response: { data?: { message?: string } } }).response === 'object'
       ) {
-        const axiosError = error as { response?: { status?: number; data?: { message?: string; errors?: unknown } }; message?: string };
-        console.error('Es un error de Axios');
-        console.error('Status:', axiosError.response?.status);
-        console.error('Response data:', axiosError.response?.data);
-        console.error('Mensaje del error:', axiosError.message);
-        
-        if (axiosError.response?.data) {
-          const responseData = axiosError.response.data;
-          console.error('Mensaje del backend:', responseData.message);
-          if (responseData.errors) {
-            console.error('Errores de validación:', responseData.errors);
-          }
-        }
-      }
-      
-      console.error('========================================');
-      
-      // Mostrar error al usuario
-      try {
-        let errorMessage = safeTranslate(t, 'common.error', { defaultValue: 'Error al guardar el borrador' });
-        
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'response' in error &&
-          typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
-        ) {
-          const response = (error as { response?: { data?: { message?: string } } }).response;
-          if (response?.data?.message) {
-            errorMessage = response.data.message;
-          }
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        
-        toast.error(errorMessage, {
-          duration: 5000,
-          description: 'Revisa la consola para más detalles'
-        });
-      } catch (toastError) {
-        console.error('[saveDraftMutation] Error al mostrar toast:', toastError);
-        alert('Error al guardar el borrador. Revisa la consola del navegador para más detalles.');
+        const response = (error as { response: { data?: { message?: string } } }).response;
+        const message = response.data?.message || safeTranslate(t, 'common.error');
+        toast.error(message);
+      } else {
+        toast.error(safeTranslate(t, 'common.error'));
       }
     }
   });
 
   const saveFinalMutation = useMutation({
     mutationFn: async (values: EvaluationFormValues) => {
-      console.log('[saveFinalMutation] Iniciando guardado de evaluación final');
-      console.log('[saveFinalMutation] Valores del formulario:', values);
-      console.log('[saveFinalMutation] Submission IDs seleccionados:', Array.from(selectedSubmissionIds));
-      
+      if (!projectId) throw new Error('Project ID is required');
       const payload: {
-        submission_ids: number[];
+        submission_ids?: number[];
         comment: string;
         status: 'final';
         score?: number;
@@ -619,178 +591,63 @@ function PhaseEvaluationPage() {
         payload.score = values.score;
       }
 
-      console.log('[saveFinalMutation] Payload a enviar:', payload);
-
-      try {
-        let result;
-        if (existingEvaluation) {
-          console.log('[saveFinalMutation] Actualizando evaluación existente:', existingEvaluation.id);
-          result = await updatePhaseEvaluation(numericPhaseId, numericTeamId, existingEvaluation.id, payload);
-        } else {
-          console.log('[saveFinalMutation] Creando nueva evaluación');
-          result = await createPhaseEvaluation(numericPhaseId, numericTeamId, payload);
-        }
-        console.log('[saveFinalMutation] Respuesta del servidor:', result);
-        return result;
-      } catch (error) {
-        console.error('[saveFinalMutation] Error en mutationFn:', error);
-        throw error; // Re-lanzar para que onError lo capture
+      if (existingEvaluation) {
+        return updateProjectEvaluation(projectId, existingEvaluation.id, payload);
+      } else {
+        return createProjectEvaluation(projectId, payload);
       }
     },
-    onSuccess: (data) => {
-      console.log('[saveFinalMutation] onSuccess - Evaluación guardada correctamente:', data);
-      
-      try {
-        toast.success(safeTranslate(t, 'evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
-        
-        // Actualizar el cache directamente con la respuesta
-        if (data) {
-          queryClient.setQueryData(['phase-evaluation', numericPhaseId, numericTeamId], data);
-          console.log('[saveFinalMutation] Cache actualizado');
-        }
-        
-        // Invalidar queries de forma asíncrona
-        queryClient.invalidateQueries({ queryKey: ['phase-evaluation', numericPhaseId, numericTeamId] }).catch(err => {
-          console.error('[saveFinalMutation] Error al invalidar query de evaluación:', err);
-        });
-        queryClient.invalidateQueries({ queryKey: ['events', numericEventId, 'deliverables-tracking'] }).catch(err => {
-          console.error('[saveFinalMutation] Error al invalidar query de tracking:', err);
-        });
-        
-        // Navegar después de un pequeño delay
-        const targetPath = tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`);
-        console.log('[saveFinalMutation] Navegando a:', targetPath);
-        
-        setTimeout(() => {
-          try {
-            navigate(targetPath);
-            console.log('[saveFinalMutation] Navegación exitosa');
-          } catch (navError) {
-            console.error('[saveFinalMutation] Error en navigate:', navError);
-            console.error('[saveFinalMutation] Usando window.location como fallback');
-            window.location.href = targetPath;
-          }
-        }, 500);
-      } catch (error) {
-        console.error('[saveFinalMutation] Error en onSuccess:', error);
-        console.error('[saveFinalMutation] Stack trace:', error instanceof Error ? error.stack : 'No stack available');
-        
-        // Mostrar error al usuario
-        toast.error(safeTranslate(t, 'common.error', { defaultValue: 'Error al procesar la evaluación guardada' }));
-        
-        // Aún así intentar navegar
-        const targetPath = tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`);
-        try {
-          navigate(targetPath);
-        } catch {
-          window.location.href = targetPath;
-        }
-      }
+    onSuccess: () => {
+      toast.success(safeTranslate(t, 'evaluations.finalSaved', { defaultValue: 'Evaluación final guardada y enviada' }));
+      void queryClient.invalidateQueries({ queryKey: ['project-evaluation', projectId] });
+      void queryClient.invalidateQueries({ queryKey: ['events', numericEventId, 'deliverables-tracking'] });
+      navigate(tenantPath(`dashboard/tracking/deliverables?eventId=${eventId}`));
     },
     onError: (error: unknown) => {
-      console.error('========================================');
-      console.error('[saveFinalMutation] ERROR AL GUARDAR EVALUACIÓN FINAL');
-      console.error('========================================');
-      console.error('Tipo de error:', typeof error);
-      console.error('Error completo:', error);
-      
-      if (error instanceof Error) {
-        console.error('Mensaje:', error.message);
-        console.error('Stack:', error.stack);
-      }
-      
       if (
         typeof error === 'object' &&
         error !== null &&
-        'response' in error
+        'response' in error &&
+        typeof (error as { response: { data?: { message?: string } } }).response === 'object'
       ) {
-        const axiosError = error as { response?: { status?: number; data?: { message?: string; errors?: unknown } }; message?: string };
-        console.error('Es un error de Axios');
-        console.error('Status:', axiosError.response?.status);
-        console.error('Response data:', axiosError.response?.data);
-        console.error('Mensaje del error:', axiosError.message);
-        
-        if (axiosError.response?.data) {
-          const responseData = axiosError.response.data;
-          console.error('Mensaje del backend:', responseData.message);
-          if (responseData.errors) {
-            console.error('Errores de validación:', responseData.errors);
-          }
-        }
-      }
-      
-      console.error('========================================');
-      
-      // Mostrar error al usuario
-      try {
-        let errorMessage = safeTranslate(t, 'common.error', { defaultValue: 'Error al guardar la evaluación' });
-        
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'response' in error &&
-          typeof (error as { response?: { data?: { message?: string } } }).response === 'object'
-        ) {
-          const response = (error as { response?: { data?: { message?: string } } }).response;
-          if (response?.data?.message) {
-            errorMessage = response.data.message;
-          }
-        } else if (error instanceof Error) {
-          errorMessage = error.message;
-        }
-        
-        toast.error(errorMessage, {
-          duration: 5000, // Mostrar por más tiempo
-          description: 'Revisa la consola para más detalles'
-        });
-      } catch (toastError) {
-        console.error('[saveFinalMutation] Error al mostrar toast:', toastError);
-        // Fallback: alert nativo
-        alert('Error al guardar la evaluación. Revisa la consola del navegador para más detalles.');
+        const response = (error as { response: { data?: { message?: string } } }).response;
+        const message = response.data?.message || safeTranslate(t, 'common.error');
+        toast.error(message);
+      } else {
+        toast.error(safeTranslate(t, 'common.error'));
       }
     }
   });
 
-
-  const copyAiToFinal = () => {
-    form.setValue('comment', aiEvaluationText);
-    // También copiar el score si está disponible
-    if (aiEvaluationScore !== null) {
-      form.setValue('score', aiEvaluationScore);
-    }
-    toast.success(safeTranslate(t, 'evaluations.copied', { defaultValue: 'Texto y puntuación copiados al campo de evaluación final' }));
-  };
-
-  // Obtener nombre del equipo desde las submissions (debe estar antes de los returns condicionales)
+  // Obtener nombre del equipo y proyecto
   const teamName = useMemo(() => {
-    if (allSubmissions && allSubmissions.length > 0) {
-      return allSubmissions[0].team?.name || '';
-    }
-    return '';
-  }, [allSubmissions]);
+    return team?.name || '';
+  }, [team]);
 
-  if (eventLoading || submissionsLoading || evaluationLoading || rubricsLoading) {
+  const projectName = useMemo(() => {
+    return team?.project?.name || '';
+  }, [team]);
+
+  if (eventLoading || submissionsLoading || evaluationLoading || rubricsLoading || teamsLoading || phaseEvaluationsLoading) {
     return <Spinner fullHeight />;
   }
 
-  if (!phase) {
+  if (!projectId) {
     return (
-      <DashboardLayout title={safeTranslate(t, 'evaluations.pageTitle', { defaultValue: 'Evaluación de Fase' })}>
+      <DashboardLayout title={safeTranslate(t, 'evaluations.pageTitle', { defaultValue: 'Evaluación de Proyecto' })}>
         <Card>
           <CardContent className="py-10 text-center text-sm text-destructive">
-            {safeTranslate(t, 'evaluations.phaseNotFound', { defaultValue: 'Fase no encontrada' })}
+            {safeTranslate(t, 'evaluations.projectNotFound', { defaultValue: 'Proyecto no encontrado' })}
           </CardContent>
         </Card>
       </DashboardLayout>
     );
   }
 
-  const phaseName = getMultilingualText(phase.name, currentLang);
-
   return (
     <DashboardLayout
-      title={safeTranslate(t, 'evaluations.phaseEvaluationTitle', { defaultValue: 'Evaluación de Fase' })}
-      subtitle={`${phaseName} - ${teamName}`}
+      title={safeTranslate(t, 'evaluations.projectEvaluationTitle', { defaultValue: 'Evaluación de Proyecto' })}
+      subtitle={`${projectName} - ${teamName}`}
     >
       <div className="space-y-6">
         {/* Lista de entregas por tarea */}
@@ -802,88 +659,150 @@ function PhaseEvaluationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {phaseTasks.map(task => {
-              const taskSubmissions = submissionsByTask.get(task.id) || [];
-              const taskTitle = getMultilingualText(task.title, currentLang);
-              if (taskSubmissions.length === 0) {
-                return (
-                  <div key={task.id} className="border rounded-md p-4">
-                    <h3 className="font-semibold text-sm mb-2">{taskTitle}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {safeTranslate(t, 'evaluations.noSubmissionsForTask', { defaultValue: 'No hay entregas para esta tarea' })}
-                    </p>
-                  </div>
-                );
-              }
+            {eventDetail?.phases && eventDetail.phases.length > 0 ? (
+              eventDetail.phases
+                .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                .map(phase => {
+                  const phaseTasksMap = submissionsByPhase.get(phase.id);
+                  const phaseEvaluation = phaseEvaluationsMap?.get(phase.id);
+                  const phaseName = getMultilingualText(phase.name, currentLang);
+                  
+                  // Obtener todas las tareas de esta fase
+                  const phaseTasks = eventDetail.tasks
+                    ?.filter(t => t.phase_id === phase.id)
+                    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)) || [];
 
-              return (
-                <div key={task.id} className="border rounded-md p-4 space-y-3">
-                  <h3 className="font-semibold text-sm">{taskTitle}</h3>
-                  <div className="space-y-2">
-                    {taskSubmissions.map(submission => {
-                      const isSelected = selectedSubmissionIds.has(submission.id);
-                      const wasEvaluated = existingEvaluation?.evaluated_submission_ids?.includes(submission.id);
+                  // Verificar si hay entregas en esta fase
+                  const hasSubmissions = phaseTasks.some(task => {
+                    const taskSubmissions = phaseTasksMap?.get(task.id) || [];
+                    return taskSubmissions.length > 0;
+                  });
 
-                      return (
-                        <div
-                          key={submission.id}
-                          className={cn(
-                            'flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors',
-                            isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
-                          )}
-                          onClick={() => toggleSubmissionSelection(submission.id)}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleSubmissionSelection(submission.id)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                {new Date(submission.submitted_at).toLocaleString(locale)}
-                              </span>
-                              <Badge variant={submission.status === 'final' ? 'default' : 'secondary'}>
-                                {submission.status === 'final' ? safeTranslate(t, 'submissions.final', { defaultValue: 'Final' }) : safeTranslate(t, 'submissions.draft', { defaultValue: 'Borrador' })}
+                  if (!hasSubmissions && !phaseEvaluation) {
+                    return null; // No mostrar fases sin entregas ni evaluaciones
+                  }
+
+                  return (
+                    <div key={phase.id} className="space-y-4">
+                      {/* Encabezado de fase */}
+                      <div className="border-b pb-2">
+                        <h2 className="text-lg font-semibold">{phaseName}</h2>
+                      </div>
+
+                      {/* Entregas de la fase */}
+                      {phaseTasks.length > 0 && (
+                        <div className="space-y-4">
+                          {phaseTasks.map(task => {
+                            const taskSubmissions = phaseTasksMap?.get(task.id) || [];
+                            const taskTitle = getMultilingualText(task.title, currentLang);
+                            
+                            if (taskSubmissions.length === 0) {
+                              return null;
+                            }
+
+                            return (
+                              <div key={task.id} className="border rounded-md p-4 space-y-3">
+                                <h3 className="font-semibold text-sm">{taskTitle}</h3>
+                                <div className="space-y-2">
+                                  {taskSubmissions.map(submission => {
+                                    const isSelected = selectedSubmissionIds.has(submission.id);
+                                    const wasEvaluated = existingEvaluation?.evaluated_submission_ids?.includes(submission.id);
+
+                                    return (
+                                      <div
+                                        key={submission.id}
+                                        className={cn(
+                                          'flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors',
+                                          isSelected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                                        )}
+                                        onClick={() => toggleSubmissionSelection(submission.id)}
+                                      >
+                                        <Checkbox
+                                          checked={isSelected}
+                                          onCheckedChange={() => toggleSubmissionSelection(submission.id)}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1 space-y-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium">
+                                              {new Date(submission.submitted_at).toLocaleString(locale)}
+                                            </span>
+                                            <Badge variant={submission.status === 'final' ? 'default' : 'secondary'}>
+                                              {submission.status === 'final' ? safeTranslate(t, 'submissions.final', { defaultValue: 'Final' }) : safeTranslate(t, 'submissions.draft', { defaultValue: 'Borrador' })}
+                                            </Badge>
+                                            {wasEvaluated && (
+                                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                                {safeTranslate(t, 'evaluations.evaluated', { defaultValue: 'Evaluada' })}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {submission.content && (
+                                            <p className="text-sm text-muted-foreground">{submission.content}</p>
+                                          )}
+                                          {submission.files && submission.files.length > 0 && (
+                                            <ul className="space-y-1 text-xs">
+                                              {submission.files.map(file => {
+                                                const { icon: FileTypeIcon, color } = getFileIcon(file.mime_type, file.original_name);
+                                                return (
+                                                  <li key={file.id} className="flex items-center gap-2">
+                                                    <span title={file.mime_type}>
+                                                      <FileTypeIcon className="h-4 w-4" style={{ color }} />
+                                                    </span>
+                                                    <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
+                                                      {file.original_name}
+                                                    </a>
+                                                    <span className="text-muted-foreground">
+                                                      · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB
+                                                    </span>
+                                                  </li>
+                                                );
+                                              })}
+                                            </ul>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Evaluación final de la fase */}
+                      {phaseEvaluation && phaseEvaluation.status === 'final' && (
+                        <div className="border rounded-md p-4 bg-muted/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-semibold text-sm">
+                              {safeTranslate(t, 'evaluations.finalPhaseEvaluation', { defaultValue: 'Evaluación Final de la Fase' })}
+                            </h3>
+                            {phaseEvaluation.score !== null && phaseEvaluation.score !== undefined && (
+                              <Badge variant="default" className="text-sm">
+                                {Number(phaseEvaluation.score).toFixed(1)}/100
                               </Badge>
-                              {wasEvaluated && (
-                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  {safeTranslate(t, 'evaluations.evaluated', { defaultValue: 'Evaluada' })}
-                                </Badge>
-                              )}
-                            </div>
-                            {submission.content && (
-                              <p className="text-sm text-muted-foreground">{submission.content}</p>
-                            )}
-                            {submission.files && submission.files.length > 0 && (
-                              <ul className="space-y-1 text-xs">
-                                {submission.files.map(file => {
-                                  const { icon: FileTypeIcon, color } = getFileIcon(file.mime_type, file.original_name);
-                                  return (
-                                    <li key={file.id} className="flex items-center gap-2">
-                                      <span title={file.mime_type}>
-                                        <FileTypeIcon className="h-4 w-4" style={{ color }} />
-                                      </span>
-                                      <a className="text-primary underline" href={file.url} target="_blank" rel="noreferrer">
-                                        {file.original_name}
-                                      </a>
-                                      <span className="text-muted-foreground">
-                                        · {(file.size_bytes / 1024 / 1024).toFixed(2)} MB
-                                      </span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
                             )}
                           </div>
+                          {phaseEvaluation.comment && (
+                            <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {phaseEvaluation.comment}
+                            </div>
+                          )}
+                          <div className="text-xs text-muted-foreground">
+                            {safeTranslate(t, 'evaluations.evaluatedAt', { defaultValue: 'Evaluado el' })} {new Date(phaseEvaluation.created_at).toLocaleString(locale)}
+                          </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                      )}
+                    </div>
+                  );
+                })
+                .filter(Boolean)
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {safeTranslate(t, 'evaluations.noTasks', { defaultValue: 'No hay tareas en este evento' })}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -980,7 +899,7 @@ function PhaseEvaluationPage() {
               </>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {safeTranslate(t, 'evaluations.noRubric', { defaultValue: 'No hay rúbrica configurada para esta fase' })}
+                {safeTranslate(t, 'evaluations.noRubric', { defaultValue: 'No hay rúbrica configurada para este proyecto' })}
               </p>
             )}
           </CardContent>
@@ -1015,19 +934,9 @@ function PhaseEvaluationPage() {
         {/* Evaluación Final */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {safeTranslate(t, 'evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}
-              {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual' && (
-                <Badge variant="default" className="bg-green-600">
-                  {safeTranslate(t, 'evaluations.saved', { defaultValue: 'Guardada' })}
-                </Badge>
-              )}
-            </CardTitle>
+            <CardTitle>{safeTranslate(t, 'evaluations.finalEvaluation', { defaultValue: 'Evaluación Final' })}</CardTitle>
             <CardDescription>
-              {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual'
-                ? safeTranslate(t, 'evaluations.finalEvaluationSaved', { defaultValue: 'Esta evaluación está guardada y visible para los miembros del equipo' })
-                : safeTranslate(t, 'evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })
-              }
+              {safeTranslate(t, 'evaluations.finalEvaluationDescription', { defaultValue: 'Esta evaluación será visible para los miembros del equipo cuando la guardes como final' })}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -1039,7 +948,7 @@ function PhaseEvaluationPage() {
                 {(() => {
                   const currentComment = form.getValues('comment');
                   const watchComment = form.watch('comment');
-                  console.log('[PhaseEvaluationPage] 🎨 RENDER: Campo comentario - valores:', {
+                  console.log('[ProjectEvaluationPage] 🎨 RENDER: Campo comentario - valores:', {
                     getValues: currentComment,
                     getValuesLength: currentComment?.length || 0,
                     watch: watchComment,
@@ -1060,30 +969,15 @@ function PhaseEvaluationPage() {
                 {form.formState.errors.comment && (
                   <p className="text-xs text-destructive">{form.formState.errors.comment.message}</p>
                 )}
-                {existingEvaluation?.status === 'final' && existingEvaluation?.source === 'manual' && existingEvaluation.comment && existingEvaluation.created_at && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {safeTranslate(t, 'evaluations.savedAt', { defaultValue: 'Guardada el' })}: {(() => {
-                      try {
-                        const date = new Date(existingEvaluation.created_at);
-                        if (isNaN(date.getTime())) {
-                          return safeTranslate(t, 'common.dateNotAvailable', { defaultValue: 'Fecha no disponible' });
-                        }
-                        return date.toLocaleString(locale);
-                      } catch {
-                        return safeTranslate(t, 'common.dateNotAvailable', { defaultValue: 'Fecha no disponible' });
-                      }
-                    })()}
-                  </p>
-                )}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium block mb-2">
-                  {safeTranslate(t, 'evaluations.score', { defaultValue: 'Puntuación' })}
+                  {safeTranslate(t, 'evaluations.score', { defaultValue: 'Puntuación' })} (0-10)
                 </label>
                 {(() => {
                   const currentScore = form.getValues('score');
                   const watchScore = form.watch('score');
-                  console.log('[PhaseEvaluationPage] 🎨 RENDER: Campo score - valores:', {
+                  console.log('[ProjectEvaluationPage] 🎨 RENDER: Campo score - valores:', {
                     getValues: currentScore,
                     watch: watchScore,
                     formState: {
@@ -1097,11 +991,11 @@ function PhaseEvaluationPage() {
                   type="number"
                   step="0.1"
                   min="0"
-                  max="100"
+                  max="10"
                   {...form.register('score', { 
                     valueAsNumber: true,
                     min: { value: 0, message: safeTranslate(t, 'evaluations.scoreMin', { defaultValue: 'La puntuación mínima es 0' }) },
-                    max: { value: 100, message: safeTranslate(t, 'evaluations.scoreMax', { defaultValue: 'La puntuación máxima es 100' }) }
+                    max: { value: 10, message: safeTranslate(t, 'evaluations.scoreMax10', { defaultValue: 'La puntuación máxima es 10' }) }
                   })}
                   value={form.watch('score') || ''}
                   className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -1110,7 +1004,6 @@ function PhaseEvaluationPage() {
                   <p className="text-xs text-destructive">{form.formState.errors.score.message}</p>
                 )}
               </div>
-              
               <div className="flex gap-3">
                 <Button
                   type="button"
@@ -1136,5 +1029,5 @@ function PhaseEvaluationPage() {
   );
 }
 
-export default PhaseEvaluationPage;
+export default ProjectEvaluationPage;
 

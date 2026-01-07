@@ -149,14 +149,27 @@ export function TaskForm({ form, phases, availableRubrics, onSubmit, isSubmittin
           error={translateError(errors.phase_id?.message)}
           required
         >
-          <Select id={`${idPrefix}-phase`} {...register('phase_id', { valueAsNumber: true })}>
-            <option value="">{safeTranslate(t, 'events.taskPhase')}</option>
-            {phases.map(phase => (
-              <option key={phase.id} value={phase.id}>
-                {getMultilingualText(phase.name, currentLang)}
-              </option>
-            ))}
-          </Select>
+          <Controller
+            name="phase_id"
+            control={control}
+            rules={{ required: true }}
+            render={({ field }) => (
+              <Select
+                id={`${idPrefix}-phase`}
+                value={field.value !== undefined && field.value !== null ? String(field.value) : ''}
+                onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                onBlur={field.onBlur}
+                name={field.name}
+              >
+                <option value="">{safeTranslate(t, 'events.taskPhase')}</option>
+                {phases.map(phase => (
+                  <option key={phase.id} value={phase.id}>
+                    {getMultilingualText(phase.name, currentLang)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          />
         </FormField>
         <FormField
           label={safeTranslate(t, 'events.taskType')}

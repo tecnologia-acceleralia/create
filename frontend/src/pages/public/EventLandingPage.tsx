@@ -322,8 +322,11 @@ function EventLandingPage() {
 
       {eventDescriptionHtml ? (
         <div className="mx-auto w-full max-w-4xl">
-          <div className="prose prose-sm max-w-none rounded-2xl border border-border/70 bg-card/80 p-6">
-            <div dangerouslySetInnerHTML={{ __html: eventDescriptionHtml }} />
+          <div className="rounded-2xl border border-border/70 bg-card/80 p-6">
+            <div 
+              className="html-content"
+              dangerouslySetInnerHTML={{ __html: eventDescriptionHtml }} 
+            />
           </div>
         </div>
       ) : null}

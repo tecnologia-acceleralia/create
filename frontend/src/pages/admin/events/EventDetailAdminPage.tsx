@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useSearchParams, Navigate } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import { useFieldArray, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { Plus, Download, Upload } from 'lucide-react';
+import { isAxiosError } from 'axios';
 
 import { DashboardLayout } from '@/components/layout';
 import { Spinner, EmptyState, CardWithActions } from '@/components/common';
@@ -64,6 +65,16 @@ import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { EventAssetsManager } from '@/components/events/EventAssetsManager';
 import EventStatisticsTab from '@/components/events/EventStatisticsTab';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type EventDetailData = Awaited<ReturnType<typeof getEventDetail>>;
 
@@ -219,6 +230,10 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const [editingRubric, setEditingRubric] = useState<PhaseRubric | null>(null);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [showImportConfirmDialog, setShowImportConfirmDialog] = useState(false);
+  const [showReplaceDialog, setShowReplaceDialog] = useState(false);
+  const isContinuingToReplaceDialogRef = useRef(false);
 
   // Formularios
   const eventForm = useForm<EventFormValues>({
@@ -271,7 +286,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     resolver: zodResolver(rubricSchema),
     defaultValues: {
       rubric_scope: 'phase',
-      phase_id: phases[0]?.id ?? 0,
+      phase_id: phases[0]?.id ?? null,
       name: '',
       description: '',
       scale_min: 0,
@@ -288,15 +303,38 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       ]
     }
   });
+  const rubricScope = rubricForm.watch('rubric_scope');
 
   useEffect(() => {
     if (phases.length && !taskForm.getValues('phase_id')) {
       taskForm.setValue('phase_id', phases[0].id);
     }
-    if (phases.length && !rubricForm.getValues('phase_id')) {
-      rubricForm.setValue('phase_id', phases[0].id);
+  }, [phases, taskForm, rubricForm, editingRubric]);
+
+  // Mantener phase_id coherente con el alcance de la rúbrica
+  useEffect(() => {
+    if (rubricScope === 'project') {
+      rubricForm.setValue('phase_id', null);
+      return;
     }
-  }, [phases, taskForm, rubricForm]);
+
+    // Si estamos editando una rúbrica existente con phase_id válido, no interferir
+    if (editingRubric && editingRubric.phase_id !== null && editingRubric.phase_id !== undefined) {
+      const currentPhaseId = rubricForm.getValues('phase_id');
+      // Solo actualizar si el valor actual no coincide con el de la rúbrica que estamos editando
+      if (currentPhaseId !== editingRubric.phase_id) {
+        rubricForm.setValue('phase_id', editingRubric.phase_id);
+      }
+      return;
+    }
+
+    const currentPhaseId = rubricForm.getValues('phase_id');
+    const normalizedPhaseId =
+      currentPhaseId === undefined || Number.isNaN(currentPhaseId) ? null : currentPhaseId ?? null;
+    if (normalizedPhaseId !== currentPhaseId) {
+      rubricForm.setValue('phase_id', normalizedPhaseId);
+    }
+  }, [rubricScope, phases, rubricForm, editingRubric]);
 
   const criteriaArray = useFieldArray({
     control: rubricForm.control,
@@ -345,7 +383,14 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       toast.success(safeTranslate(t, 'events.phaseDeleted'));
       void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
     },
-    onError: () => toast.error(safeTranslate(t, 'common.error'))
+    onError: (error: unknown) => {
+      if (isAxiosError(error)) {
+        const message = error.response?.data?.message || safeTranslate(t, 'common.error');
+        toast.error(message);
+      } else {
+        toast.error(safeTranslate(t, 'common.error'));
+      }
+    }
   });
 
   // Mutaciones de tareas
@@ -492,7 +537,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
   const resetRubricForm = () => {
     rubricForm.reset({
       rubric_scope: 'phase',
-      phase_id: phases[0]?.id ?? 0,
+      phase_id: phases[0]?.id ?? null,
       name: '',
       description: '',
       scale_min: 0,
@@ -580,10 +625,11 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
 
   const handleOpenRubricModal = (rubric?: PhaseRubric) => {
     if (rubric) {
+      // En edición, respetamos la fase almacenada y evitamos forzar fallback a la primera
       setEditingRubric(rubric);
       rubricForm.reset({
         rubric_scope: rubric.rubric_scope ?? 'phase',
-        phase_id: rubric.phase_id ?? (phases[0]?.id ?? 0),
+        phase_id: rubric.phase_id ?? null,
         name: rubric.name,
         description: rubric.description ?? '',
         scale_min: rubric.scale_min ?? 0,
@@ -608,25 +654,36 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     // name es requerido, así que siempre debe tener al menos texto en español
     let cleanedName: MultilingualText | string | undefined;
     if (typeof values.name === 'object' && values.name !== null) {
-      cleanedName = cleanMultilingualValue(values.name, true);
-      // Si cleanMultilingualValue retorna null para un campo requerido, usar el valor original
-      // (la validación del formulario debería haber rechazado esto)
-      if (!cleanedName && values.name.es) {
-        cleanedName = { es: values.name.es.trim() };
-        if (values.name.ca?.trim()) cleanedName.ca = values.name.ca.trim();
-        if (values.name.en?.trim()) cleanedName.en = values.name.en.trim();
+      // Normalizar primero para asegurar que ca y en estén presentes (aunque sean strings vacíos)
+      const normalizedName = normalizeMultilingualValue(values.name);
+      if (normalizedName) {
+        cleanedName = cleanMultilingualValue(normalizedName, true) ?? undefined;
+        // Si cleanMultilingualValue retorna null para un campo requerido, usar el valor normalizado
+        // (la validación del formulario debería haber rechazado esto)
+        if (!cleanedName && normalizedName.es) {
+          cleanedName = { es: normalizedName.es.trim() };
+          if (normalizedName.ca?.trim()) cleanedName.ca = normalizedName.ca.trim();
+          if (normalizedName.en?.trim()) cleanedName.en = normalizedName.en.trim();
+        }
       }
     } else if (typeof values.name === 'string') {
       cleanedName = values.name.trim() || undefined;
     }
 
     // description y description_html son opcionales
-    const cleanedDescription = typeof values.description === 'object' && values.description !== null
-      ? cleanMultilingualValue(values.description, false)
+    // Normalizar primero para asegurar que ca y en estén presentes (aunque sean strings vacíos)
+    const normalizedDescription = typeof values.description === 'object' && values.description !== null
+      ? normalizeMultilingualValue(values.description)
+      : null;
+    const cleanedDescription = normalizedDescription
+      ? cleanMultilingualValue(normalizedDescription, false)
       : (typeof values.description === 'string' && values.description.trim() ? values.description.trim() : undefined);
     
-    const cleanedDescriptionHtml = typeof values.description_html === 'object' && values.description_html !== null
-      ? cleanMultilingualValue(values.description_html, false)
+    const normalizedDescriptionHtml = typeof values.description_html === 'object' && values.description_html !== null
+      ? normalizeMultilingualValue(values.description_html)
+      : null;
+    const cleanedDescriptionHtml = normalizedDescriptionHtml
+      ? cleanMultilingualValue(normalizedDescriptionHtml, false)
       : (typeof values.description_html === 'string' && values.description_html.trim() ? values.description_html.trim() : undefined);
 
     const payload: Partial<Event> = {
@@ -711,6 +768,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       scale_min: Number.isNaN(values.scale_min) ? undefined : values.scale_min,
       scale_max: Number.isNaN(values.scale_max) ? undefined : values.scale_max,
       model_preference: values.model_preference || undefined,
+      // Incluir phase_id para permitir mover la rúbrica entre fases cuando aplica
+      phase_id: values.rubric_scope === 'project' ? null : (values.phase_id ?? null),
       criteria: values.criteria.map((criterion, index) => ({
         title: criterion.title,
         description: criterion.description || undefined,
@@ -723,6 +782,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     const isProject = values.rubric_scope === 'project';
 
     if (editingRubric) {
+      // Usar el phase_id original para el endpoint y enviar el nuevo phase_id en payload
+      const phaseIdForUrl = editingRubric.phase_id ?? values.phase_id ?? 0;
       if (isProject) {
         updateProjectRubricMutation.mutate({
           rubricId: editingRubric.id,
@@ -731,7 +792,7 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         return;
       }
       updateRubricMutation.mutate({
-        phaseId: values.phase_id ?? 0,
+        phaseId: phaseIdForUrl,
         rubricId: editingRubric.id,
         payload
       });
@@ -866,64 +927,246 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
 
-      // Preguntar al usuario si quiere reemplazar todo o añadir
-      const replace = confirm(
-        safeTranslate(t, 'events.importReplaceConfirm', {
-          defaultValue: '¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.'
-        })
-      );
-
-      try {
-        setIsImporting(true);
-        const text = await file.text();
-        const importData = JSON.parse(text) as PhaseTaskExportData;
-
-        if (!importData.phases || !Array.isArray(importData.phases)) {
-          toast.error(safeTranslate(t, 'events.invalidImportFormat'));
-          return;
-        }
-
-        const result = await importPhasesAndTasks(eventId, importData, replace);
-        
-        if (result.success) {
-          if (replace) {
-            toast.success(
-              safeTranslate(t, 'events.phasesTasksReplaced', {
-                phases: result.imported.phases,
-                tasks: result.imported.tasks
-              })
-            );
-          } else {
-            toast.success(
-              safeTranslate(t, 'events.phasesTasksImported', {
-                phases: result.imported.phases,
-                tasks: result.imported.tasks
-              })
-            );
-          }
-          void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
-        } else if (result.errors && result.errors.length > 0) {
-          toast.warning(
-            safeTranslate(t, 'events.phasesTasksImportedPartial', {
-              phases: result.imported.phases,
-              tasks: result.imported.tasks,
-              errors: result.errors.length
-            })
-          );
-          console.warn('Errores de importación:', result.errors);
-          void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
-        }
-      } catch (error: any) {
-        if (error instanceof SyntaxError) {
-          toast.error(safeTranslate(t, 'events.invalidJsonFile'));
-        } else {
-          toast.error(error?.response?.data?.message || safeTranslate(t, 'common.error'));
-        }
-      } finally {
-        setIsImporting(false);
-      }
+      // Guardar el archivo y mostrar el diálogo de confirmación
+      setImportFile(file);
+      setShowImportConfirmDialog(true);
     };
     input.click();
+  };
+
+  const handleCancelImport = () => {
+    setShowImportConfirmDialog(false);
+    if (!isContinuingToReplaceDialogRef.current) {
+      // Solo limpiar el estado si no estamos transitando al segundo diálogo
+      setImportFile(null);
+    }
+    isContinuingToReplaceDialogRef.current = false; // Reset flag
+  };
+
+  const handleConfirmImport = () => {
+    isContinuingToReplaceDialogRef.current = true; // Marcar que estamos transitando
+    setShowImportConfirmDialog(false);
+    // Ahora preguntar si quiere reemplazar o añadir
+    setShowReplaceDialog(true);
+  };
+
+  const handleCancelReplace = () => {
+    setShowReplaceDialog(false);
+    setImportFile(null);
+    isContinuingToReplaceDialogRef.current = false; // Reset flag
+  };
+
+  const handleProcessImport = async (replace: boolean) => {
+    setShowReplaceDialog(false);
+    
+    if (!importFile) return;
+
+    try {
+      setIsImporting(true);
+      const text = await importFile.text();
+      const importData = JSON.parse(text) as PhaseTaskExportData;
+
+      if (!importData.phases || !Array.isArray(importData.phases)) {
+        toast.error(safeTranslate(t, 'events.invalidImportFormat'));
+        setImportFile(null);
+        return;
+      }
+
+      // Normalizar los datos: preservar objetos multilingües si existen
+      // El backend acepta tanto strings como objetos multilingües gracias a validateRequiredMultilingual/validateOptionalMultilingual
+      const normalizeMultilingual = (value: unknown): string | Record<string, string> | null => {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string') {
+          // Si es un string, mantenerlo como string (el backend lo normalizará a objeto con {es: value})
+          return value.trim() || null;
+        }
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Es un objeto multilingüe, preservarlo y limpiar valores
+          const obj = value as Record<string, unknown>;
+          const normalized: Record<string, string> = {};
+          // Limpiar y validar cada idioma
+          for (const [lang, val] of Object.entries(obj)) {
+            if (val && typeof val === 'string' && val.trim()) {
+              normalized[lang] = val.trim();
+            }
+          }
+          // Si tiene al menos un idioma válido, devolver el objeto
+          if (Object.keys(normalized).length > 0) {
+            return normalized;
+          }
+          return null;
+        }
+        const str = String(value);
+        return str.trim() || null;
+      };
+
+      const normalizedData: PhaseTaskExportData = {
+        ...importData,
+        event_name: typeof importData.event_name === 'string' 
+          ? importData.event_name 
+          : (normalizeMultilingual(importData.event_name) || ''),
+        phases: importData.phases.map(phase => {
+          const normalizedName = normalizeMultilingual(phase.name);
+          const normalizedPhase: any = {
+            name: normalizedName || '',
+            order_index: phase.order_index,
+            is_elimination: phase.is_elimination,
+            tasks: phase.tasks?.map(task => {
+              const normalizedTitle = normalizeMultilingual(task.title);
+              const normalizedTask: any = {
+                title: normalizedTitle || '',
+                delivery_type: task.delivery_type,
+                is_required: task.is_required,
+                status: task.status,
+                order_index: task.order_index,
+                max_files: task.max_files
+              };
+              
+              // Solo agregar campos opcionales si no son null
+              const taskDescription = task.description !== undefined ? normalizeMultilingual(task.description) : undefined;
+              if (taskDescription !== null && taskDescription !== undefined) {
+                normalizedTask.description = taskDescription;
+              }
+              
+              const taskIntroHtml = task.intro_html !== undefined ? normalizeMultilingual(task.intro_html) : undefined;
+              if (taskIntroHtml !== null && taskIntroHtml !== undefined) {
+                normalizedTask.intro_html = taskIntroHtml;
+              }
+              
+              if (task.due_date !== null && task.due_date !== undefined) {
+                normalizedTask.due_date = task.due_date;
+              }
+              
+              if (task.max_file_size_mb !== null && task.max_file_size_mb !== undefined) {
+                normalizedTask.max_file_size_mb = task.max_file_size_mb;
+              }
+              
+              if (task.allowed_mime_types !== null && task.allowed_mime_types !== undefined) {
+                normalizedTask.allowed_mime_types = task.allowed_mime_types;
+              }
+              
+              return normalizedTask;
+            }) || []
+          };
+          
+          // Solo agregar campos opcionales de fase si no son null
+          const phaseDescription = phase.description !== undefined ? normalizeMultilingual(phase.description) : undefined;
+          if (phaseDescription !== null && phaseDescription !== undefined) {
+            normalizedPhase.description = phaseDescription;
+          }
+          
+          const phaseIntroHtml = phase.intro_html !== undefined ? normalizeMultilingual(phase.intro_html) : undefined;
+          if (phaseIntroHtml !== null && phaseIntroHtml !== undefined) {
+            normalizedPhase.intro_html = phaseIntroHtml;
+          }
+          
+          if (phase.start_date !== null && phase.start_date !== undefined) {
+            normalizedPhase.start_date = phase.start_date;
+          }
+          
+          if (phase.end_date !== null && phase.end_date !== undefined) {
+            normalizedPhase.end_date = phase.end_date;
+          }
+          
+          if (phase.view_start_date !== null && phase.view_start_date !== undefined) {
+            normalizedPhase.view_start_date = phase.view_start_date;
+          }
+          
+          if (phase.view_end_date !== null && phase.view_end_date !== undefined) {
+            normalizedPhase.view_end_date = phase.view_end_date;
+          }
+          
+          return normalizedPhase;
+        })
+      };
+
+      // Log temporal para debugging
+      if (import.meta.env.DEV) {
+        console.log('[Import] Datos normalizados:', {
+          phasesCount: normalizedData.phases.length,
+          firstPhase: normalizedData.phases[0] ? {
+            name: normalizedData.phases[0].name,
+            nameType: typeof normalizedData.phases[0].name,
+            description: normalizedData.phases[0].description,
+            descriptionType: typeof normalizedData.phases[0].description,
+            tasksCount: normalizedData.phases[0].tasks?.length || 0,
+            firstTask: normalizedData.phases[0].tasks?.[0] ? {
+              title: normalizedData.phases[0].tasks[0].title,
+              titleType: typeof normalizedData.phases[0].tasks[0].title,
+              description: normalizedData.phases[0].tasks[0].description,
+              descriptionType: typeof normalizedData.phases[0].tasks[0].description
+            } : null
+          } : null
+        });
+        // Verificar que todos los campos multilingües sean strings
+        const allFieldsAreStrings = normalizedData.phases.every(phase => {
+          const phaseNameIsString = typeof phase.name === 'string';
+          const phaseDescIsString = phase.description === undefined || typeof phase.description === 'string';
+          const tasksAreValid = phase.tasks?.every(task => {
+            const taskTitleIsString = typeof task.title === 'string';
+            const taskDescIsString = task.description === undefined || typeof task.description === 'string';
+            return taskTitleIsString && taskDescIsString;
+          }) ?? true;
+          return phaseNameIsString && phaseDescIsString && tasksAreValid;
+        });
+        console.log('[Import] Todos los campos multilingües son strings:', allFieldsAreStrings);
+      }
+
+      const result = await importPhasesAndTasks(eventId, normalizedData, replace);
+      
+      if (!result) {
+        console.error('[Import] Result es undefined');
+        toast.error(safeTranslate(t, 'common.error'));
+        setImportFile(null);
+        return;
+      }
+      
+      if (result.success) {
+        if (replace) {
+          toast.success(
+            safeTranslate(t, 'events.phasesTasksReplaced', {
+              phases: result.imported.phases,
+              tasks: result.imported.tasks
+            })
+          );
+        } else {
+          toast.success(
+            safeTranslate(t, 'events.phasesTasksImported', {
+              phases: result.imported.phases,
+              tasks: result.imported.tasks
+            })
+          );
+        }
+        void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+      } else if (result.errors && result.errors.length > 0) {
+        toast.warning(
+          safeTranslate(t, 'events.phasesTasksImportedPartial', {
+            phases: result.imported.phases,
+            tasks: result.imported.tasks,
+            errors: result.errors.length
+          })
+        );
+        console.warn('Errores de importación:', result.errors);
+        void queryClient.invalidateQueries({ queryKey: ['events', eventId] });
+      }
+      
+      setImportFile(null);
+    } catch (error: any) {
+      console.error('[Import] Error completo:', error);
+      console.error('[Import] Error response:', error?.response);
+      console.error('[Import] Error data:', error?.response?.data);
+      
+      if (error instanceof SyntaxError) {
+        toast.error(safeTranslate(t, 'events.invalidJsonFile'));
+      } else {
+        const errorMessage = error?.response?.data?.message || error?.message || safeTranslate(t, 'common.error');
+        console.error('[Import] Mostrando error al usuario:', errorMessage);
+        toast.error(errorMessage);
+      }
+      setImportFile(null);
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -1357,6 +1600,73 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         onOpenChange={setIsTeamDetailsModalOpen}
         team={selectedTeam}
       />
+
+      {/* Diálogo de confirmación de importación */}
+      <AlertDialog open={showImportConfirmDialog} onOpenChange={(open) => {
+        if (!open && !isContinuingToReplaceDialogRef.current) {
+          // Solo cancelar si no estamos transitando al segundo diálogo
+          handleCancelImport();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {safeTranslate(t, 'events.confirmImport', { defaultValue: 'Confirmar importación' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {safeTranslate(t, 'events.confirmImportDescription', {
+                defaultValue: '¿Deseas importar las fases y tareas del archivo seleccionado?'
+              })}
+            </AlertDialogDescription>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {importFile && (
+                <div className="font-medium text-sm mt-2 p-2 bg-muted rounded-md">
+                  📄 {importFile.name}
+                </div>
+              )}
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelImport}>
+              {safeTranslate(t, 'common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmImport}>
+              {safeTranslate(t, 'common.continue', { defaultValue: 'Continuar' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Diálogo para elegir reemplazar o añadir */}
+      <AlertDialog open={showReplaceDialog} onOpenChange={(open) => {
+        if (!open) {
+          handleCancelReplace();
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {safeTranslate(t, 'events.importReplaceTitle', { defaultValue: 'Modo de importación' })}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {safeTranslate(t, 'events.importReplaceConfirm', {
+                defaultValue: '¿Deseas reemplazar todas las fases y tareas existentes?\n\n- Sí: Se borrarán todas las fases y tareas actuales y se importarán las del archivo.\n- No: Se añadirán las fases y tareas del archivo a las existentes.'
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelReplace}>
+              {safeTranslate(t, 'common.cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleProcessImport(false)}>
+              {safeTranslate(t, 'events.addToExisting', { defaultValue: 'Añadir' })}
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => handleProcessImport(true)}>
+              {safeTranslate(t, 'events.replaceAll', { defaultValue: 'Reemplazar' })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

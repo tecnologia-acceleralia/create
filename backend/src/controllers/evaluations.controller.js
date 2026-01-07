@@ -7,10 +7,15 @@ import { logger } from '../utils/logger.js';
 import { t } from '../utils/i18n.js';
 import { Op } from 'sequelize';
 
-async function notifyTeam(teamId, title, message) {
+async function notifyTeam(teamId, title, message, tenantId) {
   const { TeamMember, Notification } = getModels();
   const members = await TeamMember.findAll({ where: { team_id: teamId } });
+  if (!tenantId) {
+    logger.error('notifyTeam: tenantId es requerido pero no se proporcionó', { teamId });
+    throw new Error('tenantId es requerido para crear notificaciones');
+  }
   await Promise.all(members.map(member => Notification.create({
+    tenant_id: tenantId,
     user_id: member.user_id,
     title,
     message,
@@ -80,7 +85,7 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(submission.team_id, 'Nueva evaluación', 'Tu entrega ha recibido comentarios.');
+        await notifyTeam(submission.team_id, 'Nueva evaluación', 'Tu entrega ha recibido comentarios.', tenantId);
       }
 
       return successResponse(res, evaluation, 201);
@@ -251,7 +256,7 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(submission.team_id, 'Nueva evaluación asistida por IA', 'Tu entrega ha recibido comentarios generados con IA.');
+        await notifyTeam(submission.team_id, 'Nueva evaluación asistida por IA', 'Tu entrega ha recibido comentarios generados con IA.', tenantId);
       }
 
       return successResponse(res, evaluation, 201);
@@ -364,7 +369,10 @@ export class EvaluationsController {
 
       // Si se cambió a final y antes no lo era, notificar
       if (updateData.status === 'final' && previousStatus !== 'final') {
-        await notifyTeam(submission.team_id, 'Nueva evaluación', 'Tu entrega ha recibido comentarios.');
+        const tenantId = evaluation.tenant_id || req.tenant?.id;
+        if (tenantId) {
+          await notifyTeam(submission.team_id, 'Nueva evaluación', 'Tu entrega ha recibido comentarios.', tenantId);
+        }
       }
 
       return successResponse(res, evaluation);
@@ -502,7 +510,7 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`);
+        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`, tenantId);
       }
 
       return successResponse(res, evaluation, 201);
@@ -656,7 +664,7 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(teamId, 'Nueva evaluación de fase asistida por IA', `La fase "${phase.name}" ha recibido una evaluación generada con IA.`);
+        await notifyTeam(teamId, 'Nueva evaluación de fase asistida por IA', `La fase "${phase.name}" ha recibido una evaluación generada con IA.`, tenantId);
       }
 
       return successResponse(res, evaluation, 201);
@@ -667,6 +675,161 @@ export class EvaluationsController {
         stack: error.stack,
         phaseId: req.params.phaseId,
         teamId: req.params.teamId,
+        body: req.body
+      });
+      if (error?.message?.includes?.('OPENAI_API_KEY')) {
+        return errorResponse(res, t(req, 'evaluations.aiServiceNotConfigured'), 500);
+      }
+      next(error);
+    }
+  }
+
+  static async createProjectAiEvaluation(req, res, next) {
+    const transaction = await getSequelize().transaction();
+    try {
+      if (!isReviewer(req)) {
+        await transaction.rollback();
+        return forbiddenResponse(res);
+      }
+
+      const {
+        Project,
+        Evaluation,
+        Submission,
+        SubmissionFile,
+        Task,
+        Team,
+        PhaseRubric,
+        PhaseRubricCriterion
+      } = getModels();
+
+      const projectId = Number(req.params.projectId);
+
+      const project = await Project.findOne({ where: { id: projectId } });
+      if (!project) {
+        await transaction.rollback();
+        return notFoundResponse(res, t(req, 'evaluations.projectNotFound'));
+      }
+
+      const team = await Team.findOne({ where: { id: project.team_id } });
+      if (!team) {
+        await transaction.rollback();
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
+      }
+
+      // Validar submission_ids proporcionados
+      const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
+      if (submissionIds.length === 0) {
+        await transaction.rollback();
+        return badRequestResponse(res, t(req, 'evaluations.atLeastOneSubmissionRequired'));
+      }
+
+      // Obtener todas las tareas del evento
+      const tasks = await Task.findAll({ where: { event_id: project.event_id } });
+      const taskIds = tasks.map(t => t.id);
+
+      // Obtener submissions con sus archivos
+      const submissions = await Submission.findAll({
+        where: {
+          id: { [Op.in]: submissionIds },
+          team_id: team.id,
+          task_id: { [Op.in]: taskIds }
+        },
+        include: [
+          { model: SubmissionFile, as: 'files' }
+        ],
+        order: [['submitted_at', 'ASC']]
+      });
+
+      if (submissions.length !== submissionIds.length) {
+        await transaction.rollback();
+        return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrEvent'));
+      }
+
+      // Buscar rúbrica del proyecto
+      let rubric = await PhaseRubric.findOne({
+        where: {
+          event_id: project.event_id,
+          rubric_scope: 'project'
+        },
+        include: [{ model: PhaseRubricCriterion, as: 'criteria' }],
+        order: [['created_at', 'DESC']]
+      });
+
+      if (!rubric || !Array.isArray(rubric.criteria) || rubric.criteria.length === 0) {
+        await transaction.rollback();
+        return conflictResponse(res, t(req, 'evaluations.rubricNotConfiguredForProject'));
+      }
+
+      const sortedCriteria = [...rubric.criteria].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+      rubric.criteria = sortedCriteria;
+
+      // Preparar datos de submissions para la evaluación
+      const submissionsData = submissions.map(submission => ({
+        content: submission.content,
+        files: submission.files?.map(file => ({
+          url: file.url,
+          mime_type: file.mime_type,
+          size_bytes: file.size_bytes,
+          original_name: file.original_name
+        })) ?? [],
+        task_id: submission.task_id,
+        submitted_at: submission.submitted_at
+      }));
+
+      const evaluationResult = await generateMultiSubmissionAiEvaluation({
+        rubric,
+        submissions: submissionsData,
+        tasks: tasks.map(t => ({ id: t.id, title: t.title, description: t.description })),
+        locale: req.body.locale ?? 'es-ES'
+      });
+
+      const tenantId = project.tenant_id || req.tenant?.id;
+      if (!tenantId) {
+        await transaction.rollback();
+        return errorResponse(res, t(req, 'evaluations.tenantCannotBeDetermined'), 500);
+      }
+
+      const status = req.body.status ?? 'draft';
+      const locale = req.body.locale ?? 'es-ES';
+      const evaluation = await Evaluation.create(
+        {
+          tenant_id: tenantId,
+          evaluation_scope: 'project',
+          project_id: projectId,
+          team_id: team.id,
+          submission_id: null,
+          evaluated_submission_ids: submissionIds,
+          reviewer_id: req.user.id,
+          score: evaluationResult.overallScore,
+          comment: evaluationResult.overallFeedback,
+          source: 'ai_assisted',
+          status,
+          rubric_snapshot: evaluationResult.rubricSnapshot,
+          metadata: {
+            criteria: evaluationResult.criteria,
+            usage: evaluationResult.usage,
+            raw: evaluationResult.raw,
+            language: locale
+          }
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      // Solo notificar si es evaluación final
+      if (status === 'final') {
+        await notifyTeam(team.id, 'Nueva evaluación de proyecto asistida por IA', 'Tu proyecto ha recibido una evaluación generada con IA.', tenantId);
+      }
+
+      return successResponse(res, evaluation, 201);
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('Error al crear evaluación de proyecto con IA', {
+        error: error.message,
+        stack: error.stack,
+        projectId: req.params.projectId,
         body: req.body
       });
       if (error?.message?.includes?.('OPENAI_API_KEY')) {
@@ -811,6 +974,9 @@ export class EvaluationsController {
       if (req.body.status !== undefined) {
         updateData.status = req.body.status;
       }
+      if (req.body.source !== undefined) {
+        updateData.source = req.body.source;
+      }
       if (req.body.rubric_snapshot !== undefined) {
         updateData.rubric_snapshot = req.body.rubric_snapshot || null;
       }
@@ -822,7 +988,10 @@ export class EvaluationsController {
 
       // Si se cambió a final y antes no lo era, notificar
       if (updateData.status === 'final' && previousStatus !== 'final') {
-        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`);
+        const tenantId = evaluation.tenant_id || phase.tenant_id || req.tenant?.id;
+        if (tenantId) {
+          await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`, tenantId);
+        }
       }
 
       return successResponse(res, evaluation);
@@ -955,7 +1124,7 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.');
+        await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId);
       }
 
       return successResponse(res, evaluation, 201);
@@ -1005,6 +1174,131 @@ export class EvaluationsController {
 
       return successResponse(res, evaluations);
     } catch (error) {
+      next(error);
+    }
+  }
+
+  // Actualizar evaluación de proyecto
+  static async updateProjectEvaluation(req, res, next) {
+    try {
+      if (!isReviewer(req)) {
+        return forbiddenResponse(res);
+      }
+
+      const { Project, Evaluation, Team, Task, Submission } = getModels();
+      const projectId = Number(req.params.projectId);
+      const evaluationId = Number(req.params.evaluationId);
+
+      const project = await Project.findOne({ where: { id: projectId } });
+      if (!project) {
+        return notFoundResponse(res, t(req, 'evaluations.projectNotFound'));
+      }
+
+      const team = await Team.findOne({ where: { id: project.team_id } });
+      if (!team) {
+        return notFoundResponse(res, t(req, 'evaluations.teamNotFound'));
+      }
+
+      const evaluation = await Evaluation.findOne({
+        where: {
+          id: evaluationId,
+          project_id: projectId,
+          team_id: team.id,
+          evaluation_scope: 'project'
+        }
+      });
+
+      if (!evaluation) {
+        return notFoundResponse(res, t(req, 'evaluations.evaluationNotFound'));
+      }
+
+      // Guardar el estado anterior
+      const previousStatus = evaluation.status;
+
+      // Validar submission_ids si se proporcionan
+      if (req.body.submission_ids !== undefined) {
+        const submissionIds = Array.isArray(req.body.submission_ids) ? req.body.submission_ids : [];
+        
+        if (submissionIds.length > 0) {
+          // Obtener todas las tareas del evento
+          const tasks = await Task.findAll({ where: { event_id: project.event_id } });
+          const taskIds = tasks.map(t => t.id);
+
+          // Validar que todas las submissions pertenezcan al equipo y a las tareas del evento
+          const submissions = await Submission.findAll({
+            where: {
+              id: { [Op.in]: submissionIds },
+              team_id: team.id,
+              task_id: { [Op.in]: taskIds }
+            }
+          });
+
+          if (submissions.length !== submissionIds.length) {
+            return badRequestResponse(res, t(req, 'evaluations.submissionsNotBelongToTeamOrEvent'));
+          }
+        }
+      }
+
+      // Validar que el comentario esté presente si se proporciona
+      if (req.body.comment !== undefined && (!req.body.comment || (typeof req.body.comment === 'string' && req.body.comment.trim().length === 0))) {
+        return badRequestResponse(res, t(req, 'evaluations.commentCannotBeEmpty'));
+      }
+
+      // Validar que el score esté en el rango correcto si se proporciona
+      let scoreValue = undefined;
+      if (req.body.score !== undefined && req.body.score !== null && req.body.score !== '') {
+        const score = Number(req.body.score);
+        if (isNaN(score) || score < 0 || score > 10) {
+          return badRequestResponse(res, t(req, 'evaluations.scoreRange10'));
+        }
+        scoreValue = score;
+      } else if (req.body.score === null || req.body.score === '') {
+        scoreValue = null;
+      }
+
+      // Actualizar campos permitidos
+      const updateData = {};
+      if (req.body.submission_ids !== undefined) {
+        updateData.evaluated_submission_ids = req.body.submission_ids.length > 0 ? req.body.submission_ids : null;
+      }
+      if (req.body.score !== undefined) {
+        updateData.score = scoreValue;
+      }
+      if (req.body.comment !== undefined) {
+        updateData.comment = req.body.comment ? req.body.comment.trim() : null;
+      }
+      if (req.body.status !== undefined) {
+        updateData.status = req.body.status;
+      }
+      if (req.body.source !== undefined) {
+        updateData.source = req.body.source;
+      }
+      if (req.body.rubric_snapshot !== undefined) {
+        updateData.rubric_snapshot = req.body.rubric_snapshot || null;
+      }
+      if (req.body.metadata !== undefined) {
+        updateData.metadata = req.body.metadata || null;
+      }
+
+      await evaluation.update(updateData);
+
+      // Si se cambió a final y antes no lo era, notificar
+      if (updateData.status === 'final' && previousStatus !== 'final') {
+        const tenantId = evaluation.tenant_id || project.tenant_id || req.tenant?.id;
+        if (tenantId) {
+          await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId);
+        }
+      }
+
+      return successResponse(res, evaluation);
+    } catch (error) {
+      logger.error('Error al actualizar evaluación de proyecto', {
+        error: error.message,
+        stack: error.stack,
+        projectId: req.params.projectId,
+        evaluationId: req.params.evaluationId,
+        body: req.body
+      });
       next(error);
     }
   }

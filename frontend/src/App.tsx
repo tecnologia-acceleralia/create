@@ -44,6 +44,7 @@ const TaskSubmissionPage = lazy(() => import('@/pages/participant/TaskSubmission
 const EvaluatorDashboardPage = lazy(() => import('@/pages/evaluator/EvaluatorDashboardPage'));
 const EvaluationPage = lazy(() => import('@/pages/evaluator/EvaluationPage'));
 const PhaseEvaluationPage = lazy(() => import('@/pages/evaluator/PhaseEvaluationPage'));
+const ProjectEvaluationPage = lazy(() => import('@/pages/evaluator/ProjectEvaluationPage'));
 
 // Lazy load de páginas de superadmin
 const SuperAdminRootPage = lazy(() => import('@/pages/superadmin/SuperAdminRootPage'));
@@ -234,6 +235,14 @@ function AppRoutes() {
           element: (
             <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
               <PhaseEvaluationPage />
+            </ProtectedRoute>
+          )
+        },
+        {
+          path: 'dashboard/events/:eventId/teams/:teamId/project/evaluate',
+          element: (
+            <ProtectedRoute requiredScopes={['tenant_admin', 'organizer', 'evaluator']}>
+              <ProjectEvaluationPage />
             </ProtectedRoute>
           )
         },

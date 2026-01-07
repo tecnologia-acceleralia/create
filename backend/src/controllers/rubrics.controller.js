@@ -21,10 +21,19 @@ async function ensureRubric(eventId, phaseId, rubricId) {
     whereClause.phase_id = null;
   }
   
-  const rubric = await PhaseRubric.findOne({
+  let rubric = await PhaseRubric.findOne({
     where: whereClause,
     include: [{ association: 'criteria' }]
   });
+
+  // Si no se encuentra por la fase proporcionada (ej. al mover la rúbrica de fase),
+  // intentar buscar por id + evento sin filtrar por phase_id
+  if (!rubric && phaseId !== null && phaseId !== undefined) {
+    rubric = await PhaseRubric.findOne({
+      where: { id: rubricId, event_id: eventId },
+      include: [{ association: 'criteria' }]
+    });
+  }
 
   if (!rubric) {
     const error = new Error('Rúbrica no encontrada');
@@ -104,8 +113,14 @@ export class RubricsController {
         throw Object.assign(new Error('Las rúbricas de proyecto no deben tener phase_id'), { statusCode: 400 });
       }
 
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
+
       const rubric = await PhaseRubric.create(
         {
+          tenant_id: tenantId,
           event_id: eventId,
           phase_id: rubricScope === 'phase' ? phaseId : null,
           rubric_scope: rubricScope,
@@ -128,6 +143,7 @@ export class RubricsController {
         criteria.map(criterion =>
           PhaseRubricCriterion.create(
             {
+              tenant_id: tenantId,
               rubric_id: rubric.id,
               title: criterion.title,
               description: criterion.description,
@@ -164,6 +180,10 @@ export class RubricsController {
 
       await ensureEvent(eventId);
       const rubric = await ensureRubric(eventId, phaseId, rubricId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
 
       // Validar cambios de scope si se proporciona
       const newScope = req.body.rubric_scope;
@@ -176,7 +196,12 @@ export class RubricsController {
         }
       }
 
-      const updateData = {
+    // Validar fase destino si se envía phase_id (mover rúbrica de fase)
+    if (Object.prototype.hasOwnProperty.call(req.body, 'phase_id') && req.body.phase_id !== undefined && req.body.phase_id !== null) {
+      await ensurePhase(eventId, Number(req.body.phase_id));
+    }
+
+    const updateData = {
         name: req.body.name ?? rubric.name,
         description: req.body.description ?? rubric.description,
         scale_min: req.body.scale_min ?? rubric.scale_min,
@@ -189,8 +214,8 @@ export class RubricsController {
         updateData.rubric_scope = newScope;
       }
 
-      if (req.body.phase_id !== undefined) {
-        updateData.phase_id = newScope === 'project' ? null : req.body.phase_id;
+    if (req.body.phase_id !== undefined) {
+      updateData.phase_id = (newScope ?? rubric.rubric_scope) === 'project' ? null : req.body.phase_id;
       }
 
       await rubric.update(updateData, { transaction });
@@ -207,6 +232,7 @@ export class RubricsController {
           criteria.map(criterion =>
             PhaseRubricCriterion.create(
               {
+                tenant_id: tenantId,
                 rubric_id: rubric.id,
                 title: criterion.title,
                 description: criterion.description,
@@ -295,8 +321,14 @@ export class RubricsController {
 
       await ensureEvent(eventId);
 
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
+
       const rubric = await PhaseRubric.create(
         {
+          tenant_id: tenantId,
           event_id: eventId,
           phase_id: null,
           rubric_scope: 'project',
@@ -319,6 +351,7 @@ export class RubricsController {
         criteria.map(criterion =>
           PhaseRubricCriterion.create(
             {
+              tenant_id: tenantId,
               rubric_id: rubric.id,
               title: criterion.title,
               description: criterion.description,
@@ -354,6 +387,10 @@ export class RubricsController {
 
       await ensureEvent(eventId);
       const rubric = await ensureRubric(eventId, null, rubricId);
+      const tenantId = req.tenant?.id;
+      if (!tenantId) {
+        throw Object.assign(new Error('Tenant no encontrado'), { statusCode: 400 });
+      }
 
       if (rubric.rubric_scope !== 'project') {
         throw Object.assign(new Error('Esta rúbrica no es de proyecto'), { statusCode: 400 });
@@ -383,6 +420,7 @@ export class RubricsController {
           criteria.map(criterion =>
             PhaseRubricCriterion.create(
               {
+                tenant_id: tenantId,
                 rubric_id: rubric.id,
                 title: criterion.title,
                 description: criterion.description,
