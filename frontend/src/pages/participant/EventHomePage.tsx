@@ -30,33 +30,9 @@ function EventHomePage() {
     enabled: Number.isInteger(numericId)
   });
 
-  if (isNaN(numericId) || isLoading) {
-    return <Spinner fullHeight />;
-  }
-
-  if (!eventDetail) {
-    return (
-      <DashboardLayout title={safeTranslate(t, 'events.title')} subtitle={safeTranslate(t, 'common.error')}>
-        <div className="rounded-2xl border border-border/70 bg-card/80 p-6 text-sm">
-          <p className="text-destructive">{safeTranslate(t, 'common.error')}</p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link to={tenantPath('dashboard')}>{safeTranslate(t, 'navigation.dashboard')}</Link>
-          </Button>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  const handleTabChange = (newTab: string) => {
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set('tab', newTab);
-    setSearchParams(newParams, { replace: true });
-  };
-
-  const eventName = getMultilingualText(eventDetail.name, currentLang);
-  const eventDescription = eventDetail.description ? getMultilingualText(eventDetail.description, currentLang) : '';
-
   // Buscar la tarea de inscripción en la fase 0
+  // IMPORTANTE: Este useMemo debe estar ANTES de los returns condicionales
+  // para cumplir con las reglas de hooks de React
   const registrationTask = useMemo(() => {
     if (!eventDetail?.phases || !eventDetail?.tasks) {
       return null;
@@ -89,6 +65,33 @@ function EventHomePage() {
 
     return task || null;
   }, [eventDetail, currentLang]);
+
+  // Returns condicionales DESPUÉS de todos los hooks
+  if (isNaN(numericId) || isLoading) {
+    return <Spinner fullHeight />;
+  }
+
+  if (!eventDetail) {
+    return (
+      <DashboardLayout title={safeTranslate(t, 'events.title')} subtitle={safeTranslate(t, 'common.error')}>
+        <div className="rounded-2xl border border-border/70 bg-card/80 p-6 text-sm">
+          <p className="text-destructive">{safeTranslate(t, 'common.error')}</p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link to={tenantPath('dashboard')}>{safeTranslate(t, 'navigation.dashboard')}</Link>
+          </Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  const handleTabChange = (newTab: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', newTab);
+    setSearchParams(newParams, { replace: true });
+  };
+
+  const eventName = getMultilingualText(eventDetail.name, currentLang);
+  const eventDescription = eventDetail.description ? getMultilingualText(eventDetail.description, currentLang) : '';
 
   return (
     <DashboardLayout title={eventName} subtitle={eventDescription}>
