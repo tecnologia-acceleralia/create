@@ -25,7 +25,7 @@ function EventHomePage() {
   const tab = searchParams.get('tab') || 'description';
 
   const { data: eventDetail, isLoading } = useQuery({
-    queryKey: ['events', numericId],
+    queryKey: ['events', numericId, currentLang],
     queryFn: () => getEventDetail(numericId),
     enabled: Number.isInteger(numericId)
   });
