@@ -537,7 +537,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                     <TableHead>{safeTranslate(t, 'events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
                     <TableHead>{safeTranslate(t, 'events.statisticsSection.users.grade', { defaultValue: 'Grado' })}</TableHead>
                     <TableHead>{safeTranslate(t, 'events.statisticsSection.users.lastLogin', { defaultValue: 'Último login' })}</TableHead>
-                    <TableHead className="whitespace-nowrap">{safeTranslate(t, 'events.statisticsSection.users.status', { defaultValue: 'Estado' })}</TableHead>
+                    <TableHead className="whitespace-nowrap">{safeTranslate(t, 'events.statisticsSection.users.statusLabel', { defaultValue: 'Estado' })}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

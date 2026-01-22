@@ -8,13 +8,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useAuth } from '@/context/AuthContext';
-import { Spinner } from '@/components/common';
+import { useTenant } from '@/context/TenantContext';
+import { Spinner, InfoTooltip } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { FormField } from '@/components/form';
+import { FormField, FormGrid } from '@/components/form';
 import { ProjectCard as ProjectOverviewCard } from '@/components/projects/ProjectCard';
 import {
   Dialog,
@@ -25,6 +26,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { safeTranslate } from '@/utils/i18n-helpers';
+import { fileToBase64 } from '@/utils/files';
 import { getMyTeams } from '@/services/teams';
 import {
   getProjectsByEvent,
@@ -47,7 +49,9 @@ function ProjectsPage() {
   const numericEventId = Number(eventId);
   const { t } = useTranslation();
   const { user, isSuperAdmin } = useAuth();
+  const { branding } = useTenant();
   const queryClient = useQueryClient();
+  const primaryColor = branding.primaryColor || '#0ea5e9';
   const { data: memberships } = useQuery({
     queryKey: ['my-teams'],
     queryFn: getMyTeams,
@@ -60,6 +64,9 @@ function ProjectsPage() {
   });
 
   const createProjectForm = useForm<CreateProjectValues>({ resolver: zodResolver(createProjectSchema) });
+
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   const {
     data: projects,
@@ -81,17 +88,45 @@ function ProjectsPage() {
     }
   }, []);
 
+  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setLogoBase64(null);
+      setLogoError(null);
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoError(safeTranslate(t, 'teams.logoTooLarge'));
+      setLogoBase64(null);
+      return;
+    }
+
+    void (async () => {
+      try {
+        const base64 = await fileToBase64(file);
+        setLogoBase64(base64);
+        setLogoError(null);
+      } catch (error) {
+        setLogoError(safeTranslate(t, 'teams.logoReadError'));
+        setLogoBase64(null);
+      }
+    })();
+  };
+
   const createProjectMutation = useMutation({
     mutationFn: (values: CreateProjectValues) =>
       createProjectForEvent(numericEventId, {
         title: values.title,
         description: values.description || undefined,
-        image_url: values.image_url ? values.image_url : undefined,
+        logo: logoBase64 ?? undefined,
         requirements: values.requirements || undefined
       }),
     onSuccess: () => {
       toast.success(safeTranslate(t, 'projects.createSuccess'));
       createProjectForm.reset();
+      setLogoBase64(null);
+      setLogoError(null);
       setIsCreateProjectDialogOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
@@ -264,9 +299,39 @@ function ProjectsPage() {
                   {...createProjectForm.register('description')}
                 />
               </FormField>
-              <FormField label={safeTranslate(t, 'projects.image')} htmlFor="project-image">
-                <Input id="project-image" {...createProjectForm.register('image_url')} />
-              </FormField>
+              <FormGrid columns={logoBase64 ? 2 : 1}>
+                <FormField
+                  label={
+                    <div className="flex items-center gap-2">
+                      <span>{safeTranslate(t, 'teams.projectImageUpload')}</span>
+                      <InfoTooltip content={safeTranslate(t, 'teams.projectImageUploadInfo')} />
+                    </div>
+                  }
+                  htmlFor="project-image-upload"
+                >
+                  <Input
+                    id="project-image-upload"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={handleFileChange}
+                  />
+                  {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
+                </FormField>
+                {logoBase64 ? (
+                  <FormField label={safeTranslate(t, 'teams.projectImagePreview')} htmlFor="project-image-preview">
+                    <div
+                      className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      <img
+                        src={logoBase64}
+                        alt=""
+                        className="h-full w-auto max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                  </FormField>
+                ) : null}
+              </FormGrid>
               <FormField label={safeTranslate(t, 'projects.requirements')} htmlFor="project-requirements">
                 <Textarea
                   id="project-requirements"
@@ -278,7 +343,11 @@ function ProjectsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateProjectDialogOpen(false)}
+                  onClick={() => {
+                    setIsCreateProjectDialogOpen(false);
+                    setLogoBase64(null);
+                    setLogoError(null);
+                  }}
                 >
                   {safeTranslate(t, 'common.cancel')}
                 </Button>

@@ -187,6 +187,10 @@ export class ProjectsController {
         return badRequestResponse(res, 'El título del proyecto es obligatorio');
       }
 
+      // Manejar logo como base64 (similar a update)
+      let logoUrl = imageUrl;
+      const hasBase64Logo = typeof req.body.logo === 'string' && req.body.logo.startsWith('data:');
+
       const team = await Team.create(
         {
           tenant_id: req.tenant.id,
@@ -218,11 +222,30 @@ export class ProjectsController {
           event_id: eventId,
           name: title,
           summary: description,
-          logo_url: imageUrl,
+          logo_url: logoUrl,
           status: 'active'
         },
         { transaction }
       );
+
+      // Si hay logo en base64, subirlo después de crear el proyecto
+      if (hasBase64Logo) {
+        try {
+          const { buffer, mimeType, extension } = decodeBase64Image(req.body.logo);
+          const uploadResult = await uploadProjectLogo({
+            tenantId: req.tenant.id,
+            projectId: project.id,
+            buffer,
+            contentType: mimeType,
+            extension
+          });
+          logoUrl = uploadResult.url;
+          await project.update({ logo_url: logoUrl }, { transaction });
+        } catch (uploadError) {
+          await transaction.rollback();
+          return badRequestResponse(res, uploadError.message);
+        }
+      }
 
       await transaction.commit();
 
