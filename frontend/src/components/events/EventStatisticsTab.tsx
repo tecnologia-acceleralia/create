@@ -238,6 +238,24 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     downloadCSV(csv, `usuarios-sin-equipo-evento-${eventId}`);
   };
 
+  // Función para obtener el label del estado
+  const getStatusLabel = (status: string | undefined): string => {
+    if (!status) return '—';
+    
+    switch (status) {
+      case 'registered':
+        return safeTranslate(t, 'events.statisticsSection.users.status.registered', { defaultValue: 'Registrado' });
+      case 'in_team':
+        return safeTranslate(t, 'events.statisticsSection.users.status.inTeam', { defaultValue: 'En equipo' });
+      case 'registered_and_team':
+        return safeTranslate(t, 'events.statisticsSection.users.status.registeredAndTeam', { defaultValue: 'Registrado + En equipo' });
+      case 'pending':
+        return safeTranslate(t, 'events.statisticsSection.users.status.pending', { defaultValue: 'Pendiente' });
+      default:
+        return status; // Mostrar el status específico si no coincide con los casos conocidos
+    }
+  };
+
   // Función para exportar usuarios a CSV
   const exportUsersToCSV = () => {
     if (!statistics?.users?.length) return;
@@ -249,7 +267,8 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
       safeTranslate(t, 'events.statisticsSection.users.team'),
       safeTranslate(t, 'events.statisticsSection.users.role'),
       safeTranslate(t, 'events.statisticsSection.users.grade'),
-      safeTranslate(t, 'events.statisticsSection.users.lastLogin')
+      safeTranslate(t, 'events.statisticsSection.users.lastLogin'),
+      safeTranslate(t, 'events.statisticsSection.users.statusLabel', { defaultValue: 'Estado' })
     ];
 
     const csvData = sortedUsers
@@ -261,7 +280,8 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         [headers[3]]: user.team?.name || 'Sin equipo',
         [headers[4]]: (user.roles && user.roles.length > 0) ? user.roles.join(', ') : 'Sin roles',
         [headers[5]]: user.grade || '',
-        [headers[6]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
+        [headers[6]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '',
+        [headers[7]]: getStatusLabel(user.status)
       }));
 
     if (csvData.length === 0) return;
@@ -506,60 +526,66 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
             </Button>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.name', { defaultValue: 'Nombre' })}</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.email', { defaultValue: 'Email' })}</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.team', { defaultValue: 'Equipo' })}</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.grade', { defaultValue: 'Grado' })}</TableHead>
-                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.lastLogin', { defaultValue: 'Último login' })}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedUsers.length === 0 ? (
+            <div className="min-w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
-                      {safeTranslate(t, 'events.statisticsSection.users.empty', { defaultValue: 'No hay usuarios registrados' })}
-                    </TableCell>
+                    <TableHead>#</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.name', { defaultValue: 'Nombre' })}</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.email', { defaultValue: 'Email' })}</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.team', { defaultValue: 'Equipo' })}</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.grade', { defaultValue: 'Grado' })}</TableHead>
+                    <TableHead>{safeTranslate(t, 'events.statisticsSection.users.lastLogin', { defaultValue: 'Último login' })}</TableHead>
+                    <TableHead className="whitespace-nowrap">{safeTranslate(t, 'events.statisticsSection.users.status', { defaultValue: 'Estado' })}</TableHead>
                   </TableRow>
-                ) : (
-                  sortedUsers.map((user, index) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {getFullName(user.firstName, user.lastName, user.email)}
-                      </TableCell>
-                      <TableCell>{user.email ?? '—'}</TableCell>
-                      <TableCell>
-                        {user.team ? (
-                          <span className="font-medium">{user.team.name}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            {safeTranslate(t, 'events.statisticsSection.users.noTeam', { defaultValue: 'Sin equipo' })}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {user.roles.length > 0 ? (
-                          user.roles.join(', ')
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>{user.grade ?? '—'}</TableCell>
-                      <TableCell>
-                        {user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '—'}
+                </TableHeader>
+                <TableBody>
+                  {sortedUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
+                        {safeTranslate(t, 'events.statisticsSection.users.empty', { defaultValue: 'No hay usuarios registrados' })}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    sortedUsers.map((user, index) => (
+                      <TableRow key={user.id}>
+                        <TableCell className="font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium">
+                          {getFullName(user.firstName, user.lastName, user.email)}
+                        </TableCell>
+                        <TableCell>{user.email ?? '—'}</TableCell>
+                        <TableCell>
+                          {user.team ? (
+                            <span className="font-medium">{user.team.name}</span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              {safeTranslate(t, 'events.statisticsSection.users.noTeam', { defaultValue: 'Sin equipo' })}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.roles.length > 0 ? (
+                            user.roles.join(', ')
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              {safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>{user.grade ?? '—'}</TableCell>
+                        <TableCell>
+                          {user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '—'}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {getStatusLabel(user.status)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>

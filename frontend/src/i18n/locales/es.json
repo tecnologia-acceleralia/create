@@ -503,9 +503,16 @@
         "role": "Rol",
         "grade": "Grado",
         "lastLogin": "Último login",
+        "statusLabel": "Estado",
         "empty": "No hay usuarios registrados",
         "noTeam": "Sin equipo",
-        "noRoles": "Sin roles"
+        "noRoles": "Sin roles",
+        "status": {
+          "registered": "Registrado",
+          "inTeam": "En equipo",
+          "registeredAndTeam": "Registrado + En equipo",
+          "pending": "Pendiente"
+        }
       },
       "grades": {
         "title": "Resumen por Grados",

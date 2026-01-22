@@ -53,10 +53,10 @@ export class EventStatisticsController {
         order: [['created_at', 'ASC']]
       });
 
-      // Obtener todos los usuarios registrados en el evento
+      // Obtener todos los usuarios registrados en el evento (cualquier status)
       const registrations = await EventRegistration.findAll({
-        where: { event_id: eventId, status: 'registered' },
-        attributes: ['id', 'user_id', 'grade', 'answers'],
+        where: { event_id: eventId }, // Removido el filtro de status: 'registered'
+        attributes: ['id', 'user_id', 'grade', 'answers', 'status'], // Agregado 'status'
         include: [
           {
             model: User,
@@ -67,12 +67,60 @@ export class EventStatisticsController {
         order: [[{ model: User, as: 'user' }, 'last_name', 'ASC']]
       });
 
-      const userIds = registrations.map(reg => reg.user_id);
+      // Obtener todos los user_id de TeamMember de equipos del evento
+      const teamMemberIds = teams.map(t => t.id);
+      const teamMembers = teamMemberIds.length > 0 ? await TeamMember.findAll({
+        where: { team_id: { [Op.in]: teamMemberIds } },
+        attributes: ['user_id', 'team_id'],
+        include: [
+          {
+            model: Team,
+            as: 'team',
+            attributes: ['id', 'name', 'event_id'],
+            where: { event_id: eventId }
+          }
+        ]
+      }) : [];
 
-      // Obtener roles de los usuarios
-      const tenantMemberships = await UserTenant.findAll({
+      // Crear un Set con todos los user_id únicos de ambas fuentes
+      const allUserIds = new Set();
+      registrations.forEach(reg => allUserIds.add(reg.user_id));
+      teamMembers.forEach(member => allUserIds.add(member.user_id));
+
+      // Mapear registrations por user_id para acceso rápido
+      const registrationByUserId = new Map();
+      registrations.forEach(reg => {
+        registrationByUserId.set(reg.user_id, reg);
+      });
+
+      // Mapear teamMembers por user_id
+      const teamMemberByUserId = new Map();
+      teamMembers.forEach(member => {
+        const team = teams.find(t => t.id === member.team_id);
+        if (team) {
+          teamMemberByUserId.set(member.user_id, {
+            teamId: team.id,
+            teamName: team.name
+          });
+        }
+      });
+
+      // Obtener información completa de todos los usuarios únicos
+      const allUsers = Array.from(allUserIds).length > 0 ? await User.findAll({
+        where: { id: { [Op.in]: Array.from(allUserIds) } },
+        attributes: ['id', 'first_name', 'last_name', 'email', 'last_login_at', 'registration_answers']
+      }) : [];
+
+      const userById = new Map();
+      allUsers.forEach(user => {
+        userById.set(user.id, user);
+      });
+
+      // Obtener roles de todos los usuarios
+      const userIdsArray = Array.from(allUserIds);
+      const tenantMemberships = userIdsArray.length > 0 ? await UserTenant.findAll({
         where: {
-          user_id: { [Op.in]: userIds },
+          user_id: { [Op.in]: userIdsArray },
           tenant_id: event.tenant_id
         },
         include: [
@@ -83,7 +131,7 @@ export class EventStatisticsController {
             through: { attributes: [] }
           }
         ]
-      });
+      }) : [];
 
       const rolesByUserId = new Map();
       tenantMemberships.forEach(membership => {
@@ -95,7 +143,7 @@ export class EventStatisticsController {
         rolesByUserId.set(membership.user_id, roleScopes);
       });
 
-      // Mapear usuarios a equipos
+      // Mapear usuarios a equipos (ya existente, mantenerlo)
       const teamByUserId = new Map();
       teams.forEach(team => {
         team.members?.forEach(member => {
@@ -148,18 +196,40 @@ export class EventStatisticsController {
         };
       });
 
-      // Preparar datos de usuarios
-      const usersData = registrations.map(registration => {
-        const user = registration.user;
-        const roles = rolesByUserId.get(registration.user_id) ?? [];
-        const teamInfo = teamByUserId.get(registration.user_id);
+      // Preparar datos de usuarios combinando ambas fuentes
+      const usersData = Array.from(allUserIds).map(userId => {
+        const user = userById.get(userId);
+        const registration = registrationByUserId.get(userId);
+        const teamInfo = teamByUserId.get(userId) || teamMemberByUserId.get(userId);
+        const roles = rolesByUserId.get(userId) ?? [];
+
+        // Priorizar datos: si tiene EventRegistration → usar grade y answers de ahí; si no, usar User.registration_answers
+        const grade = registration?.grade ?? (user?.registration_answers?.grade || null);
+
+        // Calcular campo status
+        let status = 'pending'; // default
+        const hasRegistration = !!registration;
+        const hasRegisteredStatus = registration?.status === 'registered';
+        const isInTeam = !!teamInfo;
+
+        if (hasRegisteredStatus && !isInTeam) {
+          status = 'registered';
+        } else if (isInTeam && !hasRegisteredStatus) {
+          status = 'in_team';
+        } else if (hasRegisteredStatus && isInTeam) {
+          status = 'registered_and_team';
+        } else if (hasRegistration) {
+          status = registration.status || 'pending';
+        } else if (isInTeam) {
+          status = 'in_team';
+        }
 
         return {
-          id: registration.user_id,
+          id: userId,
           firstName: user?.first_name ?? null,
           lastName: user?.last_name ?? null,
           email: user?.email ?? null,
-          grade: registration.grade ?? (user?.registration_answers?.grade || null),
+          grade: grade,
           lastLoginAt: user?.last_login_at ?? null,
           team: teamInfo
             ? {
@@ -167,7 +237,8 @@ export class EventStatisticsController {
                 name: teamInfo.teamName
               }
             : null,
-          roles: roles.map(role => role.scope)
+          roles: roles.map(role => role.scope),
+          status: status // Campo calculado agregado
         };
       });
 

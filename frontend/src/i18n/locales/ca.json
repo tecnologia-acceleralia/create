@@ -503,9 +503,16 @@
         "role": "Rol",
         "grade": "Grau",
         "lastLogin": "Darrer login",
+        "statusLabel": "Estat",
         "empty": "No hi ha usuaris registrats",
         "noTeam": "Sense equip",
-        "noRoles": "Sense rols"
+        "noRoles": "Sense rols",
+        "status": {
+          "registered": "Registrat",
+          "inTeam": "En equip",
+          "registeredAndTeam": "Registrat + En equip",
+          "pending": "Pendent"
+        }
       },
       "grades": {
         "title": "Resum per Graus",
