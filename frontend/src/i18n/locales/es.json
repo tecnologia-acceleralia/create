@@ -181,6 +181,8 @@
     "htmlPreviewDescription": "Esta es una vista previa de cómo se renderizará el contenido HTML.",
     "htmlPreviewEmpty": "No hay contenido HTML para previsualizar.",
     "timeline": "Cronograma",
+    "registrationTaskDescription": "Completa tu inscripción y describe tu idea de negocio para comenzar el programa.",
+    "goToRegistrationTask": "Ir a la inscripción",
     "homeNavigation": "Navegación de inicio",
     "start": "Inicio",
     "end": "Fin",
@@ -501,9 +503,16 @@
         "role": "Rol",
         "grade": "Grado",
         "lastLogin": "Último login",
+        "statusLabel": "Estado",
         "empty": "No hay usuarios registrados",
         "noTeam": "Sin equipo",
-        "noRoles": "Sin roles"
+        "noRoles": "Sin roles",
+        "status": {
+          "registered": "Registrado",
+          "inTeam": "En equipo",
+          "registeredAndTeam": "Registrado + En equipo",
+          "pending": "Pendiente"
+        }
       },
       "grades": {
         "title": "Resumen por Grados",

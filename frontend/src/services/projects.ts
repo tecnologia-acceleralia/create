@@ -74,6 +74,7 @@ export async function createProjectForEvent(
     title: string;
     description?: string;
     image_url?: string;
+    logo?: string | null;
     requirements?: string;
     team_name?: string;
     logo?: string;

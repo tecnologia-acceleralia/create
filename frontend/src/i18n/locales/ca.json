@@ -181,6 +181,8 @@
     "htmlPreviewDescription": "Aquesta és una vista prèvia de com es renderitzarà el contingut HTML.",
     "htmlPreviewEmpty": "No hi ha contingut HTML per previsualitzar.",
     "timeline": "Cronograma",
+    "registrationTaskDescription": "Completa la teva inscripció i descriu la teva idea de negoci per començar el programa.",
+    "goToRegistrationTask": "Anar a la inscripció",
     "homeNavigation": "Navegació d'inici",
     "start": "Inici",
     "end": "Final",
@@ -501,9 +503,16 @@
         "role": "Rol",
         "grade": "Grau",
         "lastLogin": "Darrer login",
+        "statusLabel": "Estat",
         "empty": "No hi ha usuaris registrats",
         "noTeam": "Sense equip",
-        "noRoles": "Sense rols"
+        "noRoles": "Sense rols",
+        "status": {
+          "registered": "Registrat",
+          "inTeam": "En equip",
+          "registeredAndTeam": "Registrat + En equip",
+          "pending": "Pendent"
+        }
       },
       "grades": {
         "title": "Resum per Graus",

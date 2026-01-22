@@ -5,7 +5,7 @@ import { ensureUserNotInOtherTeam, findTeamOr404 } from '../services/team.servic
 import { getRoleScopes, canEditProject, canViewProject } from '../utils/authorization.js';
 import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 import { decodeBase64Image, uploadProjectLogo, deleteObjectByUrl } from '../services/tenant-assets.service.js';
-import { ensureParticipantRole } from '../utils/role-management.js';
+import { ensureParticipantRole, ensureTeamCaptainRole } from '../utils/role-management.js';
 import { Op } from 'sequelize';
 
 function serializeProjectCard(project, eventMaxTeamSize, currentUserId) {
@@ -203,6 +203,10 @@ export class ProjectsController {
         return badRequestResponse(res, 'El título del proyecto es obligatorio');
       }
 
+      // Manejar logo como base64 (similar a update)
+      let logoUrl = imageUrl;
+      const hasBase64Logo = typeof req.body.logo === 'string' && req.body.logo.startsWith('data:');
+
       const team = await Team.create(
         {
           tenant_id: req.tenant.id,
@@ -226,6 +230,9 @@ export class ProjectsController {
         },
         { transaction }
       );
+
+      // Asegurar que el capitán tenga el rol team_captain
+      await ensureTeamCaptainRole(captainId, req.tenant.id, { transaction });
 
       const project = await Project.create(
         {

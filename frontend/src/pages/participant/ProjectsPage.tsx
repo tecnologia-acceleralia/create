@@ -8,14 +8,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import { useAuth } from '@/context/AuthContext';
-import { Spinner } from '@/components/common';
+import { useTenant } from '@/context/TenantContext';
+import { Spinner, InfoTooltip } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { FileInput } from '@/components/ui/file-input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { FormField } from '@/components/form';
+import { FormField, FormGrid } from '@/components/form';
 import { ProjectCard as ProjectOverviewCard } from '@/components/projects/ProjectCard';
 import {
   Dialog,
@@ -48,7 +49,9 @@ function ProjectsPage() {
   const numericEventId = Number(eventId);
   const { t } = useTranslation();
   const { user, isSuperAdmin } = useAuth();
+  const { branding } = useTenant();
   const queryClient = useQueryClient();
+  const primaryColor = branding.primaryColor || '#0ea5e9';
   const { data: memberships } = useQuery({
     queryKey: ['my-teams'],
     queryFn: getMyTeams,
@@ -61,6 +64,9 @@ function ProjectsPage() {
   });
 
   const createProjectForm = useForm<CreateProjectValues>({ resolver: zodResolver(createProjectSchema) });
+
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
 
   const {
     data: projects,
@@ -159,6 +165,8 @@ function ProjectsPage() {
     onSuccess: () => {
       toast.success(safeTranslate(t, 'projects.createSuccess'));
       createProjectForm.reset();
+      setLogoBase64(null);
+      setLogoError(null);
       setIsCreateProjectDialogOpen(false);
       resetProjectImageSelection({ clearError: true });
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
@@ -391,7 +399,11 @@ function ProjectsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateProjectDialogOpen(false)}
+                  onClick={() => {
+                    setIsCreateProjectDialogOpen(false);
+                    setLogoBase64(null);
+                    setLogoError(null);
+                  }}
                 >
                   {safeTranslate(t, 'common.cancel')}
                 </Button>

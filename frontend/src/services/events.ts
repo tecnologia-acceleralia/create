@@ -398,6 +398,7 @@ export type UserStatistics = {
     name: string;
   } | null;
   roles: string[];
+  status?: string; // Campo opcional agregado
 };
 
 export type CustomField = {

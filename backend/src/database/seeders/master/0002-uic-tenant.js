@@ -529,13 +529,12 @@ export async function up(queryInterface) {
   const eventName = isEventsNameJSON
     ? JSON.stringify({ es: 'SPP 2026', ca: 'SPP 2026', en: 'SPP 2026' })
     : 'SPP 2026';
-  const eventDescription = isEventsDescriptionJSON
-    ? JSON.stringify({
-        es: 'Bienvenid@ al Startup Pioneer Program (SPP)',
-        ca: 'Benvingut/da al Startup Pioneer Program (SPP)',
-        en: 'Welcome to the Startup Pioneer Program (SPP)'
-      })
-    : 'Bienvenid@ al Startup Pioneer Program (SPP)';
+  // Siempre guardar description como JSON multilingüe para soportar traducciones
+  const eventDescription = JSON.stringify({
+    es: 'Bienvenid@ al Startup Pioneer Program (SPP)',
+    ca: 'Benvingut/da al Startup Pioneer Program (SPP)',
+    en: 'Welcome to the Startup Pioneer Program (SPP)'
+  });
   const eventDescriptionHtmlValue = toJSONField(eventDescriptionHtml, isEventsDescriptionHtmlJSON);
 
   // Crear y validar fecha de publicación
@@ -544,38 +543,57 @@ export async function up(queryInterface) {
     throw new Error('Fecha de inicio de publicación inválida');
   }
 
-  await queryInterface.bulkInsert('events', [
-    {
-      tenant_id: tenant.id,
-      created_by: adminUserId,
-      name: eventName,
-      description: eventDescription,
-      description_html: eventDescriptionHtmlValue,
-      start_date: eventStart,
-      end_date: eventEnd,
-      min_team_size: 2,
-      max_team_size: 5,
-      status: 'published',
-      video_url: 'https://youtu.be/lVJ8-tPSNzA',
-      is_public: true,
-      allow_open_registration: true,
-      publish_start_at: publishStartAt,
-      publish_end_at: eventEnd,
-      registration_schema: null,
-      created_at: new Date(),
-      updated_at: new Date()
-    }
-  ]);
-
-  // Buscar el evento según el tipo de columna
-  const eventQuery = isEventsNameJSON
+  // Verificar si el evento ya existe (hacer el seeder idempotente)
+  const eventCheckQuery = isEventsNameJSON
     ? `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND JSON_EXTRACT(name, '$.es') = 'SPP 2026' LIMIT 1`
     : `SELECT id, start_date, end_date FROM events WHERE tenant_id = ${tenant.id} AND name = 'SPP 2026' LIMIT 1`;
   
-  const [[event]] = await queryInterface.sequelize.query(eventQuery);
+  const [[existingEvent]] = await queryInterface.sequelize.query(eventCheckQuery);
 
-  if (!event) {
-    throw new Error('No se pudo recuperar el evento SPP 2026 del tenant UIC.');
+  let event;
+  if (existingEvent) {
+    // El evento ya existe, actualizarlo con el description multilingüe
+    await queryInterface.sequelize.query(
+      `UPDATE events SET description = :description, updated_at = NOW() WHERE id = :eventId`,
+      {
+        replacements: {
+          description: eventDescription,
+          eventId: existingEvent.id
+        }
+      }
+    );
+    event = existingEvent;
+  } else {
+    // El evento no existe, crearlo
+    await queryInterface.bulkInsert('events', [
+      {
+        tenant_id: tenant.id,
+        created_by: adminUserId,
+        name: eventName,
+        description: eventDescription,
+        description_html: eventDescriptionHtmlValue,
+        start_date: eventStart,
+        end_date: eventEnd,
+        min_team_size: 2,
+        max_team_size: 5,
+        status: 'published',
+        video_url: 'https://youtu.be/lVJ8-tPSNzA',
+        is_public: true,
+        allow_open_registration: true,
+        publish_start_at: publishStartAt,
+        publish_end_at: eventEnd,
+        registration_schema: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    ]);
+
+    // Buscar el evento recién creado
+    const [[newEvent]] = await queryInterface.sequelize.query(eventCheckQuery);
+    if (!newEvent) {
+      throw new Error('No se pudo recuperar el evento SPP 2026 del tenant UIC después de crearlo.');
+    }
+    event = newEvent;
   }
 
   const phaseNow = new Date();
