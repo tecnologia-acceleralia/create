@@ -1069,7 +1069,9 @@ main() {
     [[ ${#pending_remote_changes[@]} -gt 0 ]] && all_changes+=("${pending_remote_changes[@]}")
     [[ ${#local_changes[@]} -gt 0 ]] && all_changes+=("${local_changes[@]}")
     # Eliminar duplicados y ordenar
-    all_changes=($(printf '%s\n' "${all_changes[@]}" | sort -u))
+    if [[ ${#all_changes[@]} -gt 0 ]]; then
+        all_changes=($(printf '%s\n' "${all_changes[@]}" | sort -u))
+    fi
     
     update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose --profile dev run --build --rm backend pnpm install --frozen-lockfile
     update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose --profile dev run --build --rm frontend pnpm install --frozen-lockfile
