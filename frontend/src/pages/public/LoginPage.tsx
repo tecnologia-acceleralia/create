@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from '@hookform/resolvers/zod';
 import { isAxiosError } from 'axios';
@@ -39,9 +39,13 @@ function LoginPage() {
 
   useEffect(() => {
     if (!loading && user && activeMembership && !missingFieldsData) {
-      navigate(tenantPath('dashboard'), { replace: true });
+      if (eventId != null) {
+        navigate(tenantPath(`dashboard/events/${eventId}/home`), { replace: true });
+      } else {
+        navigate(tenantPath('dashboard'), { replace: true });
+      }
     }
-  }, [loading, user, activeMembership, navigate, tenantPath, missingFieldsData]);
+  }, [loading, user, activeMembership, navigate, tenantPath, missingFieldsData, eventId]);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema)
@@ -60,7 +64,11 @@ function LoginPage() {
           authData: result.authData
         });
       } else {
-        navigate(tenantPath('dashboard'));
+        if (eventId != null) {
+          navigate(tenantPath(`dashboard/events/${eventId}/home`));
+        } else {
+          navigate(tenantPath('dashboard'));
+        }
       }
     } catch (err) {
       if (isAxiosError(err)) {
@@ -75,8 +83,13 @@ function LoginPage() {
   const handleCompleteRegistration = () => {
     if (missingFieldsData?.authData) {
       hydrateSession(missingFieldsData.authData);
+      const completedEventId = missingFieldsData.event?.eventId ?? eventId;
       setMissingFieldsData(null);
-      navigate(tenantPath('dashboard'));
+      if (completedEventId != null) {
+        navigate(tenantPath(`dashboard/events/${completedEventId}/home`));
+      } else {
+        navigate(tenantPath('dashboard'));
+      }
     }
   };
 

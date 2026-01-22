@@ -131,7 +131,7 @@ export class AuthController {
         email: rawEmail,
         password,
         language,
-        event_id: eventId,
+        event_id: rawEventId,
         grade: rawGrade,
         registration_answers: rawRegistrationAnswers
       } = req.body;
@@ -139,6 +139,18 @@ export class AuthController {
       const firstName = rawFirstName.trim();
       const lastName = rawLastName.trim();
       const email = rawEmail.toLowerCase();
+      
+      // Normalizar eventId: convertir a número si es string o número
+      let eventId = null;
+      if (rawEventId != null) {
+        if (typeof rawEventId === 'string' && rawEventId.trim()) {
+          const parsed = Number.parseInt(rawEventId.trim(), 10);
+          eventId = Number.isNaN(parsed) ? null : parsed;
+        } else if (typeof rawEventId === 'number' && !Number.isNaN(rawEventId)) {
+          eventId = rawEventId;
+        }
+      }
+      
       const registrationAnswers =
         rawRegistrationAnswers && typeof rawRegistrationAnswers === 'object' && !Array.isArray(rawRegistrationAnswers)
           ? rawRegistrationAnswers
@@ -150,7 +162,8 @@ export class AuthController {
 
       // Procesar evento si se proporciona (opcional)
       let registrationEvent = null;
-      if (eventId) {
+      if (eventId != null && !Number.isNaN(eventId) && eventId > 0) {
+        logger.info(`[REGISTER] Procesando registro con event_id=${eventId} para usuario ${email}`);
         const now = new Date();
         const baseEventFilters = {
           tenant_id: tenant.id,
@@ -182,11 +195,14 @@ export class AuthController {
         });
 
         if (!registrationEvent) {
+          logger.warn(`[REGISTER] Evento id=${eventId} no encontrado o no cumple requisitos para registro abierto (tenant_id=${tenant.id}, status=published, is_public=true, allow_open_registration=true)`);
           await transaction.rollback();
           return res
             .status(403)
             .json({ success: false, message: AUTH_MESSAGES.REGISTRATION_DISABLED });
         }
+        
+        logger.info(`[REGISTER] Evento id=${eventId} encontrado, creando EventRegistration para usuario ${email}`);
 
         // Validar schema del evento si existe
         const eventRegistrationSchema =
@@ -522,16 +538,24 @@ export class AuthController {
         Object.keys(parsedAnswers).length > 0 ? parsedAnswers : null;
 
       if (registrationEvent) {
-        await EventRegistration.create(
-          {
-            tenant_id: tenant.id,
-            event_id: registrationEvent.id,
-            user_id: newUser.id,
-            grade: resolvedGrade ?? null,
-            answers: registrationPayload
-          },
-          { transaction }
-        );
+        try {
+          const eventRegistration = await EventRegistration.create(
+            {
+              tenant_id: tenant.id,
+              event_id: registrationEvent.id,
+              user_id: newUser.id,
+              grade: resolvedGrade ?? null,
+              answers: registrationPayload
+            },
+            { transaction }
+          );
+          logger.info(`[REGISTER] EventRegistration creado exitosamente: id=${eventRegistration.id}, user_id=${newUser.id}, event_id=${registrationEvent.id}`);
+        } catch (error) {
+          logger.error(`[REGISTER] Error al crear EventRegistration para user_id=${newUser.id}, event_id=${registrationEvent.id}:`, error);
+          throw error; // Re-lanzar para que el catch general maneje el rollback
+        }
+      } else {
+        logger.info(`[REGISTER] No se crea EventRegistration: registrationEvent es null (eventId=${eventId})`);
       }
 
       await transaction.commit();
