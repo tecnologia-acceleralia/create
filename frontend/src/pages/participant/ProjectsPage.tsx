@@ -13,6 +13,7 @@ import { Spinner, InfoTooltip } from '@/components/common';
 import { DashboardLayout } from '@/components/layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { FileInput } from '@/components/ui/file-input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField, FormGrid } from '@/components/form';
@@ -38,7 +39,6 @@ import {
 const createProjectSchema = z.object({
   title: z.string().min(3),
   description: z.string().optional(),
-  image_url: z.union([z.string().url(), z.literal('')]).optional(),
   requirements: z.string().optional()
 });
 
@@ -80,6 +80,10 @@ function ProjectsPage() {
 
   const [joiningProjectId, setJoiningProjectId] = useState<number | null>(null);
   const [isCreateProjectDialogOpen, setIsCreateProjectDialogOpen] = useState(false);
+  const [projectImageBase64, setProjectImageBase64] = useState<string | null>(null);
+  const [projectImagePreview, setProjectImagePreview] = useState<string | null>(null);
+  const [projectImageError, setProjectImageError] = useState<string | null>(null);
+  const [projectImageInputKey, setProjectImageInputKey] = useState(0);
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
@@ -88,46 +92,83 @@ function ProjectsPage() {
     }
   }, []);
 
-  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (event) => {
+  const resetProjectImageSelection = (options?: { clearError?: boolean }) => {
+    setProjectImageBase64(null);
+    setProjectImagePreview(null);
+    setProjectImageInputKey(previous => previous + 1);
+    if (options?.clearError) {
+      setProjectImageError(null);
+    }
+  };
+
+  const handleProjectImageChange: React.ChangeEventHandler<HTMLInputElement> = event => {
     const file = event.target.files?.[0];
+
     if (!file) {
-      setLogoBase64(null);
-      setLogoError(null);
+      resetProjectImageSelection();
+      return;
+    }
+
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    if (!allowedTypes.includes(file.type)) {
+      setProjectImageError(
+        safeTranslate(t, 'projects.imageFormatError', {
+          defaultValue: 'Formato no soportado. Usa PNG, JPG, WEBP o SVG.'
+        })
+      );
+      resetProjectImageSelection();
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setLogoError(safeTranslate(t, 'teams.logoTooLarge'));
-      setLogoBase64(null);
+      setProjectImageError(safeTranslate(t, 'teams.logoTooLarge'));
+      resetProjectImageSelection();
       return;
     }
 
     void (async () => {
       try {
         const base64 = await fileToBase64(file);
-        setLogoBase64(base64);
-        setLogoError(null);
-      } catch (error) {
-        setLogoError(safeTranslate(t, 'teams.logoReadError'));
-        setLogoBase64(null);
+        setProjectImageBase64(base64);
+        setProjectImagePreview(base64);
+        setProjectImageError(null);
+      } catch {
+        setProjectImageError(
+          safeTranslate(t, 'projects.imageReadError', {
+            defaultValue: 'No se pudo leer el archivo seleccionado.'
+          })
+        );
+        resetProjectImageSelection();
       }
     })();
   };
 
   const createProjectMutation = useMutation({
-    mutationFn: (values: CreateProjectValues) =>
-      createProjectForEvent(numericEventId, {
+    mutationFn: async (values: CreateProjectValues) => {
+      const payload: {
+        title: string;
+        description?: string;
+        requirements?: string;
+        logo?: string;
+      } = {
         title: values.title,
         description: values.description || undefined,
-        logo: logoBase64 ?? undefined,
         requirements: values.requirements || undefined
-      }),
+      };
+
+      if (projectImageBase64) {
+        payload.logo = projectImageBase64;
+      }
+
+      return createProjectForEvent(numericEventId, payload);
+    },
     onSuccess: () => {
       toast.success(safeTranslate(t, 'projects.createSuccess'));
       createProjectForm.reset();
       setLogoBase64(null);
       setLogoError(null);
       setIsCreateProjectDialogOpen(false);
+      resetProjectImageSelection({ clearError: true });
       void queryClient.invalidateQueries({ queryKey: ['event-projects', numericEventId] });
       void queryClient.invalidateQueries({ queryKey: ['my-teams'] });
     },
@@ -172,6 +213,13 @@ function ProjectsPage() {
       return;
     }
     createProjectMutation.mutate(values);
+  };
+
+  const handleCreateDialogChange = (open: boolean) => {
+    setIsCreateProjectDialogOpen(open);
+    if (!open) {
+      resetProjectImageSelection({ clearError: true });
+    }
   };
 
   const handleJoinProject = (projectId: number) => {
@@ -274,7 +322,7 @@ function ProjectsPage() {
           </CardContent>
         </Card>
 
-        <Dialog open={isCreateProjectDialogOpen} onOpenChange={setIsCreateProjectDialogOpen}>
+        <Dialog open={isCreateProjectDialogOpen} onOpenChange={handleCreateDialogChange}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{safeTranslate(t, 'projects.formSection')}</DialogTitle>
@@ -299,39 +347,47 @@ function ProjectsPage() {
                   {...createProjectForm.register('description')}
                 />
               </FormField>
-              <FormGrid columns={logoBase64 ? 2 : 1}>
-                <FormField
-                  label={
-                    <div className="flex items-center gap-2">
-                      <span>{safeTranslate(t, 'teams.projectImageUpload')}</span>
-                      <InfoTooltip content={safeTranslate(t, 'teams.projectImageUploadInfo')} />
-                    </div>
-                  }
-                  htmlFor="project-image-upload"
-                >
-                  <Input
+              <FormField label={safeTranslate(t, 'projects.imageUpload')} htmlFor="project-image-upload">
+                <div className="space-y-2">
+                  <FileInput
+                    key={projectImageInputKey}
                     id="project-image-upload"
-                    type="file"
                     accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    onChange={handleFileChange}
+                    onChange={handleProjectImageChange}
+                    buttonLabel={safeTranslate(t, 'projects.imageUploadButton', {
+                      defaultValue: 'Seleccionar imagen'
+                    })}
                   />
-                  {logoError ? <p className="text-xs text-destructive">{logoError}</p> : null}
-                </FormField>
-                {logoBase64 ? (
-                  <FormField label={safeTranslate(t, 'teams.projectImagePreview')} htmlFor="project-image-preview">
-                    <div
-                      className="flex h-16 w-auto items-center justify-center rounded border border-border p-2"
-                      style={{ backgroundColor: primaryColor }}
-                    >
-                      <img
-                        src={logoBase64}
-                        alt=""
-                        className="h-full w-auto max-h-full max-w-full object-contain"
-                      />
+                  {projectImageError ? (
+                    <p className="text-xs text-destructive">{projectImageError}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {safeTranslate(t, 'projects.imageUploadHelper', {
+                        defaultValue: 'Formatos permitidos: PNG, JPG, WEBP o SVG (máx. 5 MB).'
+                      })}
+                    </p>
+                  )}
+                  {projectImagePreview ? (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded border border-border bg-muted">
+                        <img
+                          src={projectImagePreview}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resetProjectImageSelection({ clearError: true })}
+                      >
+                        {safeTranslate(t, 'projects.imageClear', { defaultValue: 'Quitar imagen' })}
+                      </Button>
                     </div>
-                  </FormField>
-                ) : null}
-              </FormGrid>
+                  ) : null}
+                </div>
+              </FormField>
               <FormField label={safeTranslate(t, 'projects.requirements')} htmlFor="project-requirements">
                 <Textarea
                   id="project-requirements"

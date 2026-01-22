@@ -135,6 +135,8 @@ export class ProjectsController {
 
   static async createForEvent(req, res, next) {
     const transaction = await getSequelize().transaction();
+    let projectLogoUploadResult = null;
+    let transactionCommitted = false;
     try {
       const eventId = Number(req.params.eventId);
       const { Event, Team, TeamMember, Project, User } = getModels();
@@ -172,6 +174,20 @@ export class ProjectsController {
         req.body.image_url ?? req.body.project_image_url ?? req.body.logo_url ?? null;
       const imageUrl =
         typeof rawImage === 'string' && rawImage.trim().length ? rawImage.trim() : null;
+      const imageBase64Source =
+        [
+          req.body.image,
+          req.body.image_file,
+          req.body.image_base64,
+          req.body.project_image,
+          req.body.project_image_file,
+          req.body.project_image_base64,
+          req.body.logo,
+          req.body.logo_file,
+          req.body.logo_base64
+        ]
+          .map(value => (typeof value === 'string' ? value.trim() : null))
+          .find(value => value && value.startsWith('data:')) ?? null;
       const rawRequirements = req.body.requirements ?? null;
       const requirements =
         typeof rawRequirements === 'string' && rawRequirements.trim().length
@@ -225,32 +241,46 @@ export class ProjectsController {
           event_id: eventId,
           name: title,
           summary: description,
-          logo_url: logoUrl,
+          logo_url: imageBase64Source ? null : imageUrl,
           status: 'active'
         },
         { transaction }
       );
 
-      // Si hay logo en base64, subirlo después de crear el proyecto
-      if (hasBase64Logo) {
+      if (imageBase64Source) {
         try {
-          const { buffer, mimeType, extension } = decodeBase64Image(req.body.logo);
-          const uploadResult = await uploadProjectLogo({
+          const { buffer, mimeType, extension } = decodeBase64Image(imageBase64Source);
+          projectLogoUploadResult = await uploadProjectLogo({
             tenantId: req.tenant.id,
             projectId: project.id,
             buffer,
             contentType: mimeType,
             extension
           });
-          logoUrl = uploadResult.url;
-          await project.update({ logo_url: logoUrl }, { transaction });
+
+          await project.update({ logo_url: projectLogoUploadResult.url }, { transaction });
         } catch (uploadError) {
           await transaction.rollback();
-          return badRequestResponse(res, uploadError.message);
+
+          if (projectLogoUploadResult?.url) {
+            await deleteObjectByUrl(projectLogoUploadResult.url).catch(cleanupError => {
+              logger.warn('No se pudo limpiar el logo del proyecto tras un fallo en la creación', {
+                error: cleanupError.message,
+                tenantId: req.tenant.id,
+                eventId
+              });
+            });
+          }
+
+          return badRequestResponse(
+            res,
+            uploadError.message ?? 'No se pudo subir la imagen del proyecto'
+          );
         }
       }
 
       await transaction.commit();
+      transactionCommitted = true;
 
       logger.info('Proyecto creado desde fase 0', {
         projectId: project.id,
@@ -295,7 +325,17 @@ export class ProjectsController {
 
       return successResponse(res, serialized, 201);
     } catch (error) {
-      await transaction.rollback();
+      if (!transactionCommitted) {
+        await transaction.rollback();
+        if (projectLogoUploadResult?.url) {
+          await deleteObjectByUrl(projectLogoUploadResult.url).catch(cleanupError => {
+            logger.warn('No se pudo eliminar el logo tras error al crear proyecto', {
+              error: cleanupError.message,
+              tenantId: req.tenant.id
+            });
+          });
+        }
+      }
       next(error);
     }
   }
