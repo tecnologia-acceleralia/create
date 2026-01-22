@@ -1076,7 +1076,7 @@ main() {
     update_docker_dependencies "backend" "backend_node_modules" "$backend_lock_file" "backend-deps.hash" compose --profile dev run --build --rm backend pnpm install --frozen-lockfile
     update_docker_dependencies "frontend" "frontend_node_modules" "$frontend_lock_file" "frontend-deps.hash" compose --profile dev run --build --rm frontend pnpm install --frozen-lockfile
     
-    if [[ "$FORCE_BUILD" == true ]] || test_rebuild_required "${all_changes[@]}"; then
+    if [[ "$FORCE_BUILD" == true ]] || ([[ ${#all_changes[@]} -gt 0 ]] && test_rebuild_required "${all_changes[@]}"); then
         if [[ "$FORCE_BUILD" == true ]]; then
             write_info "ForceBuild activado: forzando rebuild de imagenes Docker"
         else
