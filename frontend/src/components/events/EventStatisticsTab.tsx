@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Spinner } from '@/components/common';
 import { useTenant } from '@/context/TenantContext';
 import { safeTranslate } from '@/utils/i18n-helpers';
+import type { TFunction } from 'i18next';
 import { getEventStatistics, getEventDetail, type EventStatistics } from '@/services/events';
 import { formatDateTime } from '@/utils/date';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
@@ -78,6 +79,19 @@ function getGradeLabel(
   return resolveSchemaLabel(gradeOption.label, language, gradeCode);
 }
 
+function translateRole(roleScope: string, t: TFunction): string {
+  return safeTranslate(t, `superadmin.users.roleLabels.${roleScope}`, {
+    defaultValue: roleScope
+  });
+}
+
+function translateRoles(roles: string[], t: TFunction): string {
+  if (!roles || roles.length === 0) {
+    return '';
+  }
+  return roles.map(role => translateRole(role, t)).join(', ');
+}
+
 function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number; readonly onViewTeam?: (teamId: number) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
@@ -96,6 +110,9 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     enabled: Number.isInteger(eventId),
     select: (data) => data.registration_schema
   });
+
+  // Usar el schema del evento si está disponible, sino el del tenant
+  const registrationSchema = eventDetail ?? tenantRegistrationSchema;
 
   const primaryColor = branding.primaryColor || 'hsl(var(--primary))';
 
@@ -228,7 +245,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         [headers[0]]: String(index + 1),
         [headers[1]]: getFullName(user.firstName, user.lastName, user.email) || '',
         [headers[2]]: user.email || '',
-        [headers[3]]: user.grade || '',
+        [headers[3]]: user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '',
         [headers[4]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
       }));
 
@@ -278,8 +295,8 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         [headers[1]]: getFullName(user.firstName, user.lastName, user.email) || '',
         [headers[2]]: user.email || '',
         [headers[3]]: user.team?.name || 'Sin equipo',
-        [headers[4]]: (user.roles && user.roles.length > 0) ? user.roles.join(', ') : 'Sin roles',
-        [headers[5]]: user.grade || '',
+        [headers[4]]: (user.roles && user.roles.length > 0) ? translateRoles(user.roles, t) : safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' }),
+        [headers[5]]: user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '',
         [headers[6]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '',
         [headers[7]]: getStatusLabel(user.status)
       }));
@@ -304,7 +321,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     const csvData = sortedGradeSummary.map(entry => {
       const gradeLabel = entry.grade === '__NO_GRADE__'
         ? safeTranslate(t, 'events.statisticsSection.grades.noGrade')
-        : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
+        : getGradeLabel(entry.grade, registrationSchema, locale);
       return {
         [headers[0]]: gradeLabel,
         [headers[1]]: String(entry.withTeam || 0),
@@ -502,7 +519,9 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                         {getFullName(user.firstName, user.lastName, user.email)}
                       </TableCell>
                       <TableCell>{user.email ?? '—'}</TableCell>
-                      <TableCell>{user.grade ?? '—'}</TableCell>
+                      <TableCell>
+                        {user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '—'}
+                      </TableCell>
                       <TableCell>
                         {user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '—'}
                       </TableCell>
@@ -566,14 +585,16 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                         </TableCell>
                         <TableCell>
                           {user.roles.length > 0 ? (
-                            user.roles.join(', ')
+                            translateRoles(user.roles, t)
                           ) : (
                             <span className="text-xs text-muted-foreground">
                               {safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell>{user.grade ?? '—'}</TableCell>
+                        <TableCell>
+                          {user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '—'}
+                        </TableCell>
                         <TableCell>
                           {user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : '—'}
                         </TableCell>
@@ -622,7 +643,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                     const gradeLabel =
                       entry.grade === '__NO_GRADE__'
                         ? safeTranslate(t, 'events.statisticsSection.grades.noGrade', { defaultValue: 'Sin grado' })
-                        : getGradeLabel(entry.grade, tenantRegistrationSchema, locale);
+                        : getGradeLabel(entry.grade, registrationSchema, locale);
                     return (
                       <TableRow key={entry.grade}>
                         <TableCell className="font-medium">{gradeLabel}</TableCell>
