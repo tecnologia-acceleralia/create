@@ -495,6 +495,8 @@
         "lastLogin": "Darrer login",
         "empty": "Tots els usuaris tenen equip"
       },
+      "filterByRole": "Filtrar per rol",
+      "allRoles": "Tots els rols",
       "users": {
         "title": "Tots els Usuaris",
         "name": "Nom",

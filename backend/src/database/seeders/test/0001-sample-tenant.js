@@ -579,6 +579,29 @@ export async function up(queryInterface) {
     }
   ]);
 
+  await queryInterface.bulkInsert('event_registrations', [
+    {
+      tenant_id: tenant.id,
+      event_id: eventRecord.id,
+      user_id: captainUser.id,
+      status: 'registered',
+      grade: null,
+      answers: null,
+      created_at: now,
+      updated_at: now
+    },
+    {
+      tenant_id: tenant.id,
+      event_id: eventRecord.id,
+      user_id: participantUser.id,
+      status: 'registered',
+      grade: null,
+      answers: null,
+      created_at: now,
+      updated_at: now
+    }
+  ]);
+
   await queryInterface.bulkInsert('projects', [
     {
       tenant_id: tenant.id,

@@ -495,6 +495,8 @@
         "lastLogin": "Last login",
         "empty": "All users have teams"
       },
+      "filterByRole": "Filter by role",
+      "allRoles": "All roles",
       "users": {
         "title": "All Users",
         "name": "Name",

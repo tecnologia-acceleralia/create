@@ -92,11 +92,24 @@ function translateRoles(roles: string[], t: TFunction): string {
   return roles.map(role => translateRole(role, t)).join(', ');
 }
 
+const ROLE_FILTER_ALL = '__ALL__';
+
+function userHasRole(user: { roles: string[] }, role: string): boolean {
+  return Array.isArray(user.roles) && user.roles.includes(role);
+}
+
+function filterUsersByRole<T extends { roles: string[] }>(users: T[], role: string): T[] {
+  if (!users) return [];
+  if (role === ROLE_FILTER_ALL) return users;
+  return users.filter(u => userHasRole(u, role));
+}
+
 function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number; readonly onViewTeam?: (teamId: number) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
   const { branding, registrationSchema: tenantRegistrationSchema } = useTenant();
   const [selectedCustomField, setSelectedCustomField] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState<string>('participant');
 
   const { data: statistics, isLoading, isError } = useQuery<EventStatistics>({
     queryKey: ['events', eventId, 'statistics'],
@@ -159,37 +172,64 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
     return statistics.customFieldAggregates[selectedCustomField] ?? null;
   }, [selectedCustomField, statistics]);
 
+  // Opciones del combo de filtro por rol (idioma de la página)
+  const roleFilterOptions = useMemo(() => {
+    const roleSet = new Set<string>();
+    statistics?.users?.forEach(u => (u.roles ?? []).forEach((r: string) => roleSet.add(r)));
+    statistics?.usersWithoutTeam?.forEach(u => (u.roles ?? []).forEach((r: string) => roleSet.add(r)));
+    if (!roleSet.has('participant')) roleSet.add('participant');
+    const roles = Array.from(roleSet).sort((a, b) => a.localeCompare(b));
+    return [
+      { value: ROLE_FILTER_ALL, labelKey: 'events.statisticsSection.allRoles' },
+      ...roles.map(r => ({ value: r, labelKey: `superadmin.users.roleLabels.${r}` }))
+    ];
+  }, [statistics?.users, statistics?.usersWithoutTeam]);
+
   // Ordenar equipos por nombre
   const sortedTeams = useMemo(() => {
     if (!statistics?.teams) return [];
     return [...statistics.teams].sort((a, b) => a.name.localeCompare(b.name));
   }, [statistics]);
 
-  // Ordenar usuarios sin equipo por nombre
-  const sortedUsersWithoutTeam = useMemo(() => {
-    if (!statistics?.usersWithoutTeam) return [];
-    return [...statistics.usersWithoutTeam].sort((a, b) => {
+  // Filtrar y ordenar usuarios sin equipo por nombre (locale de la página)
+  const filteredUsersWithoutTeam = useMemo(() => {
+    const list = filterUsersByRole(statistics?.usersWithoutTeam ?? [], roleFilter);
+    return [...list].sort((a, b) => {
       const nameA = getFullName(a.firstName, a.lastName, a.email).toLowerCase();
       const nameB = getFullName(b.firstName, b.lastName, b.email).toLowerCase();
-      return nameA.localeCompare(nameB);
+      return nameA.localeCompare(nameB, locale);
     });
-  }, [statistics]);
+  }, [statistics?.usersWithoutTeam, roleFilter, locale]);
 
-  // Ordenar todos los usuarios por nombre
-  const sortedUsers = useMemo(() => {
-    if (!statistics?.users) return [];
-    return [...statistics.users].sort((a, b) => {
+  // Filtrar y ordenar todos los usuarios por nombre (locale de la página)
+  const filteredUsers = useMemo(() => {
+    const list = filterUsersByRole(statistics?.users ?? [], roleFilter);
+    return [...list].sort((a, b) => {
       const nameA = getFullName(a.firstName, a.lastName, a.email).toLowerCase();
       const nameB = getFullName(b.firstName, b.lastName, b.email).toLowerCase();
-      return nameA.localeCompare(nameB);
+      return nameA.localeCompare(nameB, locale);
     });
-  }, [statistics]);
+  }, [statistics?.users, roleFilter, locale]);
 
-  // Ordenar resumen por grados por columna "Con equipo" (descendente)
-  const sortedGradeSummary = useMemo(() => {
-    if (!statistics?.gradeSummary) return [];
-    return [...statistics.gradeSummary].sort((a, b) => (b.withTeam || 0) - (a.withTeam || 0));
-  }, [statistics]);
+  // Resumen por grados a partir de usuarios filtrados por rol
+  const filteredGradeSummary = useMemo(() => {
+    const users = filterUsersByRole(statistics?.users ?? [], roleFilter);
+    const byGrade = new Map<string, { withTeam: number; withoutTeam: number; total: number }>();
+    users.forEach(u => {
+      const g = u.grade ?? '__NO_GRADE__';
+      if (!byGrade.has(g)) byGrade.set(g, { withTeam: 0, withoutTeam: 0, total: 0 });
+      const row = byGrade.get(g)!;
+      row.total += 1;
+      if (u.team) row.withTeam += 1;
+      else row.withoutTeam += 1;
+    });
+    const arr = Array.from(byGrade.entries()).map(([grade, row]) => ({ grade, ...row }));
+    return arr.sort((a, b) => (b.withTeam || 0) - (a.withTeam || 0));
+  }, [statistics?.users, roleFilter]);
+
+  const sortedUsersWithoutTeam = filteredUsersWithoutTeam;
+  const sortedUsers = filteredUsers;
+  const sortedGradeSummary = filteredGradeSummary;
 
   // Función para exportar equipos a CSV
   const exportTeamsToCSV = () => {
@@ -229,24 +269,26 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
 
   // Función para exportar usuarios sin equipo a CSV
   const exportUsersWithoutTeamToCSV = () => {
-    if (!statistics?.usersWithoutTeam?.length) return;
+    if (!sortedUsersWithoutTeam.length) return;
     
     const headers = [
       '#',
       safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.name'),
       safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.email'),
+      safeTranslate(t, 'events.statisticsSection.users.role'),
       safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.grade'),
       safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.lastLogin')
     ];
 
     const csvData = sortedUsersWithoutTeam
-      .filter(user => user.firstName || user.lastName || user.email) // Filtrar usuarios sin datos
+      .filter(user => user.firstName || user.lastName || user.email)
       .map((user, index) => ({
         [headers[0]]: String(index + 1),
         [headers[1]]: getFullName(user.firstName, user.lastName, user.email) || '',
         [headers[2]]: user.email || '',
-        [headers[3]]: user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '',
-        [headers[4]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
+        [headers[3]]: (user.roles && user.roles.length > 0) ? translateRoles(user.roles, t) : safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' }),
+        [headers[4]]: user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '',
+        [headers[5]]: user.lastLoginAt ? formatDateTime(locale, user.lastLoginAt) : ''
       }));
 
     if (csvData.length === 0) return;
@@ -486,10 +528,25 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
             <CardTitle>
               {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.title', { defaultValue: 'Usuarios sin Equipos' })}
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={exportUsersWithoutTeamToCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select
+                value={roleFilter}
+                onValueChange={v => setRoleFilter(v)}
+                className="w-[200px]"
+              >
+                {roleFilterOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.labelKey === 'events.statisticsSection.allRoles'
+                      ? safeTranslate(t, opt.labelKey, { defaultValue: 'Todos los roles' })
+                      : safeTranslate(t, opt.labelKey, { defaultValue: opt.value })}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="outline" size="sm" onClick={exportUsersWithoutTeamToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
@@ -498,6 +555,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                   <TableHead>#</TableHead>
                   <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.name', { defaultValue: 'Nombre' })}</TableHead>
                   <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.email', { defaultValue: 'Email' })}</TableHead>
+                  <TableHead>{safeTranslate(t, 'events.statisticsSection.users.role', { defaultValue: 'Rol' })}</TableHead>
                   <TableHead>{safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.grade', { defaultValue: 'Grado' })}</TableHead>
                   <TableHead>
                     {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.lastLogin', { defaultValue: 'Último login' })}
@@ -507,7 +565,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
               <TableBody>
                 {sortedUsersWithoutTeam.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                       {safeTranslate(t, 'events.statisticsSection.usersWithoutTeam.empty', { defaultValue: 'Todos los usuarios tienen equipo' })}
                     </TableCell>
                   </TableRow>
@@ -519,6 +577,15 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                         {getFullName(user.firstName, user.lastName, user.email)}
                       </TableCell>
                       <TableCell>{user.email ?? '—'}</TableCell>
+                      <TableCell>
+                        {user.roles?.length ? (
+                          translateRoles(user.roles, t)
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {safeTranslate(t, 'events.statisticsSection.users.noRoles', { defaultValue: 'Sin roles' })}
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {user.grade ? getGradeLabel(user.grade, registrationSchema, locale) : '—'}
                       </TableCell>
@@ -539,10 +606,25 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>{safeTranslate(t, 'events.statisticsSection.users.title', { defaultValue: 'Todos los Usuarios' })}</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportUsersToCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select
+                value={roleFilter}
+                onValueChange={v => setRoleFilter(v)}
+                className="w-[200px]"
+              >
+                {roleFilterOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.labelKey === 'events.statisticsSection.allRoles'
+                      ? safeTranslate(t, opt.labelKey, { defaultValue: 'Todos los roles' })
+                      : safeTranslate(t, opt.labelKey, { defaultValue: opt.value })}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="outline" size="sm" onClick={exportUsersToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <div className="min-w-full overflow-x-auto">
@@ -584,7 +666,7 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
                           )}
                         </TableCell>
                         <TableCell>
-                          {user.roles.length > 0 ? (
+                          {user.roles?.length ? (
                             translateRoles(user.roles, t)
                           ) : (
                             <span className="text-xs text-muted-foreground">
@@ -616,10 +698,25 @@ function EventStatisticsTab({ eventId, onViewTeam }: { readonly eventId: number;
         <Card className="border-border/70 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>{safeTranslate(t, 'events.statisticsSection.grades.title', { defaultValue: 'Resumen por Grados' })}</CardTitle>
-            <Button variant="outline" size="sm" onClick={exportGradesToCSV}>
-              <Download className="h-4 w-4 mr-2" />
-              {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Select
+                value={roleFilter}
+                onValueChange={v => setRoleFilter(v)}
+                className="w-[200px]"
+              >
+                {roleFilterOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.labelKey === 'events.statisticsSection.allRoles'
+                      ? safeTranslate(t, opt.labelKey, { defaultValue: 'Todos los roles' })
+                      : safeTranslate(t, opt.labelKey, { defaultValue: opt.value })}
+                  </option>
+                ))}
+              </Select>
+              <Button variant="outline" size="sm" onClick={exportGradesToCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                {safeTranslate(t, 'common.export', { defaultValue: 'Exportar CSV' })}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>

@@ -200,6 +200,7 @@ export async function up(queryInterface) {
     );
 
     if (!existingRegistration) {
+      const answersJson = userData.grade ? JSON.stringify({ grade: userData.grade }) : null;
       await queryInterface.bulkInsert('event_registrations', [
         {
           tenant_id: tenant.id,
@@ -207,7 +208,7 @@ export async function up(queryInterface) {
           user_id: userId,
           status: 'registered',
           grade: userData.grade || null,
-          answers: JSON.stringify({}),
+          answers: answersJson,
           created_at: now,
           updated_at: now
         }
