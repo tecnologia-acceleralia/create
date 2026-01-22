@@ -22,6 +22,7 @@
     "seed:status": "node src/scripts/db.js seed:status",
     "seed:reset:test": "node src/scripts/db.js seed:reset:test",
     "db:reset": "node src/scripts/db.js db:reset",
+    "enroll-tenant-users": "node src/scripts/enroll-tenant-users-in-event.js",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs --watch",
     "test:coverage": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config jest.config.mjs --coverage"

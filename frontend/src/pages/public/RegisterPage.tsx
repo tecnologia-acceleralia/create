@@ -4,7 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { isAxiosError } from 'axios';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 
 import { PageContainer, ErrorDisplay, PasswordField } from '@/components/common';
 import { AuthCard } from '@/components/common/AuthCard';
@@ -169,9 +169,15 @@ export default function RegisterPage() {
   const { tenantSlug } = useTenant();
   const tenantPath = useTenantPath();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hydrateSession, user, activeMembership, loading: authLoading } = useAuth();
 
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  // eventId desde ?eventId= (p. ej. registro desde landing del evento) para crear EventRegistration
+  const eventIdParam = searchParams.get('eventId');
+  const eventId = eventIdParam ? Number.parseInt(eventIdParam, 10) : undefined;
+  const validEventId = typeof eventId === 'number' && !Number.isNaN(eventId) && eventId > 0 ? eventId : undefined;
 
   const schemaFieldsRef = useRef<NormalizedSchemaField[]>([]);
 
@@ -531,20 +537,20 @@ export default function RegisterPage() {
         language: (selectedLanguage === 'es' || selectedLanguage === 'en' || selectedLanguage === 'ca') 
           ? selectedLanguage 
           : 'es',
-        registration_answers: Object.keys(answersPayload).length > 0 ? answersPayload : undefined
+        registration_answers: Object.keys(answersPayload).length > 0 ? answersPayload : undefined,
+        ...(validEventId != null && { event_id: validEventId })
       };
-      
-      console.log('[RegisterPage] Enviando payload de registro:', {
-        ...registrationPayload,
-        password: '***'
-      });
-      
+
       const response = await registerUser(registrationPayload);
 
       const payload = response.data?.data;
       if (payload) {
         hydrateSession(payload);
-        navigate(tenantPath('dashboard'));
+        if (validEventId != null) {
+          navigate(tenantPath(`dashboard/events/${validEventId}/home`));
+        } else {
+          navigate(tenantPath('dashboard'));
+        }
         return;
       }
 
