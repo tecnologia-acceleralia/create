@@ -754,6 +754,24 @@ export async function up(queryInterface) {
       ]);
     }
 
+    const [[existingReg]] = await queryInterface.sequelize.query(
+      `SELECT id FROM event_registrations WHERE user_id = ${userId} AND event_id = ${eventRecord.id} LIMIT 1`
+    );
+    if (!existingReg) {
+      await queryInterface.bulkInsert('event_registrations', [
+        {
+          tenant_id: tenant.id,
+          event_id: eventRecord.id,
+          user_id: userId,
+          status: 'registered',
+          grade: null,
+          answers: null,
+          created_at: now,
+          updated_at: now
+        }
+      ]);
+    }
+
     createdTestUsers.push({ ...userData, userId, userTenantId });
     createdTestUserTenants.push({ userId, userTenantId });
   }
@@ -853,6 +871,7 @@ export async function down(queryInterface) {
     await queryInterface.bulkDelete('projects', { tenant_id: tenant.id });
     await queryInterface.bulkDelete('team_members', { tenant_id: tenant.id });
     await queryInterface.bulkDelete('teams', { tenant_id: tenant.id });
+    await queryInterface.bulkDelete('event_registrations', { tenant_id: tenant.id });
     await queryInterface.bulkDelete('tasks', { tenant_id: tenant.id });
     await queryInterface.bulkDelete('phases', { tenant_id: tenant.id });
     await queryInterface.bulkDelete('events', { tenant_id: tenant.id });
