@@ -439,10 +439,12 @@ mkdir -p \$BACKUP_DIR
 DB_NAME=\$(grep "^DB_NAME=" .env | cut -d'=' -f2 | tr -d '"' || echo "create")
 DB_USER=\$(grep "^DB_USER=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
 DB_PASSWORD=\$(grep "^DB_PASSWORD=" .env | cut -d'=' -f2 | tr -d '"' || echo "root")
-docker-compose exec -T -e MYSQL_PWD="\${DB_PASSWORD}" database mysqldump -u"\${DB_USER}" "\${DB_NAME}" > \$BACKUP_DIR/db_backup_\$DATE.sql
+docker-compose exec -T -e MYSQL_PWD="\${DB_PASSWORD}" database mysqldump --no-tablespaces -u"\${DB_USER}" "\${DB_NAME}" > \$BACKUP_DIR/db_backup_\$DATE.sql
 
-# Backup uploads
-tar -czf \$BACKUP_DIR/uploads_backup_\$DATE.tar.gz uploads/
+# Backup uploads (solo si existe el directorio)
+if [ -d "uploads" ]; then
+    tar -czf \$BACKUP_DIR/uploads_backup_\$DATE.tar.gz uploads/
+fi
 
 # Keep only last 7 days of backups
 find \$BACKUP_DIR -name "*.sql" -mtime +7 -delete
