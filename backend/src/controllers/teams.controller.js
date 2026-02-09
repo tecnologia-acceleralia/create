@@ -2,6 +2,7 @@ import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { ensureUserNotInOtherTeam, findTeamOr404 } from '../services/team.service.js';
+import { deleteObjectByKey, deleteObjectByUrl } from '../services/tenant-assets.service.js';
 import { isTenantAdmin, canManageTeam } from '../utils/authorization.js';
 import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse, conflictResponse } from '../utils/response.js';
 import { ensureParticipantRole, ensureTeamCaptainRole, removeTeamCaptainRole } from '../utils/role-management.js';
@@ -500,6 +501,161 @@ export class TeamsController {
           ? Number(team.captain_id) === Number(userId)
           : false,
         tenantId: req.tenant.id
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      await transaction.rollback();
+      next(error);
+    }
+  }
+
+  /**
+   * Elimina un equipo y todos sus datos asociados (solo tenant_admin u organizer).
+   * Desasigna a todos los miembros; deberán inscribirse manualmente a otro equipo.
+   */
+  static async deleteTeam(req, res, next) {
+    const transaction = await getSequelize().transaction();
+    try {
+      const {
+        Team,
+        TeamMember,
+        Submission,
+        SubmissionFile,
+        Evaluation,
+        Project
+      } = getModels();
+
+      const team = await findTeamOr404(req.params.teamId);
+      let roleScopes = req.auth?.roleScopes ?? req.user?.roleScopes ?? [];
+      // Fallback: si roleScopes viene vacío (p. ej. contexto tenant), cargar roles desde BD
+      if (!roleScopes.length && req.tenant?.id && req.user?.id) {
+        const { UserTenant, Role } = getModels();
+        const membership = await UserTenant.findOne({
+          where: {
+            user_id: req.user.id,
+            tenant_id: req.tenant.id,
+            status: 'active'
+          },
+          include: [
+            { model: Role, as: 'assignedRoles', attributes: ['scope'], through: { attributes: [] } }
+          ],
+          skipTenant: true,
+          transaction
+        });
+        if (membership?.assignedRoles?.length) {
+          roleScopes = membership.assignedRoles.map(r => r.scope);
+        }
+      }
+      const canDeleteTeam = req.auth?.isSuperAdmin ||
+        roleScopes.includes('tenant_admin') ||
+        roleScopes.includes('organizer') ||
+        roleScopes.includes('evaluator');
+      if (!canDeleteTeam) {
+        await transaction.rollback();
+        return forbiddenResponse(res);
+      }
+
+      const teamId = team.id;
+      const submissionIds = (await Submission.findAll({
+        where: { team_id: teamId },
+        attributes: ['id'],
+        transaction
+      })).map(s => s.id);
+
+      // 1. Evaluations (por submission y por team_id)
+      await Evaluation.destroy({
+        where: {
+          [Op.or]: [
+            { submission_id: { [Op.in]: submissionIds } },
+            { team_id: teamId }
+          ]
+        },
+        transaction
+      });
+
+      // 2. SubmissionFile: borrar de S3 y luego de BD
+      if (submissionIds.length > 0) {
+        const submissionFiles = await SubmissionFile.findAll({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          attributes: ['id', 'storage_key'],
+          transaction
+        });
+        await Promise.allSettled(
+          submissionFiles.map(file => {
+            if (file.storage_key) {
+              return deleteObjectByKey(file.storage_key).catch(error => {
+                logger.warn('Error al borrar archivo de entrega de S3', {
+                  error: error.message,
+                  storageKey: file.storage_key,
+                  submissionFileId: file.id
+                });
+              });
+            }
+            return Promise.resolve();
+          })
+        );
+        await SubmissionFile.destroy({
+          where: { submission_id: { [Op.in]: submissionIds } },
+          transaction
+        });
+      }
+
+      // 3. Submissions
+      await Submission.destroy({
+        where: { team_id: teamId },
+        transaction
+      });
+
+      // 4. Project: logo en S3 y luego registro
+      if (team.project?.logo_url) {
+        await deleteObjectByUrl(team.project.logo_url).catch(error => {
+          logger.warn('Error al borrar logo de proyecto de S3', {
+            error: error.message,
+            logoUrl: team.project.logo_url,
+            teamId
+          });
+        });
+      }
+      await Project.destroy({
+        where: { team_id: teamId },
+        transaction
+      });
+
+      // 5. Rol captain: quitar team_captain si no es capitán de otro equipo
+      const captainId = team.captain_id != null ? Number(team.captain_id) : null;
+      if (captainId !== null) {
+        const otherTeamsAsCaptain = await TeamMember.count({
+          where: {
+            user_id: captainId,
+            role: 'captain',
+            team_id: { [Op.ne]: teamId }
+          },
+          transaction
+        });
+        if (otherTeamsAsCaptain === 0) {
+          await removeTeamCaptainRole(captainId, req.tenant.id, { transaction });
+        }
+      }
+
+      // 6. TeamMember
+      await TeamMember.destroy({
+        where: { team_id: teamId },
+        transaction
+      });
+
+      // 7. Team
+      await Team.destroy({
+        where: { id: teamId },
+        transaction
+      });
+
+      await transaction.commit();
+
+      logger.info('Equipo eliminado por administrador', {
+        teamId,
+        tenantId: req.tenant.id,
+        userId: req.user?.id
       });
 
       res.status(204).send();

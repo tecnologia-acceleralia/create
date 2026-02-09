@@ -1,4 +1,8 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMutation } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
+import { toast } from 'sonner';
 import { safeTranslate } from '@/utils/i18n-helpers';
 import {
   Dialog,
@@ -8,21 +12,50 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import type { Team } from '@/services/teams';
+import { deleteTeam, type Team } from '@/services/teams';
 
-type TeamDetailsModalProps = {
+type TeamDetailsModalProps = Readonly<{
   open: boolean;
   onOpenChange: (open: boolean) => void;
   team: Team | null;
-};
+  onTeamDeleted?: () => void;
+}>;
 
-export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalProps) {
+export function TeamDetailsModal({ open, onOpenChange, team, onTeamDeleted }: TeamDetailsModalProps) {
   const { t } = useTranslation();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const deleteTeamMutation = useMutation({
+    mutationFn: (teamId: number) => deleteTeam(teamId),
+    onSuccess: () => {
+      onTeamDeleted?.();
+      onOpenChange(false);
+      setDeleteConfirmOpen(false);
+      toast.success(safeTranslate(t, 'teams.teamDeleted'));
+    },
+    onError: (error: unknown) => {
+      const message = isAxiosError(error) && error.response?.data?.message
+        ? String(error.response.data.message)
+        : safeTranslate(t, 'common.error');
+      toast.error(message);
+    }
+  });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -176,12 +209,49 @@ export function TeamDetailsModal({ open, onOpenChange, team }: TeamDetailsModalP
           </div>
         )}
         <DialogFooter className="px-6 pb-6 pt-4 border-t">
+          {team && (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={deleteTeamMutation.isPending}
+              className="mr-auto"
+            >
+              {safeTranslate(t, 'teams.deleteTeam')}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {safeTranslate(t, 'common.close')}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {safeTranslate(t, 'teams.deleteTeamConfirmTitle')}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {safeTranslate(t, 'teams.deleteTeamConfirmDescription')}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={deleteTeamMutation.isPending}>
+            {safeTranslate(t, 'common.cancel')}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => team && deleteTeamMutation.mutate(team.id)}
+            disabled={deleteTeamMutation.isPending}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {deleteTeamMutation.isPending ? safeTranslate(t, 'common.loading') : safeTranslate(t, 'teams.deleteTeam')}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }
 

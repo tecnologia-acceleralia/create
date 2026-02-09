@@ -89,6 +89,14 @@ teamsRouter.get(
   TeamsController.detail
 );
 
+// DELETE solo exige autenticación; el controlador comprueba tenant_admin/organizer/evaluator (con fallback de roles desde BD)
+teamsRouter.delete(
+  '/:teamId',
+  [param('teamId').isInt()],
+  validateRequest,
+  TeamsController.deleteTeam
+);
+
 teamsRouter.get(
   '/:teamId/submissions-evaluations-summary',
   authorizeRoles('tenant_admin', 'organizer', 'evaluator', 'participant', 'team_captain'),

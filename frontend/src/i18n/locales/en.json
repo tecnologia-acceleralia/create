@@ -639,7 +639,11 @@
     "provisional": "Provisional",
     "noScore": "No score",
     "phaseEvaluation": "Phase evaluation",
-    "finalProjectEvaluation": "Final project evaluation"
+    "finalProjectEvaluation": "Final project evaluation",
+    "deleteTeam": "Delete team",
+    "deleteTeamConfirmTitle": "Delete this team?",
+    "deleteTeamConfirmDescription": "The team will be deleted and all its members will be unassigned. Members will need to register for another team manually. This action cannot be undone.",
+    "teamDeleted": "Team deleted successfully"
   },
   "projects": {
     "title": "Projects",

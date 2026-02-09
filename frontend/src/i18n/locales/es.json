@@ -639,7 +639,11 @@
     "provisional": "Provisional",
     "noScore": "Sin puntuación",
     "phaseEvaluation": "Evaluación de fase",
-    "finalProjectEvaluation": "Evaluación final del proyecto"
+    "finalProjectEvaluation": "Evaluación final del proyecto",
+    "deleteTeam": "Eliminar equipo",
+    "deleteTeamConfirmTitle": "¿Eliminar este equipo?",
+    "deleteTeamConfirmDescription": "Se eliminará el equipo y se desasignarán todos sus miembros. Los miembros deberán inscribirse manualmente a otro equipo. Esta acción no se puede deshacer.",
+    "teamDeleted": "Equipo eliminado correctamente"
   },
   "projects": {
     "title": "Proyectos",

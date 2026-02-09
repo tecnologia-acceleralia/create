@@ -1599,6 +1599,12 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         open={isTeamDetailsModalOpen}
         onOpenChange={setIsTeamDetailsModalOpen}
         team={selectedTeam}
+        onTeamDeleted={() => {
+          void queryClient.invalidateQueries({ queryKey: ['teams', eventId] });
+          void queryClient.invalidateQueries({ queryKey: ['events', eventId, 'statistics'] });
+          setSelectedTeam(null);
+          setIsTeamDetailsModalOpen(false);
+        }}
       />
 
       {/* Diálogo de confirmación de importación */}

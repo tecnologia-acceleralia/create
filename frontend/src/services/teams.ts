@@ -85,6 +85,10 @@ export async function leaveTeam(teamId: number) {
   // La sesión se refrescará desde el componente que llama esta función
 }
 
+export async function deleteTeam(teamId: number) {
+  await apiClient.delete(`/teams/${teamId}`);
+}
+
 export type SubmissionSummary = {
   id: number;
   status: 'draft' | 'final';

@@ -639,7 +639,11 @@
     "provisional": "Provisional",
     "noScore": "Sense puntuació",
     "phaseEvaluation": "Avaluació de fase",
-    "finalProjectEvaluation": "Avaluació final del projecte"
+    "finalProjectEvaluation": "Avaluació final del projecte",
+    "deleteTeam": "Eliminar equip",
+    "deleteTeamConfirmTitle": "Eliminar aquest equip?",
+    "deleteTeamConfirmDescription": "S'eliminarà l'equip i es desassignaran tots els membres. Els membres hauran d'inscriure's manualment a un altre equip. Aquesta acció no es pot desfer.",
+    "teamDeleted": "Equip eliminat correctament"
   },
   "projects": {
     "title": "Projectes",
