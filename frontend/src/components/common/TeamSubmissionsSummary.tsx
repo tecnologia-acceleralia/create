@@ -175,7 +175,7 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                                             <span className="text-xs">{formatDate(evaluation.created_at)}</span>
                                           </div>
                                           {evaluation.comment && (
-                                            <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
+                                            <div className="evaluation-scroll mt-1 max-h-48 rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
                                               {evaluation.comment}
                                             </div>
                                           )}
@@ -218,7 +218,7 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                                   <span className="text-muted-foreground">{formatDate(evaluation.created_at)}</span>
                                 </div>
                                 {evaluation.comment && (
-                                  <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
+                                  <div className="evaluation-scroll mt-1 max-h-48 rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
                                     {evaluation.comment}
                                   </div>
                                 )}
@@ -260,7 +260,7 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                   </span>
                 </div>
                 {projectEval.comment && (
-                  <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
+                  <div className="evaluation-scroll mt-1 max-h-48 rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
                     {projectEval.comment}
                   </div>
                 )}

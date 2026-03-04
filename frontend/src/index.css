@@ -65,6 +65,26 @@
   }
 }
 
+/* Barra de scroll siempre visible en áreas de evaluación (Lliuraments i revisions) */
+.evaluation-scroll {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+.evaluation-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.evaluation-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 4px;
+}
+.evaluation-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+.evaluation-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
 /* Estilos para CodeMirror Editor */
 .cm-editor {
   height: 100%;
