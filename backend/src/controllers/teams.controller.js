@@ -771,6 +771,7 @@ export class TeamsController {
                       id: evalData.id,
                       score: evalData.score,
                       status: evalData.status,
+                      comment: evalData.comment ?? null,
                       created_at: evalData.created_at,
                       language: evalData.metadata?.language || null,
                       metadata: evalData.metadata || null

@@ -100,6 +100,7 @@ export type SubmissionSummary = {
     id: number;
     score?: number;
     status?: 'draft' | 'final';
+    comment?: string;
     created_at: string;
     language?: string;
     metadata?: {

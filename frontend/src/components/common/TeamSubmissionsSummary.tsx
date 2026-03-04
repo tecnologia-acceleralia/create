@@ -159,20 +159,26 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                                   <span className="text-muted-foreground">{formatDate(submission.submitted_at)}</span>
                                 </div>
                                 {submission.evaluations.length > 0 && (() => {
-                                  const filteredEvaluations = filterEvaluationsByLanguage(submission.evaluations);
-                                  if (filteredEvaluations.length === 0) return null;
+                                  // Mostrar todas las evaluaciones (sin filtrar por idioma) para que el feedback siempre sea visible
                                   return (
-                                    <div className="mt-1.5 space-y-1">
-                                      {filteredEvaluations.map(evaluation => (
-                                        <div key={evaluation.id} className="flex items-center gap-2 text-muted-foreground">
-                                          <Star className="h-3 w-3" />
-                                          <span>
-                                            {evaluation.score !== null && evaluation.score !== undefined
-                                              ? `${evaluation.score}/10`
-                                              : safeTranslate(t, 'teams.noScore')}
-                                            {evaluation.status === 'final' && ` (${safeTranslate(t, 'teams.final')})`}
-                                          </span>
-                                          <span className="text-xs">{formatDate(evaluation.created_at)}</span>
+                                    <div className="mt-1.5 space-y-2">
+                                      {submission.evaluations.map(evaluation => (
+                                        <div key={evaluation.id} className="text-muted-foreground">
+                                          <div className="flex items-center gap-2">
+                                            <Star className="h-3 w-3 flex-shrink-0" />
+                                            <span>
+                                              {evaluation.score !== null && evaluation.score !== undefined
+                                                ? `${evaluation.score}/10`
+                                                : safeTranslate(t, 'teams.noScore')}
+                                              {evaluation.status === 'final' && ` (${safeTranslate(t, 'teams.final')})`}
+                                            </span>
+                                            <span className="text-xs">{formatDate(evaluation.created_at)}</span>
+                                          </div>
+                                          {evaluation.comment && (
+                                            <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap">
+                                              {evaluation.comment}
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
@@ -187,13 +193,14 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                   })}
 
                   {hasEvaluations && (() => {
-                    const filteredPhaseEvaluations = filterEvaluationsByLanguage(phase.phase_evaluations);
-                    if (filteredPhaseEvaluations.length === 0) return null;
+                    // Mostrar todas las evaluaciones de fase (sin filtrar por idioma) para que el feedback siempre sea visible
+                    const phaseEvals = phase.phase_evaluations;
+                    if (phaseEvals.length === 0) return null;
                     return (
                       <div className="pt-2 border-t">
                         <div className="text-sm font-medium mb-2">{safeTranslate(t, 'teams.phaseEvaluation')}</div>
                         <div className="space-y-1.5 pl-4">
-                          {filteredPhaseEvaluations.map(evaluation => (
+                          {phaseEvals.map(evaluation => (
                             <div key={evaluation.id} className="flex items-center gap-2 text-xs bg-background rounded p-2 border">
                               <Star className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
                               <div className="flex-1 min-w-0">
@@ -211,7 +218,9 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
                                   <span className="text-muted-foreground">{formatDate(evaluation.created_at)}</span>
                                 </div>
                                 {evaluation.comment && (
-                                  <div className="mt-1 text-muted-foreground line-clamp-2">{evaluation.comment}</div>
+                                  <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
+                                    {evaluation.comment}
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -227,8 +236,7 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
         })}
 
         {summary.project_evaluation && (() => {
-          const filteredProjectEvaluation = filterEvaluationsByLanguage([summary.project_evaluation])[0];
-          if (!filteredProjectEvaluation) return null;
+          const projectEval = summary.project_evaluation;
           return (
             <div className="border rounded-md p-3 bg-blue-50 dark:bg-blue-950/20">
               <div className="flex items-center gap-2 mb-2">
@@ -238,21 +246,23 @@ export function TeamSubmissionsSummary({ summary }: TeamSubmissionsSummaryProps)
               <div className="pl-6 space-y-1 text-xs">
                 <div className="flex items-center gap-2">
                   <span>
-                    {filteredProjectEvaluation.score !== null && filteredProjectEvaluation.score !== undefined
-                      ? `${filteredProjectEvaluation.score}/10`
+                    {projectEval.score !== null && projectEval.score !== undefined
+                      ? `${projectEval.score}/10`
                       : safeTranslate(t, 'teams.noScore')}
                   </span>
-                  {filteredProjectEvaluation.status === 'final' && (
+                  {projectEval.status === 'final' && (
                     <Badge variant="default" className="text-xs">
                       {safeTranslate(t, 'teams.final')}
                     </Badge>
                   )}
                   <span className="text-muted-foreground">
-                    {formatDate(filteredProjectEvaluation.created_at)}
+                    {formatDate(projectEval.created_at)}
                   </span>
                 </div>
-                {filteredProjectEvaluation.comment && (
-                  <div className="text-muted-foreground line-clamp-2">{filteredProjectEvaluation.comment}</div>
+                {projectEval.comment && (
+                  <div className="mt-1 max-h-48 overflow-y-auto rounded border bg-muted/30 p-2 text-muted-foreground text-xs whitespace-pre-wrap">
+                    {projectEval.comment}
+                  </div>
                 )}
               </div>
             </div>
