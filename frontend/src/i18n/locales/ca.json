@@ -823,7 +823,17 @@
   "notifications": {
     "title": "Notificacions",
     "markRead": "Marcar com a llegida",
-    "empty": "No tens notificacions"
+    "empty": "No tens notificacions",
+    "phaseNameFallback": "la fase corresponent",
+    "dateNotAvailable": "Data no disponible",
+    "newPhaseEvaluation": "Nova avaluació de fase",
+    "phaseEvaluationReceived": "\"{{phaseName}}\" ha rebut una avaluació.",
+    "newPhaseEvaluationAi": "Nova avaluació de fase assistida per IA",
+    "phaseEvaluationAiReceived": "\"{{phaseName}}\" ha rebut una avaluació generada amb IA.",
+    "newProjectEvaluation": "Nova avaluació de projecte",
+    "projectEvaluationReceived": "El teu projecte ha rebut una avaluació completa.",
+    "newProjectEvaluationAi": "Nova avaluació de projecte assistida per IA",
+    "projectEvaluationAiReceived": "El teu projecte ha rebut una avaluació generada amb IA."
   },
   "landing": {
     "heroTitle": "Benvingut a CREATE",

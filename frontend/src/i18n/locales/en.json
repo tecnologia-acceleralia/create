@@ -825,7 +825,17 @@
   "notifications": {
     "title": "Notifications",
     "markRead": "Mark as read",
-    "empty": "You have no notifications"
+    "empty": "You have no notifications",
+    "phaseNameFallback": "the corresponding phase",
+    "dateNotAvailable": "Date not available",
+    "newPhaseEvaluation": "New phase evaluation",
+    "phaseEvaluationReceived": "\"{{phaseName}}\" has received an evaluation.",
+    "newPhaseEvaluationAi": "New phase evaluation assisted by AI",
+    "phaseEvaluationAiReceived": "\"{{phaseName}}\" has received an AI-generated evaluation.",
+    "newProjectEvaluation": "New project evaluation",
+    "projectEvaluationReceived": "Your project has received a complete evaluation.",
+    "newProjectEvaluationAi": "New project evaluation assisted by AI",
+    "projectEvaluationAiReceived": "Your project has received an AI-generated evaluation."
   },
   "landing": {
     "heroTitle": "Welcome to CREATE",

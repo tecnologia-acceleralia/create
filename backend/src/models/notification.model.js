@@ -33,6 +33,11 @@ export function NotificationModel(sequelize) {
       is_read: {
         type: DataTypes.BOOLEAN,
         defaultValue: false
+      },
+      metadata: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        comment: 'Datos para i18n: title_key, message_key, phase_name por idioma, etc.'
       }
     },
     {

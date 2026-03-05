@@ -7,7 +7,7 @@ import { logger } from '../utils/logger.js';
 import { t } from '../utils/i18n.js';
 import { Op } from 'sequelize';
 
-async function notifyTeam(teamId, title, message, tenantId) {
+async function notifyTeam(teamId, title, message, tenantId, metadata = null) {
   const { TeamMember, Notification } = getModels();
   const members = await TeamMember.findAll({ where: { team_id: teamId } });
   if (!tenantId) {
@@ -19,8 +19,17 @@ async function notifyTeam(teamId, title, message, tenantId) {
     user_id: member.user_id,
     title,
     message,
-    type: 'evaluation'
+    type: 'evaluation',
+    metadata: metadata || null
   })));
+}
+
+/** Devuelve el nombre de la fase como string (phase.name es JSON por idioma). */
+function getPhaseNameString(phase) {
+  const name = phase?.name;
+  if (typeof name === 'string') return name;
+  if (name && typeof name === 'object') return name.es ?? name.ca ?? name.en ?? 'Fase';
+  return 'Fase';
 }
 
 export class EvaluationsController {
@@ -510,7 +519,13 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`, tenantId);
+        const notifMeta = {
+          title_key: 'notifications.newPhaseEvaluation',
+          message_key: 'notifications.phaseEvaluationReceived',
+          phase_id: phase.id,
+          phase_name: phase.name
+        };
+        await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${getPhaseNameString(phase)}" ha recibido una evaluación.`, tenantId, notifMeta);
       }
 
       return successResponse(res, evaluation, 201);
@@ -664,7 +679,13 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(teamId, 'Nueva evaluación de fase asistida por IA', `La fase "${phase.name}" ha recibido una evaluación generada con IA.`, tenantId);
+        const notifMeta = {
+          title_key: 'notifications.newPhaseEvaluationAi',
+          message_key: 'notifications.phaseEvaluationAiReceived',
+          phase_id: phase.id,
+          phase_name: phase.name
+        };
+        await notifyTeam(teamId, 'Nueva evaluación de fase asistida por IA', `La fase "${getPhaseNameString(phase)}" ha recibido una evaluación generada con IA.`, tenantId, notifMeta);
       }
 
       return successResponse(res, evaluation, 201);
@@ -820,7 +841,11 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(team.id, 'Nueva evaluación de proyecto asistida por IA', 'Tu proyecto ha recibido una evaluación generada con IA.', tenantId);
+        const notifMeta = {
+          title_key: 'notifications.newProjectEvaluationAi',
+          message_key: 'notifications.projectEvaluationAiReceived'
+        };
+        await notifyTeam(team.id, 'Nueva evaluación de proyecto asistida por IA', 'Tu proyecto ha recibido una evaluación generada con IA.', tenantId, notifMeta);
       }
 
       return successResponse(res, evaluation, 201);
@@ -990,7 +1015,13 @@ export class EvaluationsController {
       if (updateData.status === 'final' && previousStatus !== 'final') {
         const tenantId = evaluation.tenant_id || phase.tenant_id || req.tenant?.id;
         if (tenantId) {
-          await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${phase.name}" ha recibido una evaluación.`, tenantId);
+          const notifMeta = {
+            title_key: 'notifications.newPhaseEvaluation',
+            message_key: 'notifications.phaseEvaluationReceived',
+            phase_id: phase.id,
+            phase_name: phase.name
+          };
+          await notifyTeam(teamId, 'Nueva evaluación de fase', `La fase "${getPhaseNameString(phase)}" ha recibido una evaluación.`, tenantId, notifMeta);
         }
       }
 
@@ -1052,7 +1083,7 @@ export class EvaluationsController {
         });
 
         if (!phaseEvaluation) {
-          return badRequestResponse(res, t(req, 'evaluations.mustEvaluatePhaseFirst', { phaseName: phase.name }));
+          return badRequestResponse(res, t(req, 'evaluations.mustEvaluatePhaseFirst', { phaseName: getPhaseNameString(phase) }));
         }
       }
 
@@ -1124,7 +1155,11 @@ export class EvaluationsController {
 
       // Solo notificar si es evaluación final
       if (status === 'final') {
-        await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId);
+        const notifMeta = {
+          title_key: 'notifications.newProjectEvaluation',
+          message_key: 'notifications.projectEvaluationReceived'
+        };
+        await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId, notifMeta);
       }
 
       return successResponse(res, evaluation, 201);
@@ -1286,7 +1321,11 @@ export class EvaluationsController {
       if (updateData.status === 'final' && previousStatus !== 'final') {
         const tenantId = evaluation.tenant_id || project.tenant_id || req.tenant?.id;
         if (tenantId) {
-          await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId);
+          const notifMeta = {
+            title_key: 'notifications.newProjectEvaluation',
+            message_key: 'notifications.projectEvaluationReceived'
+          };
+          await notifyTeam(team.id, 'Nueva evaluación de proyecto', 'Tu proyecto ha recibido una evaluación completa.', tenantId, notifMeta);
         }
       }
 

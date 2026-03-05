@@ -823,7 +823,17 @@
   "notifications": {
     "title": "Notificaciones",
     "markRead": "Marcar como leída",
-    "empty": "No tienes notificaciones"
+    "empty": "No tienes notificaciones",
+    "phaseNameFallback": "la fase correspondiente",
+    "dateNotAvailable": "Fecha no disponible",
+    "newPhaseEvaluation": "Nueva evaluación de fase",
+    "phaseEvaluationReceived": "\"{{phaseName}}\" ha recibido una evaluación.",
+    "newPhaseEvaluationAi": "Nueva evaluación de fase asistida por IA",
+    "phaseEvaluationAiReceived": "\"{{phaseName}}\" ha recibido una evaluación generada con IA.",
+    "newProjectEvaluation": "Nueva evaluación de proyecto",
+    "projectEvaluationReceived": "Tu proyecto ha recibido una evaluación completa.",
+    "newProjectEvaluationAi": "Nueva evaluación de proyecto asistida por IA",
+    "projectEvaluationAiReceived": "Tu proyecto ha recibido una evaluación generada con IA."
   },
   "landing": {
     "heroTitle": "Bienvenido a CREATE",

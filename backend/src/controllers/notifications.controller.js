@@ -13,32 +13,25 @@ export class NotificationsController {
       const serializedNotifications = notifications.map(notification => {
         const notificationJson = notification.toJSON();
         
-        // Función helper para convertir fechas a ISO string
+        // Función helper para convertir fechas a ISO string (maneja null, Date inválidos y strings MySQL)
         const toISOString = (dateValue) => {
-          if (dateValue == null) {
-            return null;
-          }
-          
+          if (dateValue == null) return null;
           if (dateValue instanceof Date) {
+            if (Number.isNaN(dateValue.getTime())) return null;
             return dateValue.toISOString();
           }
-          
           if (typeof dateValue === 'string' && dateValue.trim() !== '') {
-            // Intentar parsear el string (puede ser formato MySQL datetime o ISO)
             const date = new Date(dateValue);
-            if (!Number.isNaN(date.getTime())) {
-              return date.toISOString();
-            }
+            if (!Number.isNaN(date.getTime())) return date.toISOString();
           }
-          
           return null;
         };
-        
-        // Convertir created_at a ISO string
-        notificationJson.created_at = toISOString(notificationJson.created_at);
-        
-        // Convertir updated_at a ISO string (opcional, pero útil para debugging)
-        notificationJson.updated_at = toISOString(notificationJson.updated_at);
+
+        const createdAtIso = toISOString(notificationJson.created_at);
+        const updatedAtIso = toISOString(notificationJson.updated_at);
+        // Mostrar siempre una fecha: created_at, o updated_at, o fecha actual como último recurso
+        notificationJson.created_at = createdAtIso ?? updatedAtIso ?? new Date().toISOString();
+        notificationJson.updated_at = updatedAtIso ?? new Date().toISOString();
         
         return notificationJson;
       });
