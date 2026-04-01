@@ -70,6 +70,15 @@ export async function setCaptain(teamId: number, userId: number) {
   // La sesión se refrescará desde el componente que llama esta función
 }
 
+export async function updateTeamMemberRole(
+  teamId: number,
+  userId: number,
+  role: 'member' | 'evaluator'
+) {
+  const response = await apiClient.patch(`/teams/${teamId}/members/${userId}`, { role });
+  return response.data.data as TeamMember;
+}
+
 export async function getTeamsByEvent(eventId: number) {
   const response = await apiClient.get(`/teams/events/${eventId}`);
   return response.data.data as Team[];

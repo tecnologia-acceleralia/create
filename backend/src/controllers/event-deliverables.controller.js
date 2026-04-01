@@ -44,13 +44,10 @@ export class EventDeliverablesController {
         attributes: ['id', 'title', 'phase_id', 'order_index']
       });
 
-      // Obtener todas las entregas del evento (solo finales, no drafts)
+      // Todas las entregas del evento (cualquier estado); por equipo+tarea se usa la más reciente
       const submissions = await Submission.findAll({
-        where: {
-          event_id: eventId,
-          status: 'final'
-        },
-        attributes: ['id', 'team_id', 'task_id', 'attachment_url', 'content', 'submitted_at'],
+        where: { event_id: eventId },
+        attributes: ['id', 'team_id', 'task_id', 'attachment_url', 'content', 'submitted_at', 'status'],
         order: [['submitted_at', 'DESC']]
       });
 
@@ -116,6 +113,7 @@ export class EventDeliverablesController {
               phaseName: phase.name,
               submitted: Boolean(submission),
               submissionId,
+              submissionStatus: submission?.status ?? null,
               attachmentUrl: submission?.attachment_url ?? null,
               content: submission?.content ?? null,
               submittedAt: submission?.submitted_at ?? null,

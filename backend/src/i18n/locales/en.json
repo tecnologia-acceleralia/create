@@ -25,6 +25,8 @@
     "userNotFoundByEmail": "No user found with email {email}. The user must be previously registered on the platform.",
     "userIdOrEmailRequired": "You must specify user_id or user_email",
     "memberNotFound": "Member not found",
+    "addMemberInvalidRole": "New members can only be added as member or team evaluator. For captain, create the team or assign captain afterwards.",
+    "cannotDemoteCaptainViaRoleUpdate": "You cannot change the captain's role here. Assign another captain first.",
     "cannotRemoveCaptainIfOnlyMember": "You cannot remove the captain if they are the only member of the team",
     "mustAssignCaptainBeforeLeave": "You must assign another captain before leaving the team",
     "userNotMemberOfTeam": "The user is not a member of the team",
@@ -41,6 +43,22 @@
       "memberRemovedTitle": "You have been removed from the team",
       "memberRemovedMessage": "The captain of team \"{teamName}\" has removed you from the team."
     }
+  },
+  "eventAssets": {
+    "listError": "Could not list the event files",
+    "noFileProvided": "No file was provided",
+    "eventNotFound": "Event not found",
+    "duplicateResourceName": "A resource with this name already exists for this event",
+    "uploadError": "Could not upload the file",
+    "validateError": "Could not validate the event files",
+    "checkMarkersError": "Could not check markers",
+    "resourceNotFound": "Resource not found",
+    "nameCannotBeEmpty": "The resource name cannot be empty",
+    "nameInvalid": "The resource name is not valid",
+    "updateError": "Could not update the resource",
+    "deleteSuccess": "Resource deleted successfully",
+    "deleteError": "Could not delete the file",
+    "unknownPhase": "Unknown phase"
   },
   "common": {
     "unauthorized": "Unauthorized access"

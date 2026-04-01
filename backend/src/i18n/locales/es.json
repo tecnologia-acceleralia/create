@@ -25,6 +25,8 @@
     "userNotFoundByEmail": "No se encontró ningún usuario con el correo electrónico {email}. El usuario debe estar registrado previamente en la plataforma.",
     "userIdOrEmailRequired": "Debes indicar user_id o user_email",
     "memberNotFound": "Miembro no encontrado",
+    "addMemberInvalidRole": "Solo se puede añadir como miembro o evaluador del equipo. Para capitán, crea el equipo o asigna capitán después.",
+    "cannotDemoteCaptainViaRoleUpdate": "No puedes cambiar el rol del capitán desde aquí. Asigna otro capitán primero.",
     "cannotRemoveCaptainIfOnlyMember": "No puedes eliminar al capitán si es el único miembro del equipo",
     "mustAssignCaptainBeforeLeave": "Debes asignar otro capitán antes de abandonar el equipo",
     "userNotMemberOfTeam": "El usuario no es miembro del equipo",
@@ -41,6 +43,22 @@
       "memberRemovedTitle": "Has sido eliminado del equipo",
       "memberRemovedMessage": "El capitán del equipo \"{teamName}\" te ha eliminado del equipo."
     }
+  },
+  "eventAssets": {
+    "listError": "Error al listar los archivos del evento",
+    "noFileProvided": "No se proporcionó ningún archivo",
+    "eventNotFound": "Evento no encontrado",
+    "duplicateResourceName": "Ya existe un recurso con ese nombre para este evento",
+    "uploadError": "Error al subir el archivo",
+    "validateError": "Error al validar los archivos del evento",
+    "checkMarkersError": "Error al comprobar los marcadores",
+    "resourceNotFound": "Recurso no encontrado",
+    "nameCannotBeEmpty": "El nombre del recurso no puede estar vacío",
+    "nameInvalid": "El nombre del recurso no es válido",
+    "updateError": "Error al actualizar el recurso",
+    "deleteSuccess": "Recurso eliminado correctamente",
+    "deleteError": "Error al eliminar el archivo",
+    "unknownPhase": "Fase desconocida"
   },
   "common": {
     "unauthorized": "Acceso no autorizado"

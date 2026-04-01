@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { body, param } from 'express-validator';
+import { body, param, query } from 'express-validator';
 import { SubmissionsController } from '../../controllers/submissions.controller.js';
 import { authenticate } from '../../middleware/auth.middleware.js';
 import { validateRequest } from '../../middleware/validation.middleware.js';
@@ -27,7 +27,7 @@ submissionsRouter.post(
 
 submissionsRouter.get(
   '/tasks/:taskId/submissions',
-  [param('taskId').isInt()],
+  [param('taskId').isInt(), query('team_id').optional().isInt()],
   validateRequest,
   SubmissionsController.listByTask
 );

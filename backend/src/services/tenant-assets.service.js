@@ -111,7 +111,7 @@ function buildProjectLogoKey(tenantId, projectId, extension) {
 }
 
 function buildSubmissionFileKey(tenantId, submissionId, fileName) {
-  const normalizedName = fileName?.replace?.(/[^\w.\-]+/g, '_') ?? 'file.bin';
+  const normalizedName = normalizeFileName(fileName || 'file');
   // Usa tenant_id en lugar de slug para evitar problemas si el slug cambia
   return `${buildTenantPrefixById(tenantId)}submissions/${submissionId}/${Date.now()}-${crypto.randomUUID()}-${normalizedName}`;
 }

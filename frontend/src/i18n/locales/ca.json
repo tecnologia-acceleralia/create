@@ -543,6 +543,8 @@
       "phase": "Fase",
       "task": "Tasca",
       "submitted": "Entregat",
+      "submittedDraft": "Esborrany",
+      "submittedFinal": "Final",
       "notSubmitted": "No entregat",
       "viewSubmission": "Veure entrega",
       "noTeams": "No hi ha equips registrats",
@@ -550,7 +552,9 @@
       "noTasks": "No hi ha tasques configurades",
       "error": "Error en carregar les dades de seguiment",
       "filterByPhase": "Filtrar per fase",
-      "allPhases": "Totes les fases"
+      "allPhases": "Totes les fases",
+      "viewProjectDetail": "Veure detall del projecte",
+      "projectDetailUnavailable": "No hi ha informació de projecte per a aquest equip"
     }
   },
   "tracking": {
@@ -617,6 +621,11 @@
     "status": "Estat",
     "captain": "Capità",
     "member": "Membre",
+    "evaluator": "Avaluador (equip)",
+    "memberRoleUpdated": "Rol actualitzat",
+    "cannotDemoteCaptainHere": "Assigna un altre capità abans de canviar el rol del capità actual.",
+    "removeMemberConfirmTitle": "Treure membre?",
+    "removeMemberConfirmDescription": "{{name}} deixarà de ser membre d'aquest equip.",
     "noMembers": "No hi ha membres en aquest equip",
     "noProject": "Aquest equip encara no té un projecte associat",
     "projectStatus": "Estat",

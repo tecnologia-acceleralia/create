@@ -15,59 +15,73 @@ import { Select } from '@/components/ui/select';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { safeTranslate } from '@/utils/i18n-helpers';
 import { getMultilingualText } from '@/utils/multilingual';
-import { getEventDeliverablesTracking, getEvents, type EventDeliverablesTracking, type Event } from '@/services/events';
+import {
+  getEventDeliverablesTracking,
+  getEvents,
+  type DeliverableSubmissionStatus,
+  type EventDeliverablesTracking,
+  type Event
+} from '@/services/events';
+import { getProjectsByEvent, type ProjectCard } from '@/services/projects';
 import { getPhaseEvaluations, getProjectEvaluations, type PhaseEvaluation, type ProjectEvaluation } from '@/services/submissions';
 import { getTeamsByEvent, type Team } from '@/services/teams';
 import { arrayToCSV, downloadCSV } from '@/utils/csv';
+import { deliverableSubmissionBadgePresentation, deliverableSubmissionStatusLabelKey } from '@/utils/deliverableSubmissionBadge';
+import { isRegistrationIdeaTaskInTracking } from '@/utils/registrationPhaseDeliverable';
+import { RegistrationIdeaPhaseTrackingCell } from '@/components/events/RegistrationIdeaPhaseTrackingCell';
 
 type DeliverableCellProps = Readonly<{
   taskId: number;
-  submissionId: number | null;
+  teamId: number;
   submitted: boolean;
-  attachmentUrl: string | null;
-  content: string | null;
-  hasFinalEvaluation?: boolean;
+  submissionStatus: DeliverableSubmissionStatus | null;
   eventId: number;
   tenantPath: (path: string) => string;
-  isReviewer: boolean;
+  isRegistrationIdeaPhase?: boolean;
+  registrationProject?: ProjectCard | null;
 }>;
 
 function DeliverableCell({ 
   taskId,
-  submissionId,
+  teamId,
   submitted, 
-  attachmentUrl, 
-  content,
-  hasFinalEvaluation,
+  submissionStatus,
   eventId, 
   tenantPath,
-  isReviewer
+  isRegistrationIdeaPhase,
+  registrationProject
 }: DeliverableCellProps) {
   const { t } = useTranslation();
 
+  if (isRegistrationIdeaPhase) {
+    return (
+      <RegistrationIdeaPhaseTrackingCell project={registrationProject ?? null} />
+    );
+  }
+
   if (submitted) {
+    const { badgeClassName, translationKey } = deliverableSubmissionBadgePresentation(submissionStatus);
+    const taskSubmissionPath = tenantPath(`dashboard/events/${eventId}/tasks/${taskId}`);
     return (
       <div className="flex flex-col items-center gap-2">
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-          {safeTranslate(t, 'events.deliverablesTracking.submitted')}
+        <Badge variant="outline" className={badgeClassName}>
+          {safeTranslate(t, translationKey)}
         </Badge>
-        {(attachmentUrl || content) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-auto p-0 text-xs"
-            asChild
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-auto p-0 text-xs"
+          asChild
+        >
+          <Link
+            to={`${taskSubmissionPath}?teamId=${teamId}`}
+            target="_blank"
+            className="flex items-center gap-1"
           >
-            <Link
-              to={tenantPath(`dashboard/events/${eventId}/tasks/${taskId}`)}
-              target="_blank"
-              className="flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
-            </Link>
-          </Button>
-        )}
+            <ExternalLink className="h-3 w-3" />
+            {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
+          </Link>
+        </Button>
       </div>
     );
   }
@@ -239,11 +253,12 @@ type TrackingTableProps = Readonly<{
   sortedTeams: Array<{ id: number; name: string }>;
   sortedColumns: Array<{ phaseId: number; phaseName: string; taskId: number; taskTitle: string }>;
   columnsByPhase: Map<number, Array<{ phaseId: number; phaseName: string; taskId: number; taskTitle: string; orderIndex: number }>>;
-  deliverablesMap: Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>;
+  deliverablesMap: Map<string, { submitted: boolean; submissionId: number | null; submissionStatus: DeliverableSubmissionStatus | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>;
   eventId: number;
   tenantPath: (path: string) => string;
   isReviewer: boolean;
   selectedPhaseId: number | null;
+  projectByTeamId: Map<number, ProjectCard>;
 }>;
 
 function TrackingTable({ 
@@ -255,7 +270,8 @@ function TrackingTable({
   eventId, 
   tenantPath,
   isReviewer,
-  selectedPhaseId
+  selectedPhaseId,
+  projectByTeamId
 }: TrackingTableProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
@@ -437,23 +453,19 @@ function TrackingTable({
               const key = `${team.id}:${col.taskId}`;
               const deliverable = deliverablesMap.get(key);
               const submitted = deliverable?.submitted ?? false;
-              const submissionId = deliverable?.submissionId ?? null;
-              const attachmentUrl = deliverable?.attachmentUrl ?? null;
-              const content = deliverable?.content ?? null;
-              const hasFinalEvaluation = deliverable?.hasFinalEvaluation ?? false;
-
+              const submissionStatus = deliverable?.submissionStatus ?? null;
+              const isRegistrationIdeaPhase = isRegistrationIdeaTaskInTracking(trackingData, col.taskId!, currentLang);
               return (
                 <TableCell key={`${team.id}-${col.taskId}`} className="text-center w-[150px]">
                   <DeliverableCell
                     taskId={col.taskId!}
-                    submissionId={submissionId}
+                    teamId={team.id}
                     submitted={submitted}
-                    attachmentUrl={attachmentUrl}
-                    content={content}
-                    hasFinalEvaluation={hasFinalEvaluation}
+                    submissionStatus={submissionStatus}
                     eventId={eventId}
                     tenantPath={tenantPath}
-                    isReviewer={isReviewer}
+                    isRegistrationIdeaPhase={isRegistrationIdeaPhase}
+                    registrationProject={isRegistrationIdeaPhase ? projectByTeamId.get(team.id) : undefined}
                   />
                 </TableCell>
               );
@@ -473,12 +485,13 @@ type TrackingContentProps = Readonly<{
   sortedTeams: Array<{ id: number; name: string }>;
   sortedColumns: Array<{ phaseId: number; phaseName: string; taskId: number; taskTitle: string }>;
   columnsByPhase: Map<number, Array<{ phaseId: number; phaseName: string; taskId: number; taskTitle: string; orderIndex: number }>>;
-  deliverablesMap: Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>;
+  deliverablesMap: Map<string, { submitted: boolean; submissionId: number | null; submissionStatus: DeliverableSubmissionStatus | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>;
   tenantPath: (path: string) => string;
   isReviewer: boolean;
   pendingEvaluationsCount: number;
   selectedPhaseId: number | null;
   onPhaseFilterChange: (phaseId: number | null) => void;
+  projectByTeamId: Map<number, ProjectCard>;
 }>;
 
 function TrackingContent({
@@ -494,7 +507,8 @@ function TrackingContent({
   isReviewer,
   pendingEvaluationsCount,
   selectedPhaseId,
-  onPhaseFilterChange
+  onPhaseFilterChange,
+  projectByTeamId
 }: TrackingContentProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
@@ -599,6 +613,7 @@ function TrackingContent({
           tenantPath={tenantPath}
           isReviewer={isReviewer}
           selectedPhaseId={selectedPhaseId}
+          projectByTeamId={projectByTeamId}
         />
       </div>
     </div>
@@ -715,7 +730,7 @@ export default function DeliverablesTrackingPage() {
   const deliverablesMap = useMemo(() => {
     if (!trackingData) return new Map();
 
-    const map = new Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>();
+    const map = new Map<string, { submitted: boolean; submissionId: number | null; submissionStatus: DeliverableSubmissionStatus | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>();
     
     for (const team of trackingData.teams) {
       for (const deliverable of team.deliverables) {
@@ -723,6 +738,7 @@ export default function DeliverablesTrackingPage() {
         map.set(key, {
           submitted: deliverable.submitted,
           submissionId: deliverable.submissionId,
+          submissionStatus: deliverable.submissionStatus ?? null,
           attachmentUrl: deliverable.attachmentUrl,
           content: deliverable.content,
           hasFinalEvaluation: deliverable.hasFinalEvaluation,
@@ -735,19 +751,44 @@ export default function DeliverablesTrackingPage() {
     return map;
   }, [trackingData]);
 
+  const hasRegistrationTrackingColumn = useMemo(() => {
+    if (!trackingData) return false;
+    return trackingData.columns.some(col => isRegistrationIdeaTaskInTracking(trackingData, col.taskId, currentLang));
+  }, [trackingData, currentLang]);
+
+  const { data: eventProjects } = useQuery({
+    queryKey: ['event-projects', selectedEventId],
+    queryFn: () => getProjectsByEvent(selectedEventId!),
+    enabled:
+      selectedEventId !== null &&
+      Number.isFinite(selectedEventId) &&
+      !!trackingData &&
+      trackingData.teams.length > 0 &&
+      hasRegistrationTrackingColumn
+  });
+
+  const projectByTeamId = useMemo(() => {
+    const map = new Map<number, ProjectCard>();
+    eventProjects?.forEach(p => map.set(p.team_id, p));
+    return map;
+  }, [eventProjects]);
+
   // Contar evaluaciones pendientes
   const pendingEvaluationsCount = useMemo(() => {
     if (!trackingData) return 0;
     let count = 0;
     trackingData.teams.forEach(team => {
       team.deliverables.forEach(deliverable => {
+        if (isRegistrationIdeaTaskInTracking(trackingData, deliverable.taskId, currentLang)) {
+          return;
+        }
         if (deliverable.submitted && !deliverable.hasFinalEvaluation) {
           count++;
         }
       });
     });
     return count;
-  }, [trackingData]);
+  }, [trackingData, currentLang]);
 
   // Ordenar equipos por nombre
   const sortedTeams = useMemo(() => {
@@ -808,8 +849,12 @@ export default function DeliverablesTrackingPage() {
           const deliverable = deliverablesMap.get(key);
           const submitted = deliverable?.submitted ?? false;
           const columnKey = taskHeaders[index];
+          if (trackingData && isRegistrationIdeaTaskInTracking(trackingData, column.taskId, currentLang)) {
+            row[columnKey] = safeTranslate(t, 'events.deliverablesTracking.submittedFinal');
+            continue;
+          }
           row[columnKey] = submitted 
-            ? safeTranslate(t, 'events.deliverablesTracking.submitted')
+            ? safeTranslate(t, deliverableSubmissionStatusLabelKey(deliverable?.submissionStatus))
             : safeTranslate(t, 'events.deliverablesTracking.notSubmitted');
         }
 
@@ -887,6 +932,7 @@ export default function DeliverablesTrackingPage() {
             isReviewer={isReviewer}
             pendingEvaluationsCount={pendingEvaluationsCount}
             selectedPhaseId={selectedPhaseId}
+            projectByTeamId={projectByTeamId}
             onPhaseFilterChange={(phaseId) => {
               setSelectedPhaseId(phaseId);
               const newSearchParams = new URLSearchParams(searchParams);

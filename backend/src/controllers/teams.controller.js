@@ -147,11 +147,17 @@ export class TeamsController {
 
       await ensureUserNotInOtherTeam(userId, team.event_id);
 
+      const requestedRole = req.body.role ?? 'member';
+      if (!['member', 'evaluator'].includes(requestedRole)) {
+        await transaction.rollback();
+        return badRequestResponse(res, t(req, 'teams.addMemberInvalidRole'));
+      }
+
       const member = await TeamMember.create({
         tenant_id: req.tenant.id,
         team_id: team.id,
         user_id: userId,
-        role: req.body.role ?? 'member',
+        role: requestedRole,
         status: 'active'
       }, { transaction });
 
@@ -222,6 +228,36 @@ export class TeamsController {
 
       await member.destroy();
       res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateMemberRole(req, res, next) {
+    try {
+      const { TeamMember } = getModels();
+      const team = await findTeamOr404(req.params.teamId);
+
+      if (!canManageTeam(req, team)) {
+        return forbiddenResponse(res);
+      }
+
+      const userId = Number(req.params.userId);
+      const newRole = req.body.role;
+      const member = await TeamMember.findOne({
+        where: { team_id: team.id, user_id: userId }
+      });
+
+      if (!member) {
+        return notFoundResponse(res, t(req, 'teams.memberNotFound'));
+      }
+
+      if (member.role === 'captain') {
+        return badRequestResponse(res, t(req, 'teams.cannotDemoteCaptainViaRoleUpdate'));
+      }
+
+      await member.update({ role: newRole });
+      return successResponse(res, member);
     } catch (error) {
       next(error);
     }

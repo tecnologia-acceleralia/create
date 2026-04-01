@@ -66,39 +66,53 @@ function decodeFileName(fileName) {
 }
 
 /**
- * Normaliza un nombre de archivo eliminando acentos y caracteres especiales
+ * Nombre lógico de recurso (evento): sin acentos, sin espacios ni caracteres raros;
+ * conserva letras, números, punto, guion y guion bajo.
+ * @param {string} name
+ * @returns {string}
+ */
+export function sanitizeLogicalAssetName(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replaceAll(/[^a-zA-Z0-9._-]/g, '');
+}
+
+/**
+ * Nombre de archivo seguro para almacenamiento (S3/claves): elimina acentos,
+ * espacios y caracteres especiales; solo letras y números en la base y extensión alfanumérica.
  * @param {string} fileName - Nombre del archivo original
- * @returns {string} Nombre normalizado sin acentos
+ * @returns {string}
  */
 export function normalizeFileName(fileName) {
-  if (!fileName) return 'file.bin';
-  
-  // Primero decodificar caracteres URL-encoded si los hay
-  const decoded = decodeFileName(fileName);
-  
-  // Separar extensión del nombre
+  if (!fileName) return 'file';
+
+  const decoded = decodeFileName(String(fileName).trim());
   const lastDotIndex = decoded.lastIndexOf('.');
+
   let namePart = decoded;
-  let extension = '';
-  
-  if (lastDotIndex > 0) {
-    namePart = decoded.substring(0, lastDotIndex);
-    extension = decoded.substring(lastDotIndex);
+  let extRaw = '';
+
+  if (lastDotIndex > 0 && lastDotIndex < decoded.length - 1) {
+    namePart = decoded.slice(0, lastDotIndex);
+    extRaw = decoded.slice(lastDotIndex + 1);
   }
-  
-  // Normalizar el nombre (eliminar acentos y caracteres especiales)
-  namePart = namePart
-    .normalize('NFD') // Descompone caracteres acentuados
-    .replace(/[\u0300-\u036f]/g, '') // Elimina diacríticos (acentos)
-    .replace(/[^a-zA-Z0-9.\-]/g, '-') // Reemplaza caracteres especiales por guiones (no guiones bajos)
-    .replace(/_/g, '-') // Reemplaza todos los guiones bajos por guiones normales
-    .replace(/-+/g, '-') // Reemplaza múltiples guiones por uno solo
-    .replace(/^-+|-+$/g, '') // Elimina guiones al inicio y final
-    .replace(/-+\./g, '.') // Elimina guiones antes del punto
-    .replace(/\.+$/, ''); // Elimina puntos al final (si quedaron)
-  
-  // Combinar nombre normalizado con extensión
-  return namePart + extension;
+
+  let base = namePart
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replaceAll(/[^a-zA-Z0-9]/g, '');
+
+  if (!base) {
+    base = 'file';
+  }
+
+  const ext = extRaw.replaceAll(/[^a-zA-Z0-9]/g, '').toLowerCase();
+  if (ext) {
+    return `${base}.${ext}`;
+  }
+  return base;
 }
 
 /**
@@ -147,7 +161,7 @@ export function extractFileNameFromS3Key(s3Key) {
     if (fileName.includes('%')) {
       fileName = decodeURIComponent(fileName);
     }
-    // Nota: Si el nombre fue normalizado con /[^\w.\-]+/g, los acentos ya se perdieron
+    // Nota: Si el nombre fue normalizado (solo alfanuméricos + extensión), los acentos ya se perdieron
     // y no podemos recuperarlos. En ese caso, el nombre ya está en su forma final.
   } catch (e) {
     // Si falla la decodificación, devolver el nombre tal cual

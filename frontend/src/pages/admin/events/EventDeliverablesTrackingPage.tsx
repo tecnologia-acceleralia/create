@@ -14,8 +14,16 @@ import { Button } from '@/components/ui/button';
 import { useTenantPath } from '@/hooks/useTenantPath';
 import { safeTranslate } from '@/utils/i18n-helpers';
 import { getMultilingualText } from '@/utils/multilingual';
-import { getEventDeliverablesTracking, type EventDeliverablesTracking } from '@/services/events';
-import { getEventDetail } from '@/services/events';
+import {
+  getEventDeliverablesTracking,
+  getEventDetail,
+  type DeliverableSubmissionStatus,
+  type EventDeliverablesTracking
+} from '@/services/events';
+import { getProjectsByEvent, type ProjectCard } from '@/services/projects';
+import { deliverableSubmissionBadgePresentation } from '@/utils/deliverableSubmissionBadge';
+import { isRegistrationIdeaTaskInTracking } from '@/utils/registrationPhaseDeliverable';
+import { RegistrationIdeaPhaseTrackingCell } from '@/components/events/RegistrationIdeaPhaseTrackingCell';
 
 export default function EventDeliverablesTrackingPage() {
   const { t, i18n } = useTranslation();
@@ -31,6 +39,13 @@ export default function EventDeliverablesTrackingPage() {
     queryFn: () => getEventDetail(numericEventId),
     enabled: Number.isFinite(numericEventId)
   });
+
+  const eventName = useMemo(() => {
+    if (!eventDetail?.name) {
+      return '';
+    }
+    return getMultilingualText(eventDetail.name, currentLang);
+  }, [eventDetail?.name, currentLang]);
 
   const { data: trackingData, isLoading, isError } = useQuery<EventDeliverablesTracking>({
     queryKey: ['events', numericEventId, 'deliverables-tracking'],
@@ -65,7 +80,7 @@ export default function EventDeliverablesTrackingPage() {
   const deliverablesMap = useMemo(() => {
     if (!trackingData) return new Map();
 
-    const map = new Map<string, { submitted: boolean; submissionId: number | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>();
+    const map = new Map<string, { submitted: boolean; submissionId: number | null; submissionStatus: DeliverableSubmissionStatus | null; attachmentUrl: string | null; content: string | null; hasFinalEvaluation?: boolean; hasPendingEvaluation?: boolean; finalEvaluationId?: number | null }>();
     
     trackingData.teams.forEach(team => {
       team.deliverables.forEach(deliverable => {
@@ -73,6 +88,7 @@ export default function EventDeliverablesTrackingPage() {
         map.set(key, {
           submitted: deliverable.submitted,
           submissionId: deliverable.submissionId,
+          submissionStatus: deliverable.submissionStatus ?? null,
           attachmentUrl: deliverable.attachmentUrl,
           content: deliverable.content,
           hasFinalEvaluation: deliverable.hasFinalEvaluation,
@@ -91,13 +107,37 @@ export default function EventDeliverablesTrackingPage() {
     let count = 0;
     trackingData.teams.forEach(team => {
       team.deliverables.forEach(deliverable => {
+        if (isRegistrationIdeaTaskInTracking(trackingData, deliverable.taskId, currentLang)) {
+          return;
+        }
         if (deliverable.submitted && !deliverable.hasFinalEvaluation) {
           count++;
         }
       });
     });
     return count;
-  }, [trackingData]);
+  }, [trackingData, currentLang]);
+
+  const hasRegistrationTrackingColumn = useMemo(() => {
+    if (!trackingData) return false;
+    return trackingData.columns.some(col => isRegistrationIdeaTaskInTracking(trackingData, col.taskId, currentLang));
+  }, [trackingData, currentLang]);
+
+  const { data: eventProjects } = useQuery({
+    queryKey: ['event-projects', numericEventId],
+    queryFn: () => getProjectsByEvent(numericEventId),
+    enabled:
+      Number.isFinite(numericEventId) &&
+      !!trackingData &&
+      trackingData.teams.length > 0 &&
+      hasRegistrationTrackingColumn
+  });
+
+  const projectByTeamId = useMemo(() => {
+    const map = new Map<number, ProjectCard>();
+    eventProjects?.forEach(p => map.set(p.team_id, p));
+    return map;
+  }, [eventProjects]);
 
   if (!Number.isFinite(numericEventId)) {
     return (
@@ -127,13 +167,7 @@ export default function EventDeliverablesTrackingPage() {
     );
   }
 
-  const eventName = useMemo(() => {
-    if (!eventDetail?.name) {
-      return '';
-    }
-    return getMultilingualText(eventDetail.name, currentLang);
-  }, [eventDetail?.name, currentLang]);
-  const phases = trackingData.phases.sort((a, b) => a.orderIndex - b.orderIndex);
+  const phases = [...trackingData.phases].sort((a, b) => a.orderIndex - b.orderIndex);
 
   return (
     <DashboardLayout
@@ -234,18 +268,33 @@ export default function EventDeliverablesTrackingPage() {
                       const deliverable = deliverablesMap.get(key);
                       const submitted = deliverable?.submitted ?? false;
                       const submissionId = deliverable?.submissionId;
-                      const attachmentUrl = deliverable?.attachmentUrl;
-                      const content = deliverable?.content;
+                      const submissionStatus = deliverable?.submissionStatus ?? null;
                       const hasFinalEvaluation = deliverable?.hasFinalEvaluation ?? false;
+                      const statusPresentation = submitted
+                        ? deliverableSubmissionBadgePresentation(submissionStatus)
+                        : null;
+                      const viewTaskPath = tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}`);
+
+                      if (isRegistrationIdeaTaskInTracking(trackingData, column.taskId, currentLang)) {
+                        return (
+                          <TableCell key={`${team.id}-${column.taskId}`} className="text-center">
+                            <RegistrationIdeaPhaseTrackingCell
+                              project={projectByTeamId.get(team.id)}
+                              showSuccessIcon
+                              SuccessIcon={Check}
+                            />
+                          </TableCell>
+                        );
+                      }
 
                       return (
                         <TableCell key={`${team.id}-${column.taskId}`} className="text-center">
-                          {submitted ? (
+                          {submitted && statusPresentation ? (
                             <div className="flex flex-col items-center gap-2">
                               <div className="flex items-center gap-2">
-                                <Check className="h-5 w-5 text-green-600" aria-hidden />
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                                  {safeTranslate(t, 'events.deliverablesTracking.submitted')}
+                                <Check className={`h-5 w-5 ${statusPresentation.accentClassName}`} aria-hidden />
+                                <Badge variant="outline" className={statusPresentation.badgeClassName}>
+                                  {safeTranslate(t, statusPresentation.translationKey)}
                                 </Badge>
                               </div>
                               {isReviewer && (
@@ -279,23 +328,21 @@ export default function EventDeliverablesTrackingPage() {
                                   )}
                                 </div>
                               )}
-                              {(attachmentUrl || content) && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-auto p-0 text-xs"
-                                  asChild
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 text-xs"
+                                asChild
+                              >
+                                <Link
+                                  to={`${viewTaskPath}?teamId=${team.id}`}
+                                  target="_blank"
+                                  className="flex items-center gap-1"
                                 >
-                                  <Link
-                                    to={tenantPath(`dashboard/events/${eventId}/tasks/${column.taskId}`)}
-                                    target="_blank"
-                                    className="flex items-center gap-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
-                                  </Link>
-                                </Button>
-                              )}
+                                  <ExternalLink className="h-3 w-3" />
+                                  {safeTranslate(t, 'events.deliverablesTracking.viewSubmission')}
+                                </Link>
+                              </Button>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-2">

@@ -123,7 +123,7 @@ export function canManageTeam(req, team) {
   if (req.auth?.isSuperAdmin) {
     return true;
   }
-  if (isTenantAdmin(req)) {
+  if (isManager(req)) {
     return true;
   }
   // Normalizar ambos valores a números para evitar problemas de comparación de tipos

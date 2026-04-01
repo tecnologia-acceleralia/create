@@ -3,7 +3,15 @@ import { Op } from 'sequelize';
 import { getModels } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 import { uploadEventAsset, deleteObjectByKey, checkObjectExists, getSettings, extractKeyFromUrl } from '../services/tenant-assets.service.js';
+import { normalizeFileName, sanitizeLogicalAssetName } from '../utils/s3-utils.js';
 import { extractAssetNames } from '../utils/asset-markers.js';
+import { t } from '../utils/i18n.js';
+import {
+  badRequestResponse,
+  conflictResponse,
+  errorResponse,
+  notFoundResponse
+} from '../utils/response.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -42,10 +50,7 @@ export class EventAssetsController {
       });
     } catch (error) {
       logger.error('Error al listar assets del evento', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al listar los archivos del evento'
-      });
+      return errorResponse(res, t(req, 'eventAssets.listError'), 500);
     }
   }
 
@@ -59,29 +64,21 @@ export class EventAssetsController {
       const file = req.file;
 
       if (!file) {
-        return res.status(400).json({
-          success: false,
-          message: 'No se proporcionó ningún archivo'
-        });
+        return badRequestResponse(res, t(req, 'eventAssets.noFileProvided'));
       }
 
       let { name, description } = req.body;
+
+      const safeOriginalFileName = normalizeFileName(file.originalname);
+
       if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        // Si no se proporciona nombre, usar el nombre del archivo normalizado
-        name = file.originalname
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-zA-Z0-9.\-_]/g, '_')
-          .replace(/_+/g, '_')
-          .replace(/^_+|_+$/g, '');
+        name = safeOriginalFileName;
       } else {
-        // Normalizar el nombre proporcionado (eliminar acentos)
-        name = name
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-zA-Z0-9.\-_]/g, '_')
-          .replace(/_+/g, '_')
-          .replace(/^_+|_+$/g, '');
+        name = sanitizeLogicalAssetName(name);
+      }
+
+      if (!name || !name.trim()) {
+        name = safeOriginalFileName;
       }
 
       // Normalizar description si se proporciona
@@ -89,15 +86,6 @@ export class EventAssetsController {
         description = description.trim() || null;
       } else {
         description = null;
-      }
-
-      // Validar formato del nombre (solo letras, números, guiones, puntos y guiones bajos)
-      const nameRegex = /^[a-zA-Z0-9._-]+$/;
-      if (!nameRegex.test(name.trim())) {
-        return res.status(400).json({
-          success: false,
-          message: 'El nombre del recurso solo puede contener letras, números, guiones, puntos y guiones bajos'
-        });
       }
 
       const { EventAsset, Event } = getModels();
@@ -111,10 +99,7 @@ export class EventAssetsController {
       });
 
       if (!event) {
-        return res.status(404).json({
-          success: false,
-          message: 'Evento no encontrado'
-        });
+        return notFoundResponse(res, t(req, 'eventAssets.eventNotFound'));
       }
 
       // Verificar si ya existe un asset con ese nombre para este evento
@@ -129,10 +114,7 @@ export class EventAssetsController {
       // Si existe y no se solicita sobreescribir, retornar error
       const overwrite = req.body.overwrite === 'true' || req.body.overwrite === true;
       if (existingAsset && !overwrite) {
-        return res.status(409).json({
-          success: false,
-          message: 'Ya existe un recurso con ese nombre para este evento'
-        });
+        return conflictResponse(res, t(req, 'eventAssets.duplicateResourceName'));
       }
 
       // Si existe y se solicita sobreescribir, eliminar el asset anterior
@@ -150,29 +132,21 @@ export class EventAssetsController {
         await existingAsset.destroy();
       }
 
-      // Subir el archivo a S3
+      // Subir el archivo a S3 (nombre sanitizado para la clave del objeto)
       const { url, key } = await uploadEventAsset({
         tenantId: tenant.id,
         eventId: Number(eventId),
-        fileName: file.originalname,
+        fileName: safeOriginalFileName,
         buffer: file.buffer,
         contentType: file.mimetype
       });
-
-      // Normalizar el nombre del archivo original también
-      const normalizedOriginalName = file.originalname
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9.\-_]/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '');
 
       // Guardar en la base de datos
       const asset = await EventAsset.create({
         tenant_id: tenant.id,
         event_id: eventId,
         name: name.trim(), // Nombre normalizado sin acentos (usado en marcadores)
-        original_filename: normalizedOriginalName, // Nombre original también normalizado
+        original_filename: safeOriginalFileName,
         s3_key: key,
         url,
         mime_type: file.mimetype,
@@ -187,10 +161,7 @@ export class EventAssetsController {
       });
     } catch (error) {
       logger.error('Error al subir asset del evento', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al subir el archivo'
-      });
+      return errorResponse(res, t(req, 'eventAssets.uploadError'), 500);
     }
   }
 
@@ -282,10 +253,7 @@ export class EventAssetsController {
       });
     } catch (error) {
       logger.error('Error al validar assets del evento', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al validar los archivos del evento'
-      });
+      return errorResponse(res, t(req, 'eventAssets.validateError'), 500);
     }
   }
 
@@ -308,10 +276,7 @@ export class EventAssetsController {
       });
 
       if (!event) {
-        return res.status(404).json({
-          success: false,
-          message: 'Evento no encontrado'
-        });
+        return notFoundResponse(res, t(req, 'eventAssets.eventNotFound'));
       }
 
       // Obtener todos los assets del evento
@@ -383,7 +348,7 @@ export class EventAssetsController {
                 id: task.id,
                 title: task.title,
                 phaseId: task.phase_id,
-                phaseName: task.phase?.name || 'Fase desconocida',
+                phaseName: task.phase?.name || t(req, 'eventAssets.unknownPhase'),
                 marker: `{{asset:${marker}}}`,
                 assetName: marker
               });
@@ -415,10 +380,7 @@ export class EventAssetsController {
       });
     } catch (error) {
       logger.error('Error al comprobar marcadores', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al comprobar los marcadores'
-      });
+      return errorResponse(res, t(req, 'eventAssets.checkMarkersError'), 500);
     }
   }
 
@@ -442,34 +404,18 @@ export class EventAssetsController {
       });
 
       if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: 'Recurso no encontrado'
-        });
+        return notFoundResponse(res, t(req, 'eventAssets.resourceNotFound'));
       }
 
-      // Si se proporciona un nombre nuevo, validarlo y normalizarlo
+      // Si se proporciona un nombre nuevo, sanitizarlo (misma lógica que en upload)
       if (name !== undefined) {
         if (typeof name !== 'string' || name.trim().length === 0) {
-          return res.status(400).json({
-            success: false,
-            message: 'El nombre del recurso no puede estar vacío'
-          });
+          return badRequestResponse(res, t(req, 'eventAssets.nameCannotBeEmpty'));
         }
 
-        // Normalizar el nombre (eliminar acentos)
-        const normalizedName = name
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .trim();
-
-        // Validar formato del nombre
-        const nameRegex = /^[a-zA-Z0-9._-]+$/;
-        if (!nameRegex.test(normalizedName)) {
-          return res.status(400).json({
-            success: false,
-            message: 'El nombre del recurso solo puede contener letras, números, guiones, puntos y guiones bajos'
-          });
+        const normalizedName = sanitizeLogicalAssetName(name);
+        if (!normalizedName) {
+          return badRequestResponse(res, t(req, 'eventAssets.nameInvalid'));
         }
 
         // Verificar si ya existe otro asset con ese nombre (excluyendo el actual)
@@ -483,10 +429,7 @@ export class EventAssetsController {
         });
 
         if (existingAsset) {
-          return res.status(409).json({
-            success: false,
-            message: 'Ya existe un recurso con ese nombre para este evento'
-          });
+          return conflictResponse(res, t(req, 'eventAssets.duplicateResourceName'));
         }
 
         asset.name = normalizedName;
@@ -509,10 +452,7 @@ export class EventAssetsController {
       });
     } catch (error) {
       logger.error('Error al actualizar asset del evento', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al actualizar el recurso'
-      });
+      return errorResponse(res, t(req, 'eventAssets.updateError'), 500);
     }
   }
 
@@ -535,10 +475,7 @@ export class EventAssetsController {
       });
 
       if (!asset) {
-        return res.status(404).json({
-          success: false,
-          message: 'Recurso no encontrado'
-        });
+        return notFoundResponse(res, t(req, 'eventAssets.resourceNotFound'));
       }
 
       // Eliminar de S3
@@ -556,14 +493,11 @@ export class EventAssetsController {
 
       return res.json({
         success: true,
-        message: 'Recurso eliminado correctamente'
+        message: t(req, 'eventAssets.deleteSuccess')
       });
     } catch (error) {
       logger.error('Error al eliminar asset del evento', { error: error.message, stack: error.stack });
-      return res.status(500).json({
-        success: false,
-        message: 'Error al eliminar el archivo'
-      });
+      return errorResponse(res, t(req, 'eventAssets.deleteError'), 500);
     }
   }
 }

@@ -25,6 +25,8 @@
     "userNotFoundByEmail": "No s'ha trobat cap usuari amb el correu electrònic {email}. L'usuari ha d'estar registrat prèviament a la plataforma.",
     "userIdOrEmailRequired": "Has d'indicar user_id o user_email",
     "memberNotFound": "Membre no trobat",
+    "addMemberInvalidRole": "Només es pot afegir com a membre o avaluador de l'equip. Per a capità, crea l'equip o assigna capità després.",
+    "cannotDemoteCaptainViaRoleUpdate": "No pots canviar el rol del capità des d'aquí. Assigna primer un altre capità.",
     "cannotRemoveCaptainIfOnlyMember": "No pots eliminar el capità si és l'únic membre de l'equip",
     "mustAssignCaptainBeforeLeave": "Has d'assignar un altre capità abans d'abandonar l'equip",
     "userNotMemberOfTeam": "L'usuari no és membre de l'equip",
@@ -41,6 +43,22 @@
       "memberRemovedTitle": "Has estat eliminat de l'equip",
       "memberRemovedMessage": "El capità de l'equip \"{teamName}\" t'ha eliminat de l'equip."
     }
+  },
+  "eventAssets": {
+    "listError": "Error en llistar els fitxers de l'esdeveniment",
+    "noFileProvided": "No s'ha proporcionat cap fitxer",
+    "eventNotFound": "Esdeveniment no trobat",
+    "duplicateResourceName": "Ja existeix un recurs amb aquest nom per a aquest esdeveniment",
+    "uploadError": "Error en pujar el fitxer",
+    "validateError": "Error en validar els fitxers de l'esdeveniment",
+    "checkMarkersError": "Error en comprovar els marcadors",
+    "resourceNotFound": "Recurs no trobat",
+    "nameCannotBeEmpty": "El nom del recurs no pot estar buit",
+    "nameInvalid": "El nom del recurs no és vàlid",
+    "updateError": "Error en actualitzar el recurs",
+    "deleteSuccess": "Recurs eliminat correctament",
+    "deleteError": "Error en eliminar el fitxer",
+    "unknownPhase": "Fase desconeguda"
   },
   "common": {
     "unauthorized": "Accés no autoritzat"

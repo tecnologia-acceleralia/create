@@ -440,6 +440,8 @@ export type DeliverableColumn = {
   orderIndex?: number;
 };
 
+export type DeliverableSubmissionStatus = 'draft' | 'final';
+
 export type TeamDeliverable = {
   taskId: number;
   taskTitle: string;
@@ -447,6 +449,8 @@ export type TeamDeliverable = {
   phaseName: string;
   submitted: boolean;
   submissionId: number | null;
+  /** Estado de la entrega más reciente (equipo+tarea); null si no hay entrega */
+  submissionStatus?: DeliverableSubmissionStatus | null;
   attachmentUrl: string | null;
   content: string | null;
   submittedAt: string | null;

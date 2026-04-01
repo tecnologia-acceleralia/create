@@ -2,16 +2,17 @@ import crypto from 'node:crypto';
 import { getSequelize } from '../database/database.js';
 import { getModels } from '../models/index.js';
 import { decodeBase64File, deleteObjectByKey, uploadSubmissionFile } from '../services/tenant-assets.service.js';
+import { normalizeFileName } from '../utils/s3-utils.js';
 import { logger } from '../utils/logger.js';
-import { isManager, isReviewer } from '../utils/authorization.js';
+import { isReviewer } from '../utils/authorization.js';
 import { findMembership } from '../utils/finders.js';
-import { successResponse, notFoundResponse, forbiddenResponse } from '../utils/response.js';
+import { successResponse, notFoundResponse, forbiddenResponse, badRequestResponse } from '../utils/response.js';
 
 export class SubmissionsController {
   static async create(req, res, next) {
     const transaction = await getSequelize().transaction();
     try {
-      const { Task, Submission, TeamMember, SubmissionFile } = getModels();
+      const { Task, Submission, TeamMember, Team, SubmissionFile } = getModels();
       const taskId = Number(req.params.taskId ?? req.body.task_id);
       const task = await Task.findOne({ where: { id: taskId } });
       if (!task) {
@@ -37,14 +38,30 @@ export class SubmissionsController {
 
       const allowedMimeTypes = Array.isArray(task.allowed_mime_types) ? task.allowed_mime_types : [];
 
-      let teamId = req.body.team_id ? Number(req.body.team_id) : null;
+      const bodyTeamRaw = req.body.team_id;
+      const hasExplicitTeamId = bodyTeamRaw != null && bodyTeamRaw !== '';
+      let teamId = hasExplicitTeamId ? Number(bodyTeamRaw) : null;
 
-      if (isManager(req) && !teamId) {
-        throw Object.assign(new Error('team_id requerido para administradores'), { statusCode: 400 });
-      }
+      const membership = await findMembership(req.user.id, task.event_id);
 
-      if (!isManager(req)) {
-        const membership = await findMembership(req.user.id, task.event_id);
+      if (hasExplicitTeamId) {
+        if (!Number.isFinite(teamId) || teamId <= 0) {
+          throw Object.assign(new Error('team_id inválido'), { statusCode: 400 });
+        }
+        if (isReviewer(req)) {
+          const team = await Team.findOne({ where: { id: teamId, event_id: task.event_id } });
+          if (!team) {
+            throw Object.assign(new Error('Equipo no encontrado en este evento'), { statusCode: 400 });
+          }
+        } else {
+          if (!membership || Number(membership.team.id) !== Number(teamId)) {
+            throw Object.assign(new Error('No autorizado para entregar por ese equipo'), { statusCode: 403 });
+          }
+          if (membership.role !== 'captain') {
+            throw Object.assign(new Error('Solo el capitán del equipo puede hacer entregas'), { statusCode: 403 });
+          }
+        }
+      } else {
         if (!membership) {
           throw Object.assign(new Error('No perteneces a un equipo en este evento'), { statusCode: 403 });
         }
@@ -54,8 +71,8 @@ export class SubmissionsController {
         teamId = membership.team.id;
       }
 
-      // Validar que el proyecto del equipo esté activo
-      if (teamId) {
+      // Proyecto activo: participantes y capitanes; revisores pueden entregar siempre
+      if (teamId && !isReviewer(req)) {
         const { Project } = getModels();
         const project = await Project.findOne({ where: { team_id: teamId } });
         if (project && project.status !== 'active') {
@@ -75,10 +92,13 @@ export class SubmissionsController {
         attachment_url: req.body.attachment_url
       }, { transaction });
 
-      // Ensure membership exists for submitter in team
-      const membership = await TeamMember.findOne({ where: { team_id: teamId, user_id: req.user.id } });
-      if (!membership && !isManager(req)) {
-        throw Object.assign(new Error('No autorizado para registrar entregas de este equipo'), { statusCode: 403 });
+      // Revisor subiendo para otro equipo (team_id explícito): no exige ser miembro
+      const skipTeamMemberCheck = isReviewer(req) && hasExplicitTeamId;
+      if (!skipTeamMemberCheck) {
+        const submitterMembership = await TeamMember.findOne({ where: { team_id: teamId, user_id: req.user.id } });
+        if (!submitterMembership) {
+          throw Object.assign(new Error('No autorizado para registrar entregas de este equipo'), { statusCode: 403 });
+        }
       }
 
       const uploadedFiles = [];
@@ -115,7 +135,7 @@ export class SubmissionsController {
             throw Object.assign(new Error('Archivo excede el tamaño máximo permitido'), { statusCode: 400 });
           }
 
-          const fileName = rawFile.name || `archivo-${index + 1}`;
+          const fileName = normalizeFileName(rawFile.name || `archivo${index + 1}`);
           const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
           let key, url;
@@ -207,7 +227,20 @@ export class SubmissionsController {
 
       let whereClause = { task_id: taskId };
 
-      if (!isReviewer(req)) {
+      if (isReviewer(req)) {
+        const q = req.query.team_id;
+        if (q !== undefined && q !== null && String(q).trim() !== '') {
+          const tid = Number(q);
+          if (!Number.isFinite(tid) || tid <= 0) {
+            return badRequestResponse(res, 'team_id inválido');
+          }
+          const team = await Team.findOne({ where: { id: tid, event_id: task.event_id } });
+          if (!team) {
+            return badRequestResponse(res, 'Equipo no encontrado en este evento');
+          }
+          whereClause = { ...whereClause, team_id: tid };
+        }
+      } else {
         const membership = await findMembership(req.user.id, task.event_id);
         if (!membership) {
           // Participantes sin equipo no deberían ver entregas ajenas,

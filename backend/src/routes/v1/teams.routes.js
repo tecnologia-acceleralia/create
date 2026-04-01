@@ -22,7 +22,7 @@ teamsRouter.get('/my', TeamsController.myTeams);
 
 teamsRouter.delete(
   '/:teamId/members/:userId',
-  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'organizer', 'team_captain'),
   [param('teamId').isInt(), param('userId').isInt()],
   validateRequest,
   TeamsController.removeMember
@@ -30,15 +30,32 @@ teamsRouter.delete(
 
 teamsRouter.post(
   '/:teamId/members',
-  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
-  [param('teamId').isInt(), body('user_id').optional().isInt(), body('user_email').optional().isEmail()],
+  authorizeRolesOrTeamCaptain('tenant_admin', 'organizer', 'team_captain'),
+  [
+    param('teamId').isInt(),
+    body('user_id').optional().isInt(),
+    body('user_email').optional().isEmail(),
+    body('role').optional().isIn(['member', 'evaluator'])
+  ],
   validateRequest,
   TeamsController.addMember
 );
 
 teamsRouter.patch(
+  '/:teamId/members/:userId',
+  authorizeRolesOrTeamCaptain('tenant_admin', 'organizer', 'team_captain'),
+  [
+    param('teamId').isInt(),
+    param('userId').isInt(),
+    body('role').isIn(['member', 'evaluator'])
+  ],
+  validateRequest,
+  TeamsController.updateMemberRole
+);
+
+teamsRouter.patch(
   '/:teamId/captain',
-  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'organizer', 'team_captain'),
   [param('teamId').isInt(), body('user_id').isInt()],
   validateRequest,
   TeamsController.setCaptain
@@ -46,7 +63,7 @@ teamsRouter.patch(
 
 teamsRouter.patch(
   '/:teamId/status',
-  authorizeRolesOrTeamCaptain('tenant_admin', 'team_captain'),
+  authorizeRolesOrTeamCaptain('tenant_admin', 'organizer', 'team_captain'),
   [param('teamId').isInt(), body('status').isIn(['open', 'closed'])],
   validateRequest,
   TeamsController.updateStatus

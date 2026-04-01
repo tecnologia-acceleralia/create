@@ -543,6 +543,8 @@
       "phase": "Fase",
       "task": "Tarea",
       "submitted": "Entregado",
+      "submittedDraft": "Borrador",
+      "submittedFinal": "Final",
       "notSubmitted": "No entregado",
       "viewSubmission": "Ver entrega",
       "noTeams": "No hay equipos registrados",
@@ -550,7 +552,9 @@
       "noTasks": "No hay tareas configuradas",
       "error": "Error al cargar los datos de seguimiento",
       "filterByPhase": "Filtrar por fase",
-      "allPhases": "Todas las fases"
+      "allPhases": "Todas las fases",
+      "viewProjectDetail": "Ver detalle del proyecto",
+      "projectDetailUnavailable": "No hay información de proyecto para este equipo"
     }
   },
   "tracking": {
@@ -617,6 +621,11 @@
     "status": "Estado",
     "captain": "Capitán",
     "member": "Miembro",
+    "evaluator": "Evaluador (equipo)",
+    "memberRoleUpdated": "Rol actualizado",
+    "cannotDemoteCaptainHere": "Asigna otro capitán antes de cambiar el rol del capitán actual.",
+    "removeMemberConfirmTitle": "¿Quitar integrante?",
+    "removeMemberConfirmDescription": "{{name}} dejará de ser miembro de este equipo.",
     "noMembers": "No hay miembros en este equipo",
     "noProject": "Este equipo aún no tiene un proyecto asociado",
     "projectStatus": "Estado",

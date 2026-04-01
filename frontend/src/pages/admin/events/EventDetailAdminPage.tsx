@@ -507,6 +507,14 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
     enabled: Number.isInteger(eventId)
   });
 
+  useEffect(() => {
+    if (selectedTeam == null || teams == null) return;
+    const next = teams.find(t => t.id === selectedTeam.id);
+    if (next) setSelectedTeam(next);
+    // Sincronizar al refrescar la lista de equipos (p. ej. tras gestionar miembros en el modal).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- no incluir selectedTeam: evitar bucle al sustituir la referencia del equipo
+  }, [teams]);
+
   // Funciones de reset
   const resetPhaseForm = () => {
     phaseForm.reset({
@@ -1599,6 +1607,8 @@ function EventDetailAdminView({ eventDetail, eventId }: Readonly<{ eventDetail: 
         open={isTeamDetailsModalOpen}
         onOpenChange={setIsTeamDetailsModalOpen}
         team={selectedTeam}
+        allowMemberManagement
+        eventId={eventId}
         onTeamDeleted={() => {
           void queryClient.invalidateQueries({ queryKey: ['teams', eventId] });
           void queryClient.invalidateQueries({ queryKey: ['events', eventId, 'statistics'] });

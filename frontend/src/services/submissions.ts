@@ -75,8 +75,12 @@ type SubmissionFilePayload = {
   name?: string;
 };
 
-export async function getSubmissions(taskId: number) {
-  const response = await apiClient.get(`/tasks/${taskId}/submissions`);
+export async function getSubmissions(taskId: number, options?: { teamId?: number }) {
+  const params =
+    options?.teamId != null && Number.isFinite(options.teamId)
+      ? { team_id: options.teamId }
+      : undefined;
+  const response = await apiClient.get(`/tasks/${taskId}/submissions`, { params });
   return response.data.data as Submission[];
 }
 

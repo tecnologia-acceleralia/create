@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -34,6 +34,7 @@ import { useAuth } from '@/context/AuthContext';
 import { fileToBase64 } from '@/utils/files';
 import { parseDate } from '@/utils/date';
 import { cn } from '@/utils/cn';
+import { deliverableSubmissionBadgePresentation } from '@/utils/deliverableSubmissionBadge';
 
 const submissionSchema = z.object({
   content: z.string().optional(),
@@ -51,8 +52,10 @@ type EvaluationFormValues = z.infer<typeof evaluationSchema>;
 
 function TaskSubmissionPage() {
   const { eventId, taskId } = useParams();
+  const [searchParams] = useSearchParams();
   const numericTaskId = Number(taskId);
   const numericEventId = Number(eventId);
+  const teamIdQueryRaw = searchParams.get('teamId');
   const { t, i18n } = useTranslation();
   const locale = i18n.language ?? 'es';
   const queryClient = useQueryClient();
@@ -65,6 +68,13 @@ function TaskSubmissionPage() {
   );
   const isReviewer = isSuperAdmin || roleScopes.has('evaluator') || roleScopes.has('organizer') || roleScopes.has('tenant_admin');
 
+  const teamIdFromQueryParsed =
+    teamIdQueryRaw !== null && teamIdQueryRaw !== '' ? Number(teamIdQueryRaw) : NaN;
+  const reviewerScopedTeamId =
+    isReviewer && Number.isInteger(teamIdFromQueryParsed) && teamIdFromQueryParsed > 0
+      ? teamIdFromQueryParsed
+      : null;
+
   const { data: eventDetail, isLoading: eventLoading } = useQuery({
     queryKey: ['event', numericEventId],
     queryFn: () => getEventDetail(numericEventId),
@@ -72,8 +82,12 @@ function TaskSubmissionPage() {
   });
 
   const { data: submissions, isLoading: submissionsLoading } = useQuery({
-    queryKey: ['submissions', numericTaskId],
-    queryFn: () => getSubmissions(numericTaskId),
+    queryKey: ['submissions', numericTaskId, reviewerScopedTeamId],
+    queryFn: () =>
+      getSubmissions(
+        numericTaskId,
+        reviewerScopedTeamId != null ? { teamId: reviewerScopedTeamId } : undefined
+      ),
     enabled: Number.isInteger(numericTaskId)
   });
 
@@ -122,6 +136,7 @@ function TaskSubmissionPage() {
         content: values.content,
         status: values.status,
         type: values.status === 'final' ? 'final' : 'provisional',
+        team_id: reviewerScopedTeamId ?? undefined,
         files: payloadFiles.length ? payloadFiles : undefined
       });
     },
@@ -365,6 +380,11 @@ function TaskSubmissionPage() {
     return { isValid: true, reason: 'valid' as const };
   }, [task, phase]);
 
+  const periodStatusForCard =
+    reviewerScopedTeamId != null
+      ? ({ isValid: true, reason: 'valid' as const })
+      : periodStatus;
+
   if (eventLoading || submissionsLoading || teamsLoading) {
     return <Spinner fullHeight />;
   }
@@ -441,7 +461,7 @@ function TaskSubmissionPage() {
             showActions={false}
             eventId={numericEventId}
             isPhaseZero={isPhaseZero}
-            periodStatus={periodStatus}
+            periodStatus={periodStatusForCard}
           />
         ) : null}
 
@@ -541,12 +561,13 @@ function TaskSubmissionPage() {
                   {submissions?.map(submission => {
                     const submissionEvaluations = evaluations[submission.id] || [];
                     if (submissionEvaluations.length === 0) return null;
-                    
+                    const { badgeClassName } = deliverableSubmissionBadgePresentation(submission.status);
+
                     return (
                       <div key={submission.id} className="space-y-2 rounded-md border border-border/40 p-3">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{safeTranslate(t, 'submissions.submissionDate')}: {new Date(submission.submitted_at).toLocaleString()}</span>
-                          <Badge variant={submission.status === 'final' ? 'success' : 'secondary'} className="text-xs">
+                          <Badge variant="outline" className={cn(badgeClassName, 'text-xs')}>
                             {submission.status === 'final' ? safeTranslate(t, 'submissions.final') : safeTranslate(t, 'submissions.draft')}
                           </Badge>
                         </div>
@@ -604,7 +625,7 @@ function TaskSubmissionPage() {
                 <div className="flex flex-col gap-1 text-sm">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{new Date(submission.submitted_at).toLocaleString()}</span>
-                    <Badge variant={submission.status === 'final' ? 'success' : 'secondary'}>
+                    <Badge variant="outline" className={deliverableSubmissionBadgePresentation(submission.status).badgeClassName}>
                       {submission.status === 'final' ? safeTranslate(t, 'submissions.final') : safeTranslate(t, 'submissions.draft')}
                     </Badge>
                   </div>
